@@ -20,6 +20,12 @@
 #	mapmsg		the message file of the message definitions of a
 #			header (NET\MESSAGES\makefile.inc: netmsg.mc from
 #			lmerr.h, lmsvc.h, alertmsg.h ...)
+#	solidpp		the id preprocessor of Solitaire
+#			(SHELL\GAMES\SOL\makefile.inc: solid.h, sol.s and the
+#			.msg files from the .txt lists), from the SOLIDPP.C
+#			beside that makefile.inc
+#	rcpp		the preprocessor of the resource compiler, which the
+#			same makefile.inc runs on sol.rc; built as mc is
 #
 #  The programs go to T:\NTOS\3MAX\host, which build-lib.sh puts in the PATH.
 
@@ -27,8 +33,8 @@ set -e
 . "$(dirname "$0")/vm.sh"
 ntcopy PRIVATE/SDKTOOLS/GENSRV PRIVATE/SDKTOOLS/HEXTRACT PRIVATE/SDKTOOLS/HSPLIT PRIVATE/SDKTOOLS/WCSHDR \
 	PRIVATE/SDKTOOLS/LISTMUNG PRIVATE/SDKTOOLS/MAPMSG PRIVATE/SDKTOOLS/VCTOOLS/MC PUBLIC/SDK/INC \
-	PUBLIC/SDK/LIB/MIPS
-mkdir -p "$SHARE/host" "$SHARE/build"
+	PUBLIC/SDK/LIB/MIPS PRIVATE/WINDOWS/SHELL/GAMES/SOL PRIVATE/SDKTOOLS/RCPP
+mkdir -p "$SHARE/host/rcpp" "$SHARE/build"
 {
 	cat <<-'EOF'
 	@echo off
@@ -44,6 +50,7 @@ mkdir -p "$SHARE/host" "$SHARE/build"
 	cl -nologo -O2 -D_OS2_20_=0 -Dnear= -Dfar= -Dpascal= %NT%\PRIVATE\SDKTOOLS\WCSHDR\wcshdr.c -Fewcshdr.exe > wcshdr.log 2>&1
 	cl -nologo -O2 -DMIPS=1 -D_MIPS_=1 -D_CRTAPI1=__cdecl %NT%\PRIVATE\SDKTOOLS\LISTMUNG\listmung.c -Felistmung.exe > listmung.log 2>&1
 	cl -nologo -O2 -D_CRTAPI1=__cdecl %NT%\PRIVATE\SDKTOOLS\MAPMSG\mapmsg.c -Femapmsg.exe > mapmsg.log 2>&1
+	cl -nologo -O2 %NT%\PRIVATE\WINDOWS\SHELL\GAMES\SOL\solidpp.c -Fesolidpp.exe > solidpp.log 2>&1
 	set PATH=%TOP%\C900\BIN;C:\MSDEV\BIN;C:\WINNT\system32
 	set INCLUDE=%NT%\PUBLIC\SDK\INC\CRT;%NT%\PUBLIC\SDK\INC
 	set LIB=%NT%\PUBLIC\SDK\LIB\MIPS
@@ -52,17 +59,23 @@ mkdir -p "$SHARE/host" "$SHARE/build"
 	for %%f in (mc mclex mcparse mcout mcutil) do cl -nologo -c -Ox -I. -DMIPS=1 -D_MIPS_=1 -DWIN32=100 -DCONDITION_HANDLING=1 -DNT_UP=1 -DDBG=0 -DDEVL=1 -Fo%TOP%\host\%%f.obj %%f.c >> %TOP%\host\mc.log 2>&1
 	cd /d %TOP%\host
 	link -nologo -machine:mips -subsystem:console -entry:mainCRTStartup -out:mc.exe mc.obj mclex.obj mcparse.obj mcout.obj mcutil.obj mc.res libc.lib kernel32.lib user32.lib >> mc.log 2>&1
+	cd /d %NT%\PRIVATE\SDKTOOLS\RCPP
+	rc -r -fo%TOP%\host\rcpp\rcpp.res rcpp.rc > %TOP%\host\rcpp.log 2>&1
+	for %%f in (charmap error getflags getmsg globals ltoa rcpp p0expr p0gettok p0io p0keys p0macros p0prepro p1sup rcpputil scanner tokens rcunicod) do cl -nologo -c -Ox -I. -I%NT%\PUBLIC\SDK\INC\OS2 -DMIPS=1 -D_MIPS_=1 -DWIN32=100 -DCONDITION_HANDLING=1 -DNT_UP=1 -DDBG=0 -DDEVL=1 -Fo%TOP%\host\rcpp\%%f.obj %%f.c >> %TOP%\host\rcpp.log 2>&1
+	cd /d %TOP%\host
+	link -nologo -machine:mips -subsystem:console -entry:mainCRTStartup -out:rcpp.exe rcpp\*.obj rcpp\rcpp.res libc.lib kernel32.lib >> rcpp.log 2>&1
 	EOF
 } | sed 's/$/\r/' > "$SHARE/build/tools.cmd"
-rm -f "$SHARE/host/gensrv.exe" "$SHARE/host/hextract.exe" "$SHARE/host/hsplit.exe" \
-	"$SHARE/host/wcshdr.exe" "$SHARE/host/listmung.exe" "$SHARE/host/mapmsg.exe" "$SHARE/host/mc.exe"
+tools="gensrv hextract hsplit wcshdr listmung mapmsg solidpp mc rcpp"
+for t in $tools; do rm -f "$SHARE/host/$t.exe"; done
 vmrun 'T:\NTOS\3MAX\build\tools.cmd'
-for t in gensrv hextract hsplit wcshdr listmung mapmsg mc; do
-	tr -d '\r' < "$SHARE/host/$t.log" | grep -i 'error\|warning' || true
+for t in $tools; do
+	# (the messages, not a source such as error.c, which cl prints first)
+	tr -d '\r' < "$SHARE/host/$t.log" | grep -iE '(error|warning)[ :]' || true
 done
 # (the share shows a new file here a few seconds after the machine wrote it)
-for f in gensrv hextract hsplit wcshdr listmung mapmsg mc; do
+for f in $tools; do
 	for i in 1 2 3 4 5 6 7 8 9 10; do [ ! -f "$SHARE/host/$f.exe" ] || break; sleep 1; done
 	[ -f "$SHARE/host/$f.exe" ] || { echo "build-tools: no $f.exe"; exit 1; }
 done
-echo "build-tools: gensrv.exe, hextract.exe, hsplit.exe, wcshdr.exe, listmung.exe, mapmsg.exe, mc.exe"
+echo "build-tools: $(for t in $tools; do printf '%s.exe ' $t; done)"

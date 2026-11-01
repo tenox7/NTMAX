@@ -16,7 +16,8 @@ the mouse.
   `winlogon.cmd` in a cmd console, then the logon) ends at the logon dialog
   and Program Manager.
 - The LK201 keyboard and the VSXXX mouse work, Ctrl+Alt+Del too.
-- Not yet: networking, most applications.
+- File Manager, Notepad, Calculator, Clock, Solitaire and Minesweeper run.
+- Not yet: networking, the other applications.
 - Not part of the port: the Spooler (printing) and RAS. The hive has no
   Spooler service.
 
@@ -145,6 +146,8 @@ that `build-image.sh` builds them from:
 | progman, cmd, control + main.cpl, t1instal | `PRIVATE/WINDOWS/SHELL/PROGMAN`, `PRIVATE/WINDOWS/CMD`, `SHELL/CONTROL/CPANEL`, `CONTROL/MAIN`, `CONTROL/T1INSTAL` |
 | shell32, comdlg32, mpr, lz32, version, winspool.drv | `PRIVATE/WINDOWS/SHELL/LIBRARY`, `SHELL/COMDLG`, `PRIVATE/WINDOWS/MPR`, `SHELL/LZ/LZEXPAND`, `SHELL/VERSION`, `SPOOLER/SPOOLSS/CLIENT` |
 | setupdll | `PRIVATE/WINDOWS/SETUP/SETUPDLL` |
+| comctl32, winfile | `PRIVATE/WINDOWS/SHELL/MSCTLS`, `SHELL/WINFILE` |
+| notepad, calc, clock, sol, winmine | `PRIVATE/WINDOWS/SHELL/ACCESORY/NOTEPAD`, `ACCESORY/CALC`, `ACCESORY/CLOCK`, `SHELL/GAMES/SOL`, `PRIVATE/WINDOWS/EP/WINMINE` |
 | ini, ech, adduser, shutdown, sleep | `PRIVATE/SDKTOOLS/INI`, `ECH`, `ADDUSER`, `SHUTDOWN`, `SLEEP` |
 
 Every object and image goes through `tools/r3kcheck.pl`: the compiler in

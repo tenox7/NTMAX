@@ -49,6 +49,11 @@ ntdiff() {
 }
 ntdiff || exit 1
 
+# The compiler of the NT code, the tree's C900, is T:\NTOS\3MAX\C900 for
+# the .cmd files.
+[ -f "$SHARE/C900/BIN/CL.EXE" ] ||
+	rsync -a --inplace --exclude=README.TXT "$nt35/PRIVATE/SDKTOOLS/C900/" "$SHARE/C900/"
+
 # (under dbgrun -a, once build-dbgrun.sh has built it: a program of the
 # command line that faults is reported and ends the command, without an
 # error box on the machine's screen)
