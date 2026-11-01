@@ -104,9 +104,12 @@ NTMAX/
 ## Build
 
 Each script builds one thing; libraries come before the images that link
-them.
+them. `build-all.sh` runs them all in that order, from the tools to the
+system disk: `-n` lists its steps, and after a failure `build-all.sh N`
+goes on from step N.
 
 ```sh
+build/build-all.sh [-n] [N]       # all of the below but gxemul (KEEP=1 as make-disk.sh)
 build/build-gxemul.sh             # gxemul
 build/build-dbgrun.sh             # dbgrun.exe on the MIPS machine
 build/build-tools.sh              # the tree's tools the build runs (gensrv, mc, ...)
