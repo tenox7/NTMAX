@@ -181,8 +181,8 @@ At the ROM's `>>` prompt, `boot 5/rz0` starts the firmware;
 `boot 5/rz0/osloader` starts that boot selection at once. With gxemul's own
 PROM, `GXEMUL_OPTS="-X -j osloader"` does the same.
 
-The keyboard is an LK201, which has no Esc key: the Esc key of the Mac
-is the LK201's F11, which is Esc on an LK201.
+The keyboard is an LK201, which has no Esc key: in NT, F11 is Esc, as on
+an LK201 (the Esc key of the Mac types Ctrl+[).
 
 The 5000/200's ROM sets the clock's year to 72 when it is not 72 or 73, so
 the HAL and the firmware keep the year in byte 63 of the clock's RAM, as
