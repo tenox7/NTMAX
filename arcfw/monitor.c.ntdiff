@@ -1,0 +1,18 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/MONITOR.C PRIVATE/NTOS/FW/MIPS/SELFTEST.C
+=1 1 426
++        return FALSE;
+=1 428 331
++#if defined(DECSTATION)
++    RtlZeroMemory((PVOID)Start,End-Start);
++#else
+=1 759 1
++#endif
+=1 760 489
++#if !defined(DECSTATION)
++
++    //
++    // The R3000 of the DECstation has no cache error exception.
++    //
+=1 1248 37
+=2 296 3
+=1 1287 213

@@ -1,0 +1,11 @@
+#ntdiff PRIVATE/NTOS/EX/MIPS/SOURCES
+#crlf
+=1 1 3
++!IFNDEF MIPS_R3000
++MIPS_CPU_PREFIX=x4
++!ELSE
++MIPS_CPU_PREFIX=x3
++!ENDIF
+=1 3 5
++             ..\mips\$(MIPS_CPU_PREFIX)intrlk.s \
+=1 9 3

@@ -1,0 +1,335 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALDTI/MIPS/J4CACHE.S
+#crlf
++//      TITLE("R3000 Cache Routines")
++//++
+=1 7 3
++//    x3cache.s
+=1 11 3
++//    This module implements the cache routines of the HAL for the MIPS
++//    R3000 of the DECstation 5000/200. The R3000 has a write-through data
++//    cache and an instruction cache, both direct mapped with one word lines
++//    and indexed by the physical address. A line is invalidated by a
++//    partial word store with the data cache isolated; with the caches
++//    swapped as well, the store invalidates the instruction cache line
++//    instead. Code that isolates or swaps the caches runs uncached.
++//
++//    The caches have no virtual color, so the color arguments only supply
++//    the offset of a region in its page.
+=1 20 5
+=1 27 3
++
++//
++// Define the size of a cache line.
++//
++
++#define R3000_CACHE_LINE_SIZE 4
++
+=1 40 13
++//    do not match. The caches of the R3000 are indexed by the physical
++//    address, so a page has no color to change.
+=1 62 18
++        LEAF_ENTRY(HalChangeColorPage)
+=1 232 3
+=1 123 1
++
+=1 125 12
++//    This function flushes (invalidates) up to a page of data from the data
++//    cache. The data cache is write-through, so memory holds the data and
++//    flushing a line invalidates it.
+=1 139 20
++        li      a3,(1 << PSR_ISC)       // isolate data cache
++        b       HalpPurgeCachePage      // invalidate cache lines
+=1 250 2
++
+=1 253 12
++//    This function purges (invalidates) up to a page of data from the data
++//    cache.
+=1 267 20
++        li      a3,(1 << PSR_ISC)       // isolate data cache
++        b       HalpPurgeCachePage      // invalidate cache lines
+=1 378 2
++
+=1 381 12
++//    This function purges (invalidates) up to a page of data from the
+=1 394 21
++        li      a3,(1 << PSR_ISC) | (1 << PSR_SWC) // isolate and swap caches
++        b       HalpPurgeCachePage      // invalidate cache lines
+=1 506 2
++
++        SBTTL("Purge Cache Page")
++//++
+=1 49 3
++//    This routine invalidates the cache lines of up to a page of memory.
++//    The caches are indexed by the physical address, so the lines are
++//    addressed through KSEG0 with the physical address of the region.
+=1 62 3
++//    a0 - Supplies the starting virtual address of the region.
++//
++//    a1 - Supplies the page frame number of the page.
++//
++//    a2 - Supplies the length of the region.
++//
++//    a3 - Supplies the processor status cache bits to set.
+=1 73 7
++        LEAF_ENTRY(HalpPurgeCachePage)
++
++        and     t0,a0,PAGE_SIZE - 1     // isolate offset in page
++        addu    t1,t0,a2                // compute ending offset
++        addu    t1,t1,R3000_CACHE_LINE_SIZE - 1 // round up to next line
++        and     t1,t1,~(R3000_CACHE_LINE_SIZE - 1) //
++        and     t0,t0,~(R3000_CACHE_LINE_SIZE - 1) // truncate offset to line
++        sll     t2,a1,PAGE_SHIFT        // compute physical address of page
++        li      t3,KSEG0_BASE           // compute KSEG0 address of page
++        or      t2,t2,t3                //
++        addu    a0,t2,t0                // set starting address
++        addu    a1,t2,t1                // set ending address
++        move    a2,a3                   // set cache bits
++        li      a3,1                    // set number of cache pages
++        b       HalpPurgeCacheLines     // invalidate cache lines
++
++        .end    HalpPurgeCachePage
++
+=1 509 10
++//    This function sweeps (invalidates) the entire data cache. The data
++//    cache is write-through, so memory holds all data and no line is
++//    written back.
+=1 520 13
++        lw      a0,KiPcr + PcFirstLevelDcacheSize(zero) // get data cache size
++        li      a1,(1 << PSR_ISC)       // isolate data cache
++        b       HalpInvalidateCache     // invalidate cache
++
++        .end    HalSweepDcache
++
+=1 583 11
++//    This function sweeps (invalidates) the specified range of virtual
++//    addresses from the data cache.
+=1 62 3
++//    BaseAddress (a0) - Supplies a pointer to the base of the range that is
++//       swept.
++//
++//    Length (a1) - Supplies the length of the range that is swept for the
++//       data cache.
+=1 604 9
+=1 542 1
++        li      a2,(1 << PSR_ISC)       // isolate data cache
++        b       HalpSweepCacheRange     // invalidate cache lines
+=1 641 2
++
+=1 644 10
++//    This function sweeps (invalidates) the entire instruction cache.
+=1 655 13
++        lw      a0,KiPcr + PcFirstLevelIcacheSize(zero) // get instruction cache size
++        li      a1,(1 << PSR_ISC) | (1 << PSR_SWC) // isolate and swap caches
++        b       HalpInvalidateCache     // invalidate cache
++
++        .end    HalSweepIcache
++
+=1 718 11
++//    This function sweeps (invalidates) the specified range of virtual
++//    addresses from the instruction cache.
+=1 62 3
++//    BaseAddress (a0) - Supplies a pointer to the base of the range that is
++//       swept.
++//
++//    Length (a1) - Supplies the length of the range that is swept for the
++//       instruction cache.
+=1 739 9
++        lw      t0,KiPcr + PcFirstLevelIcacheSize(zero) // get instruction cache size
++        li      a2,(1 << PSR_ISC) | (1 << PSR_SWC) // isolate and swap caches
++        b       HalpSweepCacheRange     // invalidate cache lines
+=1 776 2
++
++        SBTTL("Sweep Cache Range")
++//++
+=1 49 3
++//    This routine invalidates the cache lines of a range of virtual
++//    addresses.
++//
++//    The physical address of an address of KSEG0 or KSEG1 is the low bits
++//    of the address, and the lines of the range are invalidated. The cache
++//    index of a mapped address is not known: the offset of the address in
++//    its page is the low bits of the index, and the lines of the range are
++//    invalidated in every page of the cache. If the range is as large as
++//    the cache, or a mapped range is as large as a page, then the entire
++//    cache is invalidated.
+=1 62 3
++//    a0 - Supplies the base address of the range.
++//
++//    a1 - Supplies the length of the range.
++//
++//    a2 - Supplies the processor status cache bits to set.
++//
++//    t0 - Supplies the size of the cache.
+=1 73 7
++        LEAF_ENTRY(HalpSweepCacheRange)
++
++        sltu    t1,a1,t0                // check if range smaller than cache
++        beq     zero,t1,20f             // if eq, range not smaller than cache
++        srl     t1,a0,30                // isolate address segment
++        xor     t1,t1,2                 // check for KSEG0 or KSEG1 address
++        bne     zero,t1,10f             // if ne, mapped address
++        li      t1,0x1fffffff           // isolate physical address
++        and     t2,a0,t1                //
++        li      a3,1                    // set number of cache pages
++        b       30f                     //
++
++10:     sltu    t1,a1,PAGE_SIZE         // check if range smaller than page
++        beq     zero,t1,20f             // if eq, range not smaller than page
++        and     t2,a0,PAGE_SIZE - 1     // isolate offset in page
++        srl     a3,t0,PAGE_SHIFT        // set number of cache pages
++        b       30f                     //
++
++20:     move    a0,t0                   // set size of cache
++        move    a1,a2                   // set cache bits
++        b       HalpInvalidateCache     // invalidate cache
++
++30:     addu    t1,t2,a1                // compute ending address
++        addu    t1,t1,R3000_CACHE_LINE_SIZE - 1 // round up to next line
++        and     t1,t1,~(R3000_CACHE_LINE_SIZE - 1) //
++        and     t2,t2,~(R3000_CACHE_LINE_SIZE - 1) // truncate address to line
++        li      t3,KSEG0_BASE           // compute KSEG0 addresses
++        or      a0,t2,t3                //
++        or      a1,t1,t3                //
++        b       HalpPurgeCacheLines     // invalidate cache lines
++
++        .end    HalpSweepCacheRange
++
++        SBTTL("Purge Cache Lines")
++//++
+=1 49 3
++//    This routine invalidates the cache lines of a range of KSEG0 addresses
++//    in one or more consecutive pages of a cache. It continues uncached,
++//    sets the cache isolation bits given in a2 with interrupts disabled,
++//    stores a byte into every word of the range, and restores the processor
++//    status.
+=1 62 3
++//    a0 - Supplies the starting KSEG0 address of the lines.
++//
++//    a1 - Supplies the ending KSEG0 address of the lines.
++//
++//    a2 - Supplies the processor status cache bits to set.
++//
++//    a3 - Supplies the number of cache pages in which the lines are
++//       invalidated, the range advancing by a page for each.
+=1 73 7
++        LEAF_ENTRY(HalpPurgeCacheLines)
+=1 167 3
++        sltu    t0,a0,a1                // check for lines to purge
++        beq     zero,t0,50f             // if eq, no lines to purge
++        nop                             //
++        la      t0,10f                  // continue uncached
++        li      t1,KSEG1_BASE           //
++        or      t0,t0,t1                //
++        j       t0                      //
++        nop                             //
++10:     mfc0    t2,psr                  // get processor status
++        nop                             //
++        li      t1,~(1 << PSR_IEC)      // clear current interrupt enable
++        and     t1,t2,t1                //
++        or      t1,t1,a2                // set cache bits
++        mtc0    t1,psr                  // isolate cache
++        nop                             // wait for cache isolation
++        nop                             //
++        nop                             //
++        nop                             //
++20:     move    t3,a0                   // set starting address of lines
++30:     sb      zero,0(t3)              // invalidate cache line
++        addu    t3,t3,R3000_CACHE_LINE_SIZE // advance address
++        sltu    t1,t3,a1                // check for end of lines
++        bne     t1,zero,30b             // if ne, more lines
++        nop                             //
++        addu    a0,a0,PAGE_SIZE         // advance to next cache page
++        subu    a3,a3,1                 // decrement number of cache pages
++        bne     a3,zero,20b             // if ne, more cache pages
++        addu    a1,a1,PAGE_SIZE         //
++        nop                             // wait for stores to complete
++        nop                             //
++        nop                             //
++        mtc0    t2,psr                  // restore processor status
++        nop                             // wait for caches to return
++        nop                             //
++        nop                             //
++50:     j       ra                      // return
++        nop                             //
+=1 187 3
++        .end    HalpPurgeCacheLines
++
++        SBTTL("Invalidate Cache")
++//++
+=1 49 3
++//    This routine invalidates every line of a cache. It continues uncached,
++//    sets the cache isolation bits given in a1 with interrupts disabled,
++//    stores a byte into every word of the cache, and restores the processor
++//    status.
+=1 62 3
++//    a0 - Supplies the size of the cache.
++//
++//    a1 - Supplies the processor status cache bits to set.
+=1 73 7
++        LEAF_ENTRY(HalpInvalidateCache)
+=1 167 3
++        la      t0,10f                  // continue uncached
++        li      t1,KSEG1_BASE           //
++        or      t0,t0,t1                //
++        j       t0                      //
++        nop                             //
++10:     mfc0    t2,psr                  // get processor status
++        nop                             //
++        li      t1,~(1 << PSR_IEC)      // clear current interrupt enable
++        and     t1,t2,t1                //
++        or      t1,t1,a1                // set cache bits
++        mtc0    t1,psr                  // isolate cache
++        nop                             // wait for cache isolation
++        nop                             //
++        nop                             //
++        nop                             //
++        li      t0,KSEG0_BASE           // set starting address
++        addu    t3,t0,a0                // set ending address
++20:     sb      zero,0(t0)              // invalidate cache lines
++        sb      zero,4(t0)              //
++        sb      zero,8(t0)              //
++        sb      zero,12(t0)             //
++        sb      zero,16(t0)             //
++        sb      zero,20(t0)             //
++        sb      zero,24(t0)             //
++        addu    t0,t0,32                // advance address
++        sltu    t1,t0,t3                // check for end of cache
++        bne     t1,zero,20b             // if ne, more lines
++        sb      zero,-4(t0)             //
++        nop                             // wait for stores to complete
++        nop                             //
++        nop                             //
++        mtc0    t2,psr                  // restore processor status
++        nop                             // wait for caches to return
++        nop                             //
++        nop                             //
++        j       ra                      // return
++        nop                             //
+=1 187 3
++        .end    HalpInvalidateCache
++
+=1 779 12
++//    This function zeros a page of memory. The page is addressed through
++//    KSEG0: the data cache is write-through and a word store writes the
++//    cache line, so the cache holds the zeros of the page as memory does.
+=1 807 18
++        LEAF_ENTRY(HalZeroPage)
++
++        sll     t0,a2,PAGE_SHIFT        // compute physical address of page
++        li      t1,KSEG0_BASE           // compute KSEG0 address of page
++        or      t0,t0,t1                //
++        addu    t1,t0,PAGE_SIZE         // compute ending address
++
++        .set    noreorder
++10:     sw      zero,0(t0)              // zero 32 bytes
++        sw      zero,4(t0)              //
++        sw      zero,8(t0)              //
++        sw      zero,12(t0)             //
++        sw      zero,16(t0)             //
++        sw      zero,20(t0)             //
++        sw      zero,24(t0)             //
++        addu    t0,t0,32                // advance address
++        bne     t0,t1,10b               // if ne, more to zero
++        sw      zero,-4(t0)             //
+=1 638 4
++        .end    HalZeroPage

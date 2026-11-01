@@ -1,0 +1,42 @@
+#ntdiff PRIVATE/CRT32/MISC/MIPS/SETJMPEX.S
+=1 1 86
++#if defined(R3000)
++
++        swc1    f20,JbFltF20(a0)        // save floating registers f20 - f31
++        swc1    f21,JbFltF21(a0)        //
++        swc1    f22,JbFltF22(a0)        //
++        swc1    f23,JbFltF23(a0)        //
++        swc1    f24,JbFltF24(a0)        //
++        swc1    f25,JbFltF25(a0)        //
++        swc1    f26,JbFltF26(a0)        //
++        swc1    f27,JbFltF27(a0)        //
++        swc1    f28,JbFltF28(a0)        //
++        swc1    f29,JbFltF29(a0)        //
++        swc1    f30,JbFltF30(a0)        //
++        swc1    f31,JbFltF31(a0)        //
++
++#else
+=1 86 7
++
++#endif
+=1 93 14
++#if defined(R3000)
++
++        swc1    f20,CxFltF20 + 16(sp)   // save floating registers f20 - f31
++        swc1    f21,CxFltF21 + 16(sp)   //
++        swc1    f22,CxFltF22 + 16(sp)   //
++        swc1    f23,CxFltF23 + 16(sp)   //
++        swc1    f24,CxFltF24 + 16(sp)   //
++        swc1    f25,CxFltF25 + 16(sp)   //
++        swc1    f26,CxFltF26 + 16(sp)   //
++        swc1    f27,CxFltF27 + 16(sp)   //
++        swc1    f28,CxFltF28 + 16(sp)   //
++        swc1    f29,CxFltF29 + 16(sp)   //
++        swc1    f30,CxFltF30 + 16(sp)   //
++        swc1    f31,CxFltF31 + 16(sp)   //
++
++#else
+=1 106 7
++
++#endif
+=1 113 44

@@ -1,0 +1,39 @@
+#ntdiff PRIVATE/WINDOWS/USER/SERVER/MIPS/APIDISP.S PRIVATE/NTOS/DLL/MIPS/CRITSECT.S
+#crlf
+=1 1 23
++//    The R3000 port: the interlocked operations of the critical section
++//    with the interlocked helpers of ntdll.
+=1 23 59
+=2 70 3
+=1 82 6
++#else
++
++        sw      a0,AdA0(sp)             // save address of API message
+=1 162 1
++        addu    a0,t0,CsLockCount       // compute lock count address
+=2 83 1
+=1 166 1
++        lw      a1,AdA1(sp)             // restore API index value
+=1 81 1
+=2 85 4
+=1 89 45
++#if defined(R4000)
+=1 133 6
+=2 78 3
+=1 262 1
++        addu    a0,t0,CsLockCount       // compute lock count address
+=2 228 1
++        move    t1,v0                   // set updated value
+=1 194 1
+=1 81 1
+=1 102 3
+=1 139 40
+=2 70 3
+=1 179 4
+=2 78 3
+=1 262 1
++        addu    a0,t0,CsLockCount       // compute lock count address
+=2 228 1
+=1 194 1
+=1 102 3
+=1 183 140

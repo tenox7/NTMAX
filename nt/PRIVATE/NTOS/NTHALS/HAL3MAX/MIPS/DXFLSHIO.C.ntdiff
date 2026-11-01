@@ -1,0 +1,51 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALACR/MIPS/J4FLSHIO.C PRIVATE/NTOS/NTHALS/HALDTI/MIPS/J4FLSHIO.C
+#crlf
+=1 1 6
++    dxflshio.c
+=1 8 5
++    the data cache for I/O transfers on a DECstation 5000/200 (KN02, MIPS
++    R3000) system.
+=1 14 14
+=2 31 37
+=1 66 4
++    // The R3000 uses a write through data cache. The data of a write is in
++    // memory once the write buffer is empty, so a write only needs the write
++    // buffer flushed if it is a DMA operation.
++    //
++
+=1 135 1 -8
+=1 143 1 -8
++            KeFlushWriteBuffer();
+=1 177 4 4
++
++    //
++    // A DMA read needs the data cache purged, and a page read needs the
++    // instruction cache purged.
+=1 72 2
++    // data cache, then sweep the entire cache. Otherwise, purge individual
++    // pages from the cache as appropriate.
+=1 76 10
++        // If the I/O operation is a DMA operation, then sweep (invalidate)
++        // the entire data cache.
+=1 141 3 -8
+=1 95 4
++        // If the I/O operation is a page read, then sweep (invalidate) the
++        // entire instruction cache.
+=1 165 3 -8
+=1 105 6
++        // Purge the specified pages from the data and instruction caches as
++        // appropriate.
++        //
++        // Compute the number of pages to purge and the starting MDL page
+=1 115 8
++        // Purge the specified page segments from the data and instruction
++        // caches as appropriate.
+=1 125 10
++            //
++            // If the I/O operation is a DMA operation, then purge the data
++            // cache.
+=1 153 4 -4
+=1 160 10 -4
+=1 171 10
++
+=1 182 26

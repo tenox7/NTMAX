@@ -1,0 +1,306 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/J4CACHE.S PRIVATE/NTOS/NTHALS/HALACR/MIPS/J4CACHE.S PRIVATE/NTOS/FW/MIPS/IOACCESS.S
++//      TITLE("R3000 Cache Routines")
++//++
+=1 5 3
++//    d3cache.s
+=1 9 3
++//    This module implements the cache routines of the firmware for the MIPS
++//    R3000 of the DECstation 5000/200.  The R3000 has a write-through data
++//    cache and an instruction cache, both direct mapped with one word lines
++//    and indexed by the physical address.  A line is invalidated by a
++//    partial word store with the data cache isolated; with the caches
++//    swapped as well, the store invalidates the instruction cache line
++//    instead.  Code that isolates or swaps the caches runs uncached.
+=1 18 5
++//--
++
++#include "ksmips.h"
++#include "decfw.h"
++
++//
++// Define the cache sizes used by the sweep routines.  They are the largest
++// R3000 cache size until the caches are sized.
++//
++
++        .data
++        .globl  HalpIcacheSize
++HalpIcacheSize:
++        .word   R3000_MAXIMUM_CACHE_SIZE
++        .globl  HalpDcacheSize
++HalpDcacheSize:
++        .word   R3000_MAXIMUM_CACHE_SIZE
++
++        .text
++
+=1 38 12
++//    This function exports up to a page of data from the data cache.  The
++//    data cache is write-through, so memory holds the data already.
+=1 52 20
+=1 154 3
++
+=1 158 12
++//    This function flushes up to a page of data from the data cache.  The
++//    data cache is write-through, so flushing a line invalidates it.
+=1 172 20
++        li      a3,(1 << PSR_ISC)       // isolate data cache
++        b       HalpPurgeCachePage      // invalidate cache lines
+=1 274 2
++
+=1 277 12
++//    This function purges (invalidates) up to a page of data from the data
++//    cache.
+=1 291 20
++        li      a3,(1 << PSR_ISC)       // isolate data cache
++        b       HalpPurgeCachePage      // invalidate cache lines
+=1 393 2
++
+=1 396 12
++//    This function purges (invalidates) up to a page of data from the
+=1 409 21
++        li      a3,(1 << PSR_ISC) | (1 << PSR_SWC) // isolate and swap caches
++        b       HalpPurgeCachePage      // invalidate cache lines
+=1 512 2
++
++        SBTTL("Purge Cache Page")
++//++
+=1 47 3
++//    This routine invalidates the cache lines of up to a page of memory.
++//    The caches are indexed by the physical address, so the lines are
++//    addressed through KSEG0 with the physical address of the region.  The
++//    routine continues uncached, sets the cache isolation bits given in a3
++//    with interrupts disabled, stores a byte into every word of the region,
++//    and restores the processor status.
+=1 52 3
++//    a0 - Supplies the starting virtual address of the region.
++//
++//    a1 - Supplies the page frame number of the page.
++//
++//    a2 - Supplies the length of the region.
++//
++//    a3 - Supplies the processor status cache bits to set.
+=1 63 7
++        LEAF_ENTRY(HalpPurgeCachePage)
+=1 71 3
++        and     t0,a0,PAGE_SIZE - 1     // isolate offset in page
++        addu    t4,t0,a2                // compute ending offset
++        addu    t4,t4,R3000_CACHE_LINE_SIZE - 1 // round up to next line
++        li      t1,~(R3000_CACHE_LINE_SIZE - 1) //
++        and     t4,t4,t1                //
++        and     t3,t0,t1                // truncate starting offset to line
++        sltu    t1,t3,t4                // check for lines to purge
++        beq     zero,t1,30f             // if eq, no lines to purge
++        sll     t1,a1,PAGE_SHIFT        // compute physical address of page
++        li      t0,KSEG0_BASE           // compute KSEG0 address of page
++        or      t1,t1,t0                //
++        addu    t3,t3,t1                // compute starting address
++        addu    t4,t4,t1                // compute ending address
++        la      t0,10f                  // continue uncached
++        li      t1,KSEG1_BASE           //
++        or      t0,t0,t1                //
++        j       t0                      //
++        nop                             //
++10:     mfc0    t2,psr                  // get processor status
++        nop                             //
++        li      t1,~(1 << PSR_IEC)      // clear current interrupt enable
++        and     t1,t2,t1                //
++        or      t1,t1,a3                // set cache bits
++        mtc0    t1,psr                  // isolate cache
++        nop                             // wait for cache isolation
+=3 110 3
++20:     sb      zero,0(t3)              // invalidate cache line
++        addu    t3,t3,R3000_CACHE_LINE_SIZE // advance address
++        sltu    t1,t3,t4                // check for end of region
++        bne     t1,zero,20b             // if ne, more lines
++        nop                             //
++        nop                             // wait for stores to complete
++        nop                             //
++        nop                             //
++        mtc0    t2,psr                  // restore processor status
++        nop                             // wait for caches to return
++        nop                             //
++        nop                             //
++30:     j       ra                      // return
++        nop                             //
+=1 91 3
++        .end    HalpPurgeCachePage
++
+=1 606 10
++//    This routine invalidates the entire instruction cache.
+=1 617 13
++        lw      a0,HalpIcacheSize       // get size of instruction cache
++        li      a1,(1 << PSR_ISC) | (1 << PSR_SWC) // isolate and swap caches
++        b       HalpInvalidateCache     // invalidate cache
++
++        .end    HalSweepIcache
++
+=1 515 10
++//    This routine invalidates the entire data cache.  The data cache is
++//    write-through, so memory holds all data and no line is written back.
+=1 526 13
++        lw      a0,HalpDcacheSize       // get size of data cache
++        li      a1,(1 << PSR_ISC)       // isolate data cache
++        b       HalpInvalidateCache     // invalidate cache
+=1 602 3
++        SBTTL("Invalidate Cache")
++//++
+=1 47 3
++//    This routine invalidates every line of a cache.  It continues uncached,
++//    sets the cache isolation bits given in a1 with interrupts disabled,
++//    stores a byte into every word of the cache, and restores the processor
++//    status.
+=1 52 3
++//    a0 - Supplies the size of the cache.
++//
++//    a1 - Supplies the processor status cache bits to set.
+=1 63 7
++        LEAF_ENTRY(HalpInvalidateCache)
+=1 71 3
++        la      t0,10f                  // continue uncached
++        li      t1,KSEG1_BASE           //
++        or      t0,t0,t1                //
++        j       t0                      //
++        nop                             //
++10:     mfc0    t2,psr                  // get processor status
++        nop                             //
++        li      t1,~(1 << PSR_IEC)      // clear current interrupt enable
++        and     t1,t2,t1                //
++        or      t1,t1,a1                // set cache bits
++        mtc0    t1,psr                  // isolate cache
++        nop                             // wait for cache isolation
+=3 110 3
++        li      t0,KSEG0_BASE           // set starting address
++        addu    t3,t0,a0                // set ending address
++20:     sb      zero,0(t0)              // invalidate cache lines
++        sb      zero,4(t0)              //
++        sb      zero,8(t0)              //
++        sb      zero,12(t0)             //
++        sb      zero,16(t0)             //
++        sb      zero,20(t0)             //
++        sb      zero,24(t0)             //
++        addu    t0,t0,32                // advance address
++        sltu    t1,t0,t3                // check for end of cache
++        bne     t1,zero,20b             // if ne, more lines
++        sb      zero,-4(t0)             //
++        nop                             // wait for stores to complete
++        nop                             //
++        nop                             //
++        mtc0    t2,psr                  // restore processor status
++        nop                             // wait for caches to return
++        nop                             //
++        nop                             //
++        j       ra                      // return
++        nop                             //
+=1 91 3
++        .end    HalpInvalidateCache
++
++        SBTTL("Size Caches")
+=1 39 3
++// HalpSizeCaches (
++//    OUT PULONG IcacheSize,
++//    OUT PULONG DcacheSize
+=1 46 4
++//    This routine sizes the instruction and data caches, saves their sizes
++//    for the sweep routines, and invalidates both caches.
++//
++//    With a cache isolated, stores and loads use the cache alone.  The
++//    routine clears the word at index 0, then stores each power of two from
++//    the largest cache size down to the smallest at that offset from
++//    KSEG0_BASE.  An offset that is a multiple of the cache size lands on
++//    index 0, and the smallest such offset, the cache size, is stored there
++//    last.
+=1 52 3
++//    a0 - Supplies a pointer to a variable that receives the instruction
++//        cache size.
++//
++//    a1 - Supplies a pointer to a variable that receives the data cache
++//        size.
+=1 63 7
++        NESTED_ENTRY(HalpSizeCaches, 0x20, zero)
++
++        subu    sp,sp,0x20              // allocate stack frame
++        sw      ra,0x14(sp)             // save return address
++        sw      a0,0x18(sp)             // save arguments
++        sw      a1,0x1c(sp)             //
+=2 93 3
+=1 72 2
++        la      t0,10f                  // continue uncached
++        li      t1,KSEG1_BASE           //
++        or      t0,t0,t1                //
++        j       t0                      //
++        nop                             //
++10:     mfc0    t2,psr                  // get processor status
++        nop                             //
++        li      t1,~(1 << PSR_IEC)      // clear current interrupt enable
++        and     t2,t2,t1                //
++        li      t1,(1 << PSR_ISC)       // isolate data cache
++        or      t1,t2,t1                //
++        mtc0    t1,psr                  //
++        nop                             // wait for cache isolation
+=3 110 3
++        bal     30f                     // size data cache
++        nop                             //
++        move    t8,v0                   // save data cache size
++        li      t1,(1 << PSR_ISC) | (1 << PSR_SWC) // isolate and swap caches
++        or      t1,t2,t1                //
++        mtc0    t1,psr                  //
++        nop                             // wait for cache isolation
+=3 110 3
++        bal     30f                     // size instruction cache
++        nop                             //
++        move    t9,v0                   // save instruction cache size
++        mtc0    t2,psr                  // restore caches
++        nop                             // wait for caches to return
++        nop                             //
++        nop                             //
++        b       40f                     //
++        nop                             //
++
++//
++// Size the cache that acts as the data cache.
++//
++
++30:     li      t0,KSEG0_BASE           // clear index 0
++        sw      zero,0(t0)              //
++        li      t3,R3000_MAXIMUM_CACHE_SIZE // set largest size
++        li      t4,R3000_MINIMUM_CACHE_SIZE // set smallest size
++35:     addu    t5,t0,t3                // store size at its offset
++        sw      t3,0(t5)                //
++        srl     t3,t3,1                 // next smaller size
++        sltu    t5,t3,t4                // check for smallest size
++        beq     t5,zero,35b             // if eq, more sizes
++        nop                             //
++        lw      v0,0(t0)                // get cache size
++        j       ra                      // return
++        nop                             //
+=1 91 3
++40:     sw      t9,HalpIcacheSize       // save cache sizes
++        sw      t8,HalpDcacheSize       //
++        lw      t0,0x18(sp)             // return cache sizes
++        sw      t9,0(t0)                //
++        lw      t0,0x1c(sp)             //
++        sw      t8,0(t0)                //
++        jal     HalSweepDcache          // invalidate the lines sizing wrote
++        jal     HalSweepIcache          //
++        lw      ra,0x14(sp)             // restore return address
++        addu    sp,sp,0x20              // deallocate stack frame
++        j       ra                      // return
++
++        .end    HalpSizeCaches
++
+=3 83 3
++// VOID
++// KeFlushWriteBuffer (
+=1 520 5
++//    This function waits until the write buffer of the processor is empty.
++//    The write buffer drives coprocessor 0 condition false while it holds a
++//    store; four instructions must pass after the last store before the
++//    condition can be tested.
+=1 526 11
++        LEAF_ENTRY(KeFlushWriteBuffer)
+=3 106 7
++10:     bc0f    10b                     // if false, write buffer not empty
++        nop                             //
++        j       ra                      // return
++        nop                             //
+=1 91 3
++        .end    KeFlushWriteBuffer

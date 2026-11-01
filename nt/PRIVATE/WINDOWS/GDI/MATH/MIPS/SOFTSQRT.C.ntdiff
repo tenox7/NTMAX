@@ -1,0 +1,17 @@
+#ntdiff PRIVATE/WINDOWS/GDI/MATH/MIPS/SOFTSQRT.C
+#crlf
+=1 1 24
++    The R3000 port: xSqrt, the square root of the EFLOAT class, is
++    vSqrtEFLOAT on the R3000 (the R4000 has the instruction, hardsqrt.s).
+=1 24 111
++FLOAT
++xSqrt (
++    IN FLOAT Value
+=1 46 9
++Arguments:
++
++    Value - Supplies the value for which the square root is computed.
+=1 63 10
++    vSqrtEFLOAT(&Value);
++    return Value;
+=1 133 3

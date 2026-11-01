@@ -1,0 +1,31 @@
+#ntdiff PRIVATE/NTOS/INC/MIPS.H PRIVATE/NTOS/INC/PPC.H PRIVATE/NTOS/INC/ALPHA.H
+=1 1 189
++// The R3000 has no load linked and store conditional instructions, which
++// the intrinsic forms use: there the interlocked functions are functions
++// of the kernel.
+=1 189 4
++#if !defined(R3000)
+=1 192 5
++#endif
+=1 196 17
++#if !defined(R3000)
+=1 212 7
+=1 217 355
++#if defined(R3000)
++
++//
++// The R3000 delays the result of a move from coprocessor 0 by one
++// instruction, and the intrinsic enable uses it in the next one: there
++// interrupts are disabled and enabled with the functions of the kernel.
+=1 603 3
++KiDisableInterrupts (
+=1 574 4
++KiRestoreInterrupts (
++    IN BOOLEAN Enable
++    );
++
+=2 768 1
++#define _enable() KiRestoreInterrupts(TRUE)
+=3 1408 4
+=1 573 14
+=1 585 1065

@@ -1,0 +1,38 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/JXMEMORY.C PRIVATE/NTOS/FW/ALPHA/JENSEN/ALPHA/JXMEMORY.C
++#if defined(JAZZ) || defined(DECSTATION)
+=1 2 25
++
++#if defined(DECSTATION)
++
++//
++// The REX console keeps its work area below the firmware, which the boot
++// block loads at FW_BASE_ADDRESS.  The firmware pages run from page 2 to the
++// end of the firmware image.  The boot block loads the whole image, headers
++// included, so the end of the image is its base plus the size of the image
++// in its header.
++//
++
++#define end ((PCHAR)FW_BASE_ADDRESS + \
++    RtlImageNtHeader((PVOID)FW_BASE_ADDRESS)->OptionalHeader.SizeOfImage)
++
++#undef FW_PAGES
++#define FW_PAGES (ROUND_TO_PAGES((ULONG) end & ~KSEG1_BASE) >> PAGE_SHIFT)
++
++#else
++extern  end[];
++#endif
+=1 28 55
++#if defined(DECSTATION)
++
++    //
++    // The system calls the firmware after it boots: the HAL gets and sets
++    // the environment variables with the routines of the firmware, which
++    // writes them back to the boot device with the bootwrite service of the
++    // REX console.  The work area of the console and the code, data and
++    // stack of the firmware are firmware permanent memory, as the firmware
++    // of the Jensen keeps them.
+=2 228 3
+=2 363 3
+=1 83 2
++#endif
+=1 84 314

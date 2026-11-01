@@ -1,0 +1,25 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/JZTIME.C PRIVATE/NTOS/FW/ALPHA/JNSETTIM.C PRIVATE/NTOS/NTHALS/HAL0JENS/ALPHA/JXTIME.C
+=1 1 28
++#if !defined(DECSTATION)
+=2 51 4
++
++#if defined(DECSTATION)
++
+=1 123 9
++    This routine sets the realtime clock with the HAL clock routine the
++    firmware links.
+=1 136 8
+=2 104 5
++    HalSetRealTimeClock(TimeFields);
+=3 270 3
++#else
+=1 32 167
++#endif
++
+=1 199 27
++#if !defined(DECSTATION)
+=2 227 8
+=1 233 116
++#if !defined(DECSTATION)
+=2 356 10
+=1 358 58

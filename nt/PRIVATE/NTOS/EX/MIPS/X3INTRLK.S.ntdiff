@@ -1,0 +1,88 @@
+#ntdiff PRIVATE/NTOS/EX/MIPS/X3INTRLK.S PRIVATE/NTOS/EX/MIPS/X4INTRLK.S PRIVATE/WINDOWS/BASE/CLIENT/ALPHA/CRITSECT.S PRIVATE/NTOS/EX/MIPS/FMUTEX.S PRIVATE/NTOS/DLL/MIPS/X3CRITSC.S PRIVATE/WINDOWS/BASE/CLIENT/MIPS/CRITSECT.S
+=1 3 7
++//    x3intrlk.s
+=1 11 7
++//    This is the R3000 version. The R3000 has no load linked and store
++//    conditional instructions and an R3000 system has one processor: the
++//    interlocked operations are performed with interrupts disabled. The
++//    module also implements the interlocked increment, decrement and
++//    exchange functions, which are compiler intrinsics on the R4000.
+=2 15 61
+=1 76 18
+=2 110 36
+=4 201 2
++        lw      t0,0(a0)                // get low part of large statistic
++        lw      t3,4(a0)                // get high part of large statistic
+=2 147 2
++        addu    t3,t3,t1                // add carry to high part
++        sw      t0,0(a0)                // store result of low part add
++        sw      t3,4(a0)                // store result of high part add
+=4 206 3
+=2 158 42
+=2 210 4
+=2 220 46
+=1 129 2
++        lw      v0,0(a0)                // get current source value
++        sw      a1,0(a0)                // set new source value
+=1 134 5
+=2 273 42
+=4 201 2
+=1 176 1
+=2 320 1
++        sw      v0,0(a0)                // set new addend value
+=4 206 3
+=2 321 48
+=4 201 2
+=1 176 1
+=2 374 1
++        sw      v0,0(a0)                // set new addend value
+=4 206 3
+=2 375 45
+=2 430 10
+=2 446 43
+=2 499 10
+=2 515 42
+=2 567 9
+=2 582 42
+=2 634 6
+=2 646 43
+=1 485 59
+=2 774 9
+=2 789 5
++
+=3 35 4
++// InterlockedIncrement (
+=3 40 7
+=3 50 7
++//    The resultant addend value is returned as the function value.
+=3 60 5
+=1 129 2
+=5 106 1
+=6 62 1
+=5 109 1
+=1 134 5
+=3 81 1
++
+=6 29 4
++// InterlockedDecrement (
+=3 88 7
+=3 98 7
++//    The resultant addend value is returned as the function value.
+=3 108 5
+=1 129 2
+=5 106 1
+=6 109 1
+=5 109 1
+=1 134 5
+=3 129 1
++
++        SBTTL("Interlocked Exchange")
+=3 36 3
++// InterlockedExchange (
++//    IN PLONG Target,
+=6 129 23
+=1 129 2
++        lw      v0,0(a0)                // get current target value
++        sw      a1,0(a0)                // set new target value
+=1 134 5
+=3 417 1

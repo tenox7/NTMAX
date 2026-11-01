@@ -1,0 +1,7 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/JZSTRING.H
+=1 1 101
++#if defined(DECSTATION)
++#define NUMBER_OF_CONFIGURATION_CHOICES 6
++#else
+=1 102 1
++#endif

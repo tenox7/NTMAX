@@ -1,0 +1,2 @@
+MIPS_SOURCES=lk201.rc     \
+             lk201.c

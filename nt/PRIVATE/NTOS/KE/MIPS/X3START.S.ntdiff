@@ -1,0 +1,105 @@
+#ntdiff PRIVATE/NTOS/KE/MIPS/X4START.S
+=1 1 7
++//    x3start.s
+=1 9 6
++//    This is the R3000 version.
+=1 14 92
++// Set the processor type to a MIPS R3000.
+=1 107 4
++        sh      zero,0(t0)              //
++
++//
++// Initialize the context and entry high registers.
++//
++// N.B. The context register holds the base virtual address of the page
++//      table pages, into which the bad virtual page number is inserted
++//      when a TB miss occurs.
++//
++// N.B. The idle process runs with process id zero.
++//
++
++10:     li      t0,PTE_BASE             // set base virtual page table address
+=1 127 3
+=1 131 1
++        mtc0    zero,entryhi            // initialize the current process id
+=1 139 8
++        li      t0,TB_SIZE              // set default number of TB entries
+=1 148 1
++        li      t0,NUMBER_PIDS          // set default number of process id's
+=1 150 5
++// Initialize fixed entries that map the PCR pages into system and user space.
++//
++// N.B. A TB entry of the R3000 maps a single page and each of the four
++//      mappings has its own fixed entry.
++//
++
++        sll     t0,s1,ENTRYLO_PFN       // shift PFN into position
++        or      t0,t0,1 << ENTRYLO_G    // set G, V, and D
+=1 160 2
++        sw      t0,SsPte(sp)            // set PTE value
++        addu    a0,sp,SsPte             // compute address of PTE value
++        li      a1,KiPcr                // set virtual address of PCR
+=1 172 3
++        sll     t0,s1,ENTRYLO_PFN       // shift PFN into position
++        or      t0,t0,1 << ENTRYLO_G    // set G and V
+=1 160 1
++        sw      t0,SsPte(sp)            // set PTE value
++        addu    a0,sp,SsPte             // compute address of PTE value
++        li      a1,UsPcr                // set user virtual address of PCR
+=1 187 3
+=1 158 1
++        or      t0,t0,1 << ENTRYLO_G    // set G, V, and D
+=1 160 2
++        sw      t0,SsPte(sp)            // set PTE value
++        addu    a0,sp,SsPte             // compute address of PTE value
++        li      a1,KiPcr2               // set virtual address of second PCR
++        li      a2,PCR2_ENTRY           // set index of system second PCR entry
+=1 173 3
++        or      t0,t0,1 << ENTRYLO_G    // set G and V
+=1 160 1
++        sw      t0,SsPte(sp)            // set PTE value
++        addu    a0,sp,SsPte             // compute address of PTE value
++        li      a1,UsPcr2               // set user virtual address of second PCR
++        li      a2,PCR2_ENTRY + 1       // set index of user second PCR entry
+=1 188 5
++// N.B. The R3000 caches all of KSEG0 and has no cache policy.
+=1 192 3
++        sw      zero,PcCachePolicy(t1)  // set cache policy for cached memory
++        sw      zero,PcAlignedCachePolicy(t1) //
+=1 197 59
++// Initialize the fixed entry that maps the PDR page.
++//
++// N.B. The second PDR page is the page table page of hyper space. It is
++//      mapped through the page directory with the TB miss of a reference.
+=1 257 3
++        or      t0,t0,1 << ENTRYLO_V    // set V and D
+=1 161 1
+=1 263 3
++        addu    a0,sp,SsPte             // compute address of PTE value
++        li      a1,PDE_BASE             // set system virtual address of PDR
++        li      a2,PDR_ENTRY            // set index of system PDR entry
+=1 269 67
++        la      t2,KiFloatingException  //
+=1 341 3
+=1 346 33
++// Clear floating status.
+=1 380 5
+=1 386 1
+=1 389 1
++        sw      zero,PcSystemReserved(t1) // clear processor configuration
+=1 391 13
++// Copy the user TB miss and general exception handlers to low memory.
+=1 406 3
++        la      t2,KiTbMissStartAddress // get user TB miss start address
++        la      t3,KiTbMissEndAddress   // get user TB miss end address
+=1 415 7
+=1 431 2
++        li      t4,KSEG0_BASE + 0x80    // get copy address
+=1 434 7
+=1 449 6
+=1 469 38
++        and     s6,t0,~(1 << PSR_IEC)   // save PSR with interrupts disabled
++        or      t0,t0,1 << PSR_IEC      // make sure interrupt enable bit set
+=1 509 72
++        nop                             // 1 cycle hazzard
+=1 581 183

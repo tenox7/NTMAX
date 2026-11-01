@@ -1,0 +1,7 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/JXSYSID.C
++#if defined(JAZZ) || defined(DECSTATION)
+=1 2 96
++#if defined(DECSTATION)
++    CHAR SystemIdString[] = "DEC KN02";
++#elif defined(DUO)
+=1 99 46

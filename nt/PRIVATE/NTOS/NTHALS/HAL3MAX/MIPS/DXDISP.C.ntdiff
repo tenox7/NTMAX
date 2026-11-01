@@ -1,0 +1,165 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALFXS/MIPS/JXDISP.C PRIVATE/NTOS/NTHALS/HALNECMP/MIPS/JXDISP.C PRIVATE/NTOS/NTHALS/HALACR/MIPS/JXDISP.C
+#crlf
+=1 1 6
++    dxdisp.c
+=1 8 4
++    for a DECstation 5000/200 (KN02, MIPS R3000) with the color frame buffer
++    of a TURBOchannel slot (PMAG-BA).
++
++    The color frame buffer displays 1024 by 864 pixels of eight bits with a
++    fixed timing. Its Bt459 display controller holds the color map and the
++    hardware cursor. The video memory and the display controller are
++    addressed through KSEG1.
+=1 13 16
++#include "decbt459.h"
++#include "string.h"
++
+=2 87 28
++HalpDisplayCfbSetup (
+=1 72 4
++// Define the geometry of the color frame buffer.
++//
++
++#define CFB_HORIZONTAL_RESOLUTION 1024
++#define CFB_VERTICAL_RESOLUTION 864
++
++//
++// Define the Bt459 internal register addresses and the number of the
++// registers of the cursor command register and the cursor position and
++// window that follow it.
++//
++
++#define BT459_COMMAND_0 0x201
++#define BT459_CURSOR_COMMAND 0x300
++#define BT459_CURSOR_REGISTERS 13
+=1 100 31
+=1 137 1
++PUCHAR HalpVideoMemoryBase;
++PBT459_REGISTERS HalpVideoControl;
+=2 230 10
++    This routine locates the color frame buffer, initializes the display
++    controller, and clears the video screen.
++
++    The configuration data of the display controller is a resource list
++    whose memory resource is the TURBOchannel slot of the frame buffer.
+=1 154 14
+=1 169 1
++    PJAZZ_G364_CONFIGURATION_DATA ConfigurationData;
+=1 170 1
++    ULONG MatchKey;
+=1 178 32
++    //
++
++    if (strcmp(ConfigurationEntry->ComponentEntry.Identifier, "PMAG-BA") != 0) {
+=1 205 4
++    // Locate the video memory and the display controller of the frame
++    // buffer.
++    //
++
++    if (ConfigurationEntry->ComponentEntry.ConfigurationDataLength <
++                                    sizeof(JAZZ_G364_CONFIGURATION_DATA)) {
+=1 205 3
++    ConfigurationData =
++        (PJAZZ_G364_CONFIGURATION_DATA)ConfigurationEntry->ConfigurationData;
++
++    HalpVideoMemoryBase = (PUCHAR)(KSEG1_BASE | ConfigurationData->FrameBase);
++    HalpVideoControl =
++        (PBT459_REGISTERS)(KSEG1_BASE | ConfigurationData->ControlBase);
++
++    HalpDisplayControllerSetup = HalpDisplayCfbSetup;
+=1 305 5
++    HalpDisplayText = CFB_VERTICAL_RESOLUTION / HalpCharacterHeight;
++    HalpScrollLine = CFB_HORIZONTAL_RESOLUTION * HalpCharacterHeight;
+=1 316 1
++    HalpDisplayWidth = CFB_HORIZONTAL_RESOLUTION / HalpCharacterWidth;
+=2 626 43
+=1 488 7
+=2 676 41
++HalpDisplayCfbSetup (
+=1 537 7
++    This routine initializes the Bt459 display controller of the color frame
++    buffer for the text output of the HAL, sets up the color map for two
++    colors, and clears the video screen.
+=1 545 13
++    PULONG Buffer;
+=1 564 2
++
++    //
++    // Initialize the Bt459 command registers: four to one multiplexing of
++    // the pixels, sync on green with the blanking pedestal, all eight planes
++    // read, and no blinking and no overlay.
++    //
++
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->AddressLow.Byte, (UCHAR)BT459_COMMAND_0);
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->AddressHigh.Byte, (UCHAR)(BT459_COMMAND_0 >> 8));
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->RegisterData.Byte, 0x40); // command register 0
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->RegisterData.Byte, 0x00); // command register 1
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->RegisterData.Byte, 0xc0); // command register 2
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->RegisterData.Byte, 0xff); // pixel read mask
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->RegisterData.Byte, 0x00); // reserved
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->RegisterData.Byte, 0x00); // pixel blink mask
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->RegisterData.Byte, 0x00); // reserved
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->RegisterData.Byte, 0x00); // overlay read mask
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->RegisterData.Byte, 0x00); // overlay blink mask
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->RegisterData.Byte, 0x00); // interleave
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->RegisterData.Byte, 0x00); // test
++
++    //
++    // Turn the hardware cursor off: clear the cursor command register and
++    // the cursor position and window registers.
++    //
++
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->AddressLow.Byte, (UCHAR)BT459_CURSOR_COMMAND);
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->AddressHigh.Byte, (UCHAR)(BT459_CURSOR_COMMAND >> 8));
++    for (Index = 0; Index < BT459_CURSOR_REGISTERS; Index += 1) {
++        WRITE_REGISTER_UCHAR(&HalpVideoControl->RegisterData.Byte, 0);
+=1 206 3
++    // Set up the color map for two colors: color zero is white and color one
++    // is blue. The red, green, and blue values of an entry are written in
++    // turn.
++    //
++
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->AddressLow.Byte, 0);
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->AddressHigh.Byte, 0);
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->ColorMapData.Byte, 0xff);
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->ColorMapData.Byte, 0xff);
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->ColorMapData.Byte, 0xff);
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->ColorMapData.Byte, 0x00);
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->ColorMapData.Byte, 0x00);
++    WRITE_REGISTER_UCHAR(&HalpVideoControl->ColorMapData.Byte, 0x90);
+=1 678 5
++    Buffer = (PULONG)HalpVideoMemoryBase;
++    Limit = (CFB_HORIZONTAL_RESOLUTION * CFB_VERTICAL_RESOLUTION) / sizeof(ULONG);
+=1 687 13
+=2 2043 25
++
++    //
++    // If there is no display, then return.
++    //
++
++    if (HalpDisplayControllerSetup == NULL) {
+=2 713 3 4
++    //
++    // Raise IRQL to the highest level.
+=1 1442 4
+=3 834 19
++    // Lower IRQL to its previous level.
++    //
+=2 2131 40
+=1 1532 5
++            RtlMoveMemory((PVOID)HalpVideoMemoryBase,
++                          (PVOID)(HalpVideoMemoryBase + HalpScrollLine),
++                          HalpScrollLength);
++
++            Destination = HalpVideoMemoryBase + HalpScrollLength;
+=1 1542 20
+=3 867 48
+=2 2251 32
+=3 947 13
+=1 1655 42
++    Destination = (PUCHAR)(HalpVideoMemoryBase +
+=1 1698 10
++            *Destination++ = (UCHAR)((FontValue >> 31) ^ 1);
+=1 1709 3
++        Destination += (CFB_HORIZONTAL_RESOLUTION - HalpCharacterWidth);
+=1 1714 5

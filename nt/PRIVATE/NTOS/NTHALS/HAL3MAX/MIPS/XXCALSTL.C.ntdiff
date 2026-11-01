@@ -1,0 +1,14 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALFXS/MIPS/XXCALSTL.C PRIVATE/NTOS/NTHALS/HALACR/MIPS/XXCALSTL.C
+#crlf
+=1 1 13
++    the clock and profile interrupts for a DECstation 5000/200 (KN02, MIPS
++    R3000) system. The interval clock is the periodic interrupt of the
++    realtime clock, and the profile interrupt is taken at a multiple of it.
+=1 15 148
+=2 166 85
++    // Acknowledge the interval timer interrupt: reading control register C
++    // of the realtime clock clears its interrupt request.
++    //
++
++    READ_REGISTER_UCHAR((PUCHAR)TIMER_ACKNOWLEDGE);
+=1 260 37

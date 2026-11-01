@@ -1,0 +1,17 @@
+#ntdiff PRIVATE/NTOS/KE/MIPS/XXCLOCK.S PRIVATE/NTOS/KE/ALPHA/CLOCK.S
+=1 1 345
++//      An r3000 system has one processor.
++//
++
++#if defined(R3000)
++
++40:     lw      t6,0(t2)                // get process time
+=1 349 1
++        sw      t6,0(t2)                // store process time
++
++#else
+=1 347 6
+=2 325 5
+=1 356 30
++        nop                             // fill for R3000
+=1 386 136

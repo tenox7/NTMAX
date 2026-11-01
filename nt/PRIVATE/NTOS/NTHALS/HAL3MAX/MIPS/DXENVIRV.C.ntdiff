@@ -1,0 +1,58 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALACR/MIPS/JXENVIRV.C PRIVATE/NTOS/NTHALS/HALTYNE/MIPS/JXENVIRV.C
+#crlf
+=1 1 6
++    dxenvirv.c
+=1 8 4
++    for a DECstation 5000/200 (KN02, MIPS R3000) system.
++
++    The DECstation has no NVRAM for the environment of the ARC firmware,
++    which keeps it on the boot device: the environment variables are read
++    and written with the routines of the firmware.
+=2 13 46
++
+=1 410 2
++    ARC_STATUS Status;
++    PCHAR Value;
++
++    //
++    // Raise IRQL to the highest level and get the value of the variable
++    // from the firmware.
++    //
++
+=1 101 1
+=2 61 1
++
++    //
++    // If the variable cannot be located, then set the status to no entry
++    // found. Otherwise, copy the respective variable value to the specified
++    // output buffer.
++    //
++
++    if (Value == NULL) {
+=1 435 9
++            *Buffer = *Value;
+=1 445 5
++            Value += 1;
+=1 451 16
++    // Lower IRQL to its previous value and return the function status.
++    //
++
+=1 150 1
++    return Status;
++}
+=2 70 27
++
++    KIRQL OldIrql;
++    ARC_STATUS Status;
++
++    //
++    // Raise IRQL to the highest level, set the variable with the firmware,
++    // which writes the environment to the boot device, lower IRQL to its
++    // previous value, and return the function status.
++    //
++
+=1 101 1
++    Status = ArcSetEnvironmentVariable(Variable, Value);
+=1 150 1
++    return Status;
++}

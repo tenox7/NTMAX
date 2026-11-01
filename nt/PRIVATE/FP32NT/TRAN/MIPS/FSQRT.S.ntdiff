@@ -1,0 +1,35 @@
+#ntdiff PRIVATE/FP32NT/TRAN/MIPS/FSQRT.S
+#crlf
+=1 1 27
++
++#if defined(R3000)
++
++/*
++ * The R3000 has no square root instruction: sqrt (sqrt3000.c) computes the
++ * square root in double precision, which is then rounded to single precision
++ * (the same result as sqrt.s: a double has more than twice the bits of a
++ * float).
++ */
++
++#define FSIZE 24
++
++	.frame	sp, FSIZE, ra
++	.mask	0x80000000, -4
++	subu	sp, FSIZE
++	sw	ra, FSIZE-4(sp)
++    .prologue 1
++	cvt.d.s	$f12, $f12
++	jal	sqrt
++	cvt.s.d	$f0, $f0
++	lw	ra, FSIZE-4(sp)
++	addu	sp, FSIZE
++	j	ra
++
++#undef FSIZE
++
++#else
++
+=1 28 4
++
++#endif
++.end fsqrt

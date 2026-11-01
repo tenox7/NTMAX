@@ -1,0 +1,43 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALFXS/MIPS/JXTIME.C PRIVATE/NTOS/NTHALS/HAL0JENS/ALPHA/JXTIME.C
+#crlf
+=1 1 6
++    d3time.c
+=1 8 4
++    the DECstation 5000/200.  The realtime clock is a DS1287 whose registers
++    are bytes at a stride of four in the system slot of the TURBOchannel.
+=1 13 14
++#include "decrtc.h"
++
+=1 45 40
++    DataByte = READ_REGISTER_UCHAR(&RTC_CONTROL->RtcControlRegisterD.Byte);
+=1 86 7
++            DataByte = READ_REGISTER_UCHAR(&RTC_CONTROL->RtcControlRegisterA.Byte);
+=1 94 6
++        TimeFields->Year = BASE_YEAR + (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcYear.Byte);
++        TimeFields->Month = (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcMonth.Byte);
++        TimeFields->Day = (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcDayOfMonth.Byte);
++        TimeFields->Weekday  = (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcDayOfWeek.Byte) - 1;
++        TimeFields->Hour = (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcHours.Byte);
++        TimeFields->Minute = (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcMinutes.Byte);
++        TimeFields->Second = (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcSeconds.Byte);
+=1 107 49
++    DataByte = READ_REGISTER_UCHAR(&RTC_CONTROL->RtcControlRegisterD.Byte);
+=1 157 5
++        // N.B. The periodic interrupt of the realtime clock is the interval
++        //      clock of the system: it stays enabled.
+=1 161 5
+=2 190 1
++        ((PRTC_CONTROL_REGISTER_B)(&DataByte))->Settime = 1;
++        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcControlRegisterB.Byte, DataByte);
+=1 168 5
++        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcYear.Byte, (UCHAR)(TimeFields->Year - BASE_YEAR));
++        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcMonth.Byte, (UCHAR)TimeFields->Month);
++        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcDayOfMonth.Byte, (UCHAR)TimeFields->Day);
++        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcDayOfWeek.Byte, (UCHAR)(TimeFields->Weekday + 1));
++        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcHours.Byte, (UCHAR)TimeFields->Hour);
++        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcMinutes.Byte, (UCHAR)TimeFields->Minute);
++        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcSeconds.Byte, (UCHAR)TimeFields->Second);
+=1 180 5
++        ((PRTC_CONTROL_REGISTER_B)(&DataByte))->Settime = 0;
++        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcControlRegisterB.Byte, DataByte);
+=1 108 9

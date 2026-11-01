@@ -1,0 +1,330 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/JXSERIAL.C PRIVATE/NTOS/FW/ALPHA/JXSERIAL.C PRIVATE/NTOS/FW/ALPHA/JXDISP.C PRIVATE/NTOS/ARCINST/UTILS/JZCOMMON.C
++#if defined(DECSTATION)
+=1 2 7
++    dxserial.c
+=1 10 3
++    This module implements the serial boot driver for the DECstation
++    5000/200.  The serial lines are lines of the DZ (DC7085) multiplexer:
++    serial(0) is line 2, the communications port, and serial(1) is line 3,
++    the console port.  The firmware uses serial(1) as its console.
++
++    The DZ has one receiver silo for its four lines.  Each character read
++    from the silo carries its line number, and the driver keeps the
++    characters received on each line in a buffer of the line until they
++    are read.
+=1 14 15
+=1 30 70
++#define SP_BASE(Fid) ULONG SP; \
++                     SP = BlFileTable[Fid].u.SerialContext.PortBase
++
++//
++// Define the DZ line of serial port 0, and the receive buffer of each line:
++// the characters from Head to Tail have been received and not read yet.
++//
++
++#define FIRST_SERIAL_LINE 2
++#define SERIAL_BUFFER_SIZE 64
++
++typedef struct _SERIAL_RECEIVE_BUFFER {
++    ULONG Head;
++    ULONG Tail;
++    UCHAR Data[SERIAL_BUFFER_SIZE];
++} SERIAL_RECEIVE_BUFFER, *PSERIAL_RECEIVE_BUFFER;
++
++SERIAL_RECEIVE_BUFFER SerialReceiveBuffer[4];
++
++//
++// Define the position of the cursor on the console terminal.  The console
++// output driver keeps it for the routines that edit a line where it is
++// shown (FwGetString), as the display driver of a video console does.
++//
++
++LONG FwRow;
++LONG FwColumn;
++
++//
++// Define the last row and column of the console terminal, and the state of
++// the escape or control sequence the console output is in.
++//
++
++#define CONSOLE_MAX_ROW 23
++#define CONSOLE_MAX_COLUMN 79
++#define CONSOLE_MAX_PARAMETER 2
++
++BOOLEAN SerialConsoleEscape;
++BOOLEAN SerialConsoleControl;
++ULONG SerialConsoleCount;
++ULONG SerialConsoleParameter[CONSOLE_MAX_PARAMETER];
+=1 102 77
++    SP    -  Base address of the serial port: the DZ line.
+=1 180 8
++    USHORT DataShort;
++    USHORT Enable;
++
++    //
++    // Enable the transmitter of the line.  The DZ scans the enabled lines
++    // and reports a line that can take a character in the control status
++    // register.  Disable any other line it reports.
++    //
++
++    Enable = READ_REGISTER_USHORT(&DZ_READ->TransmitControlRead.Short);
++    Enable |= (USHORT)(1 << SP);
++    WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitControlWrite.Short, Enable);
++    for (;;) {
++        DataShort = READ_REGISTER_USHORT(&DZ_READ->ControlStatus.Short);
++        if (((PDZ_CONTROL_STATUS)(&DataShort))->TransmitReady != 0) {
++            if (((PDZ_CONTROL_STATUS)(&DataShort))->TransmitLine == SP) {
++                break;
++            }
++            Enable &= ~(1 << ((PDZ_CONTROL_STATUS)(&DataShort))->TransmitLine);
++            WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitControlWrite.Short, Enable);
+=3 2394 4
+=1 198 2
++    WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitBuffer.Short, (UCHAR)Char);
+=1 245 3
++VOID
++SerialPoll(
+=3 2365 6
++    This routine empties the receiver silo of the DZ into the receive
++    buffers of the lines.  A character received while the buffer of its
++    line is full is lost.
+=3 2375 11
++    USHORT DataShort;
++    PSERIAL_RECEIVE_BUFFER Receive;
++    ULONG Next;
++
++    for (;;) {
++        DataShort = READ_REGISTER_USHORT(&DZ_READ->ReceiveBuffer.Short);
++        if (((PDZ_RECEIVE_BUFFER)(&DataShort))->DataValid == 0) {
++            break;
++        }
++        Receive = &SerialReceiveBuffer[((PDZ_RECEIVE_BUFFER)(&DataShort))->ReceiveLine];
++        Next = (Receive->Tail + 1) % SERIAL_BUFFER_SIZE;
++        if (Next != Receive->Head) {
++            Receive->Data[Receive->Tail] =
++                (UCHAR)((PDZ_RECEIVE_BUFFER)(&DataShort))->ReceiveData;
++            Receive->Tail = Next;
++        }
+=3 3183 3
++
++BOOLEAN
++SerialConsoleCursor(
++    IN UCHAR Character
+=1 168 5
++    This routine moves the cursor position of the console terminal as the
++    character moves the cursor of the console, by the rules of the display
++    driver of the ARC console.
+=1 123 3
++    Character - Supplies the character written to the console port.
+=1 127 3
++    TRUE if the character ends a control sequence that erases the whole
++    screen, otherwise FALSE.  The ARC console moves the cursor home when it
++    erases the screen and a terminal does not, so the cursor must then be
++    sent home.
+=1 185 3
++    ULONG Index;
++    ULONG Parameter;
++
++    if (SerialConsoleControl) {
++
++        //
++        // If the character is a digit, update the parameter value, if a
++        // semicolon, move to the next parameter.
++        //
++
++        if ((Character >= '0') && (Character <= '9')) {
++            SerialConsoleParameter[SerialConsoleCount] =
++                SerialConsoleParameter[SerialConsoleCount] * 10 + Character - '0';
+=4 611 3 8
++        if (Character == ';') {
++            if (SerialConsoleCount < CONSOLE_MAX_PARAMETER - 1) {
++                SerialConsoleCount++;
++            }
+=4 611 3 8
++        //
++        // Any other character ends the control sequence.  A count of zero
++        // moves the cursor by one.
++        //
++
++        SerialConsoleControl = FALSE;
++        Parameter = SerialConsoleParameter[0];
++        if (Parameter == 0) {
++            Parameter = 1;
++        }
++
++        switch (Character) {
++
++        case 'J':
++            if (SerialConsoleParameter[0] == 2) {
++                FwRow = 0;
++                FwColumn = 0;
++                return TRUE;
+=4 350 3
++        case 'H':
++            FwRow = (SerialConsoleParameter[0] != 0) ? SerialConsoleParameter[0] - 1 : 0;
++            if (FwRow > CONSOLE_MAX_ROW) {
++                FwRow = CONSOLE_MAX_ROW;
++            }
++            FwColumn = (SerialConsoleParameter[1] != 0) ? SerialConsoleParameter[1] - 1 : 0;
++            if (FwColumn > CONSOLE_MAX_COLUMN) {
++                FwColumn = CONSOLE_MAX_COLUMN;
+=4 350 3
++        case 'A':
++            FwRow = ((LONG)Parameter > FwRow) ? 0 : FwRow - Parameter;
++            break;
++
++        case 'B':
++            FwRow = (FwRow + Parameter > CONSOLE_MAX_ROW) ? CONSOLE_MAX_ROW : FwRow + Parameter;
++            break;
++
++        case 'C':
++            FwColumn = (FwColumn + Parameter > CONSOLE_MAX_COLUMN) ? CONSOLE_MAX_COLUMN : FwColumn + Parameter;
++            break;
++
++        case 'D':
++            FwColumn = ((LONG)Parameter > FwColumn) ? 0 : FwColumn - Parameter;
+=3 1776 5 -12
++
+=4 611 3 4
++    //
++    // An escape followed by a left bracket starts a control sequence, as
++    // the control sequence introducer does.
++    //
++
++    if (SerialConsoleEscape) {
++        SerialConsoleEscape = FALSE;
++        if (Character != '[') {
++            return FALSE;
++        }
++        Character = ASCII_CSI;
++    }
++
++    switch (Character) {
++
++    case ASCII_CSI:
++        SerialConsoleControl = TRUE;
++        SerialConsoleCount = 0;
++        for (Index = 0; Index < CONSOLE_MAX_PARAMETER; Index++) {
++            SerialConsoleParameter[Index] = 0;
+=3 1474 3 -12
++    case ASCII_ESC:
++        SerialConsoleEscape = TRUE;
++        break;
++
+=3 1861 3 -16
++        if (FwRow != CONSOLE_MAX_ROW) {
++            FwRow++;
+=3 1474 3 -12
+=3 1876 4 -16
++    case ASCII_NUL:
+=3 1891 3 -16
+=3 1898 6 -16
+=3 1908 2 -16
++        if (FwColumn > CONSOLE_MAX_COLUMN) {
++            FwColumn = CONSOLE_MAX_COLUMN;
+=4 372 4 -4
++        if (FwColumn < CONSOLE_MAX_COLUMN) {
++            FwColumn++;
++        }
+=3 1554 3 -12
++    return FALSE;
+=1 202 34
++    SP_BASE(FileId);
+=1 236 2
++
++        //
++        // The console port is the firmware console, whose output is ANSI
++        // with the 8-bit control sequence introducer.  Send it to the
++        // terminal as escape and left bracket, as FwPrint does before the
++        // console is open, keep the cursor position, and move the cursor
++        // home after the screen is erased.
++        //
++
++        if ((SP == FIRST_SERIAL_LINE + 1) &&
++            (*(PUCHAR)Buffer == ASCII_CSI)) {
++            if (Status=SerialBootWrite(ASCII_ESC, SP)) {
++                return Status;
++            }
++            Status=SerialBootWrite('[', SP);
++        } else {
++            Status=SerialBootWrite(*(PCHAR)Buffer, SP);
++        }
++        if (Status) {
++            return Status;
++        }
++
++        if ((SP == FIRST_SERIAL_LINE + 1) &&
++            SerialConsoleCursor(*(PUCHAR)Buffer)) {
++            if ((Status=SerialBootWrite(ASCII_ESC, SP)) ||
++                (Status=SerialBootWrite('[', SP)) ||
++                (Status=SerialBootWrite('H', SP))) {
++                return Status;
++            }
+=1 242 39
++    PSERIAL_RECEIVE_BUFFER Receive;
++    SP_BASE(FileId);
++    Receive = &SerialReceiveBuffer[SP];
+=1 237 1
++
++        //
++        // Wait for a character on the line.
+=3 2537 3 4
++            SerialPoll();
++        } while (Receive->Head == Receive->Tail);
++
++        *(PCHAR)Buffer = Receive->Data[Receive->Head];
++        Receive->Head = (Receive->Head + 1) % SERIAL_BUFFER_SIZE;
+=1 313 6
+=2 327 32
+=1 351 13
++    if (Port > 1) {
++        return ENODEV;
++    }
+=1 364 1
++    BlFileTable[*FileId].u.SerialContext.PortBase = FIRST_SERIAL_LINE+Port;
+=1 366 21
++    SP -  Supplies the base of the serial port: the DZ line.
+=1 388 7
++    USHORT DataShort;
++
++    //
++    // Set the line to 9600 baud, eight bits, one stop bit, no parity and
++    // enable its receiver.  The console has set up the multiplexer and the
++    // other lines, so it is not cleared.
++    //
++
++    DataShort = 0;
++    ((PDZ_LINE_PARAMETERS)(&DataShort))->LineNumber = SP;
++    ((PDZ_LINE_PARAMETERS)(&DataShort))->CharacterLength = EIGHT_BIT_CHARACTERS;
++    ((PDZ_LINE_PARAMETERS)(&DataShort))->StopCode = ONE_STOP_BIT;
++    ((PDZ_LINE_PARAMETERS)(&DataShort))->SpeedCode = BAUD_9600;
++    ((PDZ_LINE_PARAMETERS)(&DataShort))->ReceiveEnable = 1;
++    WRITE_REGISTER_USHORT(&DZ_WRITE->LineParameters.Short, DataShort);
++
++    //
++    // Set data terminal ready and request to send of the line.
++    //
++
++    DataShort = READ_REGISTER_USHORT(&DZ_READ->TransmitControlRead.Short);
++    if (SP == 3) {
++        ((PDZ_TRANSMIT_CONTROL)(&DataShort))->DataTerminalReady3 = 1;
++        ((PDZ_TRANSMIT_CONTROL)(&DataShort))->RequestToSend3 = 1;
++    } else {
++        ((PDZ_TRANSMIT_CONTROL)(&DataShort))->DataTerminalReady2 = 1;
++        ((PDZ_TRANSMIT_CONTROL)(&DataShort))->RequestToSend2 = 1;
++    }
++    WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitControlWrite.Short, DataShort);
++
++    //
++    // Enable the scan of the multiplexer.
++    //
++
++    DataShort = READ_REGISTER_USHORT(&DZ_READ->ControlStatus.Short);
++    ((PDZ_CONTROL_STATUS)(&DataShort))->MasterScanEnable = 1;
++    WRITE_REGISTER_USHORT(&DZ_WRITE->ControlStatus.Short, DataShort);
+=3 2353 3
+=1 448 20
++    SP_BASE(FileId);
++    SerialPoll();
++    if (SerialReceiveBuffer[SP].Head == SerialReceiveBuffer[SP].Tail) {
+=1 472 95

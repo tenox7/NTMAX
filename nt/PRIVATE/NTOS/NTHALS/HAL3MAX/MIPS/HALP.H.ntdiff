@@ -1,0 +1,134 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALFXS/MIPS/HALP.H PRIVATE/NTOS/NTHALS/HAL0JENS/ALPHA/JXHALP.H
+#crlf
+=1 1 13
++    This is the version of the DECstation 5000/200 (KN02, MIPS R3000).
+=1 13 21
++//
++// The DECstation profiles with the interval clock: decdef.h defines the
++// profile level and the profile intervals of the system in place of the
++// R3000 values of mips.h.
++//
++
++#undef PROFILE_LEVEL
++#undef DEFAULT_PROFILE_INTERVAL
++#undef MINIMUM_PROFILE_INTERVAL
++
++#include "decdef.h"
++#include "decsctrl.h"
++#include "hal.h"
++
++//
++// Define the adapter object structure.
++//
++// The KN02 has no system DMA controller. The SCSI controller of the system
++// module moves the data of a transfer to and from a buffer on the module,
++// which the processor copies to and from memory: the pages of the buffer
++// are the map registers of the SCSI channel, and the master adapter object
++// allocates them. A bus master of a TURBOchannel slot addresses memory with
++// physical addresses and needs no map registers.
+=2 52 10
+=2 63 2
+=2 66 3
+=2 76 1
+=2 80 3
++// Define the largest transfer of a TURBOchannel bus master, in pages, and
++// the highest physical address the TURBOchannel addresses (a KN02 has at
++// most 480mb of memory).
++//
++
++#define DMA_REQUEST_LIMIT 256
++#define MAXIMUM_TURBOCHANNEL_ADDRESS 0x1fffffff
++
++//
++// Define the DMA address register and the buffer of the SCSI controller.
++// The 53C94 moves the data of a transfer to and from the buffer at the
++// address of the DMA address register, whose direction bit is set for a
++// transfer from the buffer to the SCSI bus.
++//
++
++#define SCSI_DMA_ADDRESS ((volatile PULONG)(KSEG1_BASE | (SCSI_PHYSICAL_BASE + 0x40000)))
++#define SCSI_BUFFER ((PUCHAR)(KSEG1_BASE | (SCSI_PHYSICAL_BASE + 0x80000)))
++#define SCSI_BUFFER_SIZE 0x20000
++#define SCSI_DMA_WRITE 0x80000000
++
++//
++// Define the number of the TURBOchannel slots. The option slots are 0 to 2,
++// the builtin SCSI and network controllers are slots 5 and 6, and the
++// system devices are slot 7.
++//
++
++#define TURBOCHANNEL_SLOTS 8
++#define TURBOCHANNEL_SLOT_SIZE 0x400000
++#define TURBOCHANNEL_PHYSICAL_BASE 0x1e000000
++
++//
++// Define the highest vector of the eight I/O interrupts of the system
++// control and status register, one for each slot.
++//
++
++#define MAXIMUM_IO_VECTOR (DEVICE_VECTORS + TURBOCHANNEL_SLOTS - 1)
++
++//
++// Define the R3000 cache line size. A line of either cache holds one word.
++//
++
++#define R3000_CACHE_LINE_SIZE 4
++
++//
++// Define the memory error registers. The error address register captures
++// the word address and the kind of a failed memory or TURBOchannel
++// transaction (an ECC error or a timeout), the check syndrome register the
++// ECC check bits and syndrome of the high and low words of memory, and
++// whether the error of a word is a single bit error. A write to the error
++// address register clears it and the memory error interrupt.
++//
++
++#define ERROR_ADDRESS ((volatile PULONG)(KSEG1_BASE | 0x1fd80000))
++#define CHECK_SYNDROME ((volatile PULONG)(KSEG1_BASE | 0x1fd00000))
++
++#define ERROR_ADDRESS_VALID 0x80000000
++#define ERROR_ADDRESS_ECC 0x10000000
++#define ERROR_ADDRESS_WORD 0x07ffffff
++
++#define CHECK_SYNDROME_VALID_HIGH 0x80000000
++#define CHECK_SYNDROME_SINGLE_HIGH 0x00800000
++#define CHECK_SYNDROME_VALID_LOW 0x00008000
++#define CHECK_SYNDROME_SINGLE_LOW 0x00000080
++
++//
++// Define the interrupt level of the memory error interrupt (int3).
++//
++
++#define MEMORY_LEVEL 6
++
++//
++// Define the interval clock increment. The periodic interrupt of the
++// realtime clock has one rate.
++//
++
++#define MAXIMUM_INCREMENT TIME_INCREMENT
++#define MINIMUM_INCREMENT TIME_INCREMENT
+=2 91 6
++HalpAllocateAdapter (
+=1 61 1
++    IN BOOLEAN MasterDevice
+=1 78 8
++HalpClockInterrupt (
+=1 92 8
++VOID
++HalpDmaDispatch (
+=1 77 4
+=1 107 15
++HalpMemoryInterrupt (
+=1 67 4
+=1 156 5
++HalpWriteSystemControl (
+=1 167 8
++extern UCHAR HalpBuiltinInterruptEnable;
+=1 176 2
++extern LARGE_INTEGER HalpPerformanceCounter;
+=1 182 1
++extern BOOLEAN HalpProfilingActive;
+=1 183 1
++extern ULONG HalpSystemControl;
+=1 184 3

@@ -1,0 +1,36 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/JZMAKE.C PRIVATE/NTOS/FW/ALPHA/JNSETMAK.C
+=1 1 143
++#if defined(DECSTATION)
++
++    //
++    // The console of the DECstation firmware is line 3 of the DZ.
++    //
+=1 143 2
++                                       "multi()serial(1)");
++#else
+=1 144 2
++#endif
+=1 146 5
++#if defined(DECSTATION)
+=1 151 1
++                                       "multi()serial(1)");
++#else
+=1 151 2
++#endif
+=1 153 28
++#if !defined(DUO) && !defined(DECSTATION)
+=1 182 127
++#if defined(DECSTATION)
++
++    //
++    // The firmware of the DECstation has no video driver, and the
++    // DECstation 5000/200 has no floppy controller.
++    //
++
++    Monitor = 0;
++    Floppy = 0;
++    Floppy2 = -1;
++#else
+=1 309 23
+=2 1147 3
+=1 334 163

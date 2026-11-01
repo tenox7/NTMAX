@@ -1,0 +1,9 @@
+#ntdiff PRIVATE/NTOS/DLL/MIPS/EVPAIR.S
+#crlf
++//
++// N.B. The system service dispatcher of the R3000 (x3trap.s) has the fast
++//      event pair path too.
++//
++
++#if defined(R4000) || defined(R3000)
+=1 2 62

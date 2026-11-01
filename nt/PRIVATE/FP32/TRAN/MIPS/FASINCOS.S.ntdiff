@@ -1,0 +1,32 @@
+#ntdiff PRIVATE/FP32/TRAN/MIPS/FASINCOS.S
+#crlf
+=1 1 105
++
++#if defined(R3000)
++
++	/*
++	 * The R3000 has no square root instruction: sqrt (sqrt3000.c)
++	 * computes the square root of f2 in double precision, which is then
++	 * rounded to single precision (the same result as sqrt.s: a double
++	 * has more than twice the bits of a float).  The return address to
++	 * asinf/acosf, the sign of x and f2 stay in the frame of asinf/acosf
++	 * across the call.
++	 */
++
++	swc1	$f2, 16(sp)
++	sw	t1, 20(sp)
++	sw	ra, 24(sp)
++	cvt.d.s	$f12, $f2
++	jal	sqrt
++	cvt.s.d	$f0, $f0
++	lw	ra, 24(sp)
++	lw	t1, 20(sp)
++	lwc1	$f2, 16(sp)
++
++#else
++
++	sqrt.s	$f0, $f2
++
++#endif
++
+=1 107 31

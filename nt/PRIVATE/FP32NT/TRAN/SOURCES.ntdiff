@@ -1,0 +1,13 @@
+#ntdiff PRIVATE/FP32NT/TRAN/SOURCES
+#crlf
+=1 1 150
++
++#
++# The R3000 has no square root instruction: sqrt is the one of sqrt3000.c,
++# and the other functions call it (asincosm.s, fasincos.s, hypotm.s,
++# fhypot.s, fsqrt.s).
++#
++
++!IFDEF MIPS_R3000
++MIPS_SOURCES=$(MIPS_SOURCES:mips\sqrtm.s=mips\sqrt3000.c)
++!ENDIF

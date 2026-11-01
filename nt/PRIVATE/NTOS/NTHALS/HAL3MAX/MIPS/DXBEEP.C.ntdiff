@@ -1,0 +1,17 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HAL0JENS/ALPHA/JXBEEP.C PRIVATE/NTOS/NTHALS/HALTYNE/MIPS/JXBEEP.C PRIVATE/NTOS/NTHALS/HALFXS/MIPS/JXBEEP.C
+#crlf
+=3 1 6
++    dxbeep.c
+=1 10 3
++    This module implements the HAL speaker "beep" routines for a DECstation
++    5000/200 (KN02, MIPS R3000) system.
+=2 13 13
++
+=3 28 13
++    N.B. The DECstation has no speaker that sounds a tone of a frequency:
++         the bell is in the keyboard, which only its driver commands.
+=3 40 9
++
+=3 49 7
++    return FALSE;
++}

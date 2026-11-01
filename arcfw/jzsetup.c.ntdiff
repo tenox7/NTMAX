@@ -1,0 +1,22 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/JZSETUP.C
+=1 1 46
++#if defined(DECSTATION)
++PCHAR Banner1 = " DECstation 5000 Setup Program Version 0.17";
++#else
+=1 47 1
++#endif
+=1 48 234
++        // Change the ethernet address.  The DECstation keeps its station
++        // address in the ROM of the network controller.
++        //
++
++#if !defined(DECSTATION)
+=1 285 3
++#endif
+=1 288 5
++#if defined(DECSTATION)
++        case 4:
++#else
++        case 5:
++#endif
+=1 294 14

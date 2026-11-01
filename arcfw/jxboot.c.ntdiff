@@ -1,0 +1,111 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/JXBOOT.C PRIVATE/NTOS/FW/ALPHA/JXBOOT.C
+=1 1 26
++#if defined(DUO)
++#include "duoint.h"
++#elif !defined(DECSTATION)
+=1 30 164
++#if defined(DECSTATION)
++    CHAR BootFile[128];
++    BOOLEAN DirectBoot;
+=2 1554 3
+=1 196 17
++#if defined(DECSTATION)
++
++    //
++    // Get the file the console boot command names, if any.
++    //
++
++    FwGetConsoleBootFile(BootFile, sizeof(BootFile));
++#endif
+=1 212 62
++#if defined(DECSTATION)
++
++        //
++        // Start the file the console boot command names at once, without
++        // the menu, the first time only: the boot selection whose OS loader
++        // it is, or else the program, as Run a program finds it.
++        //
++
++        DirectBoot = FALSE;
++        if (BootFile[0] != 0) {
++            for (DefaultChoice = 0; DefaultChoice < NumberOfBootChoices; DefaultChoice++) {
++                strcpy(PathName, BootString[OsLoaderVariable]);
++                FwGetVariableSegment(DefaultChoice, PathName);
++                if (FwMatchBootFile(&PathName[sizeof("OSLOADER=") - 1], BootFile)) {
+=1 400 4
++            strcpy(TempName, BootFile);
++            BootFile[0] = 0;
++            DirectBoot = TRUE;
+=1 278 3 4
++            goto StartChoice;
++        }
++#endif
+=1 273 27
++#if !defined(DECSTATION)
+=1 299 8
++#endif
+=1 307 62
++#if !defined(DECSTATION)
++
++                //
++                // The DECstation firmware has no kernel debugger port yet.
++                //
+=1 368 30
++#endif
+=1 398 42
++#if defined(DECSTATION)
++StartChoice:
++#endif
+=1 439 30
++#if defined(DECSTATION)
++
++            //
++            // The console boot command gives the name of a program it starts.
++            //
++
++            if (!DirectBoot) {
+=1 469 5 4
++            }
++#else
+=1 469 5
++#endif
+=1 474 240
++#if defined(DECSTATION)
++
++        //
++        // The console of the DECstation firmware is a serial line.
+=1 1024 4 4
++        } else
++#endif
+=1 714 7
++#if defined(DECSTATION)
+=1 1026 2 4
++        } else
++#endif
+=1 721 88
++#if !defined(DECSTATION)
+=1 809 101
++#endif
+=1 910 55
++#if !defined(DECSTATION)
+=1 964 8
+=2 1554 8
++#if defined(DECSTATION)
++
++    //
++    // The DECstation firmware runs with interrupts disabled in the processor
++    // status and polls its devices.
++    //
+=2 250 3
+=1 979 5
+=2 1554 3
+=1 986 79
++#if !defined(DECSTATION)
+=1 1064 6
+=2 715 3
+=1 1072 26
++#if !defined(DECSTATION)
+=2 1677 23
+=1 1120 19
++
++#endif

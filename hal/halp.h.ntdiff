@@ -1,0 +1,16 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALALPHA/HALP.H PRIVATE/NTOS/NTHALS/HALACR/MIPS/HALP.H
++/*++
+=1 5 7
++    This header file defines the private interfaces, defines and structures
++    of the Hardware Architecture Layer (HAL) of the DECstation 5000/200
++    (KN02, MIPS R3000).
+=1 32 6
++#if defined(NT_UP)
++
++#undef NT_UP
+=2 113 3
++#include "nthal.h"
++#include "decdef.h"
++#include "hal.h"
++
++#endif // _HALP_

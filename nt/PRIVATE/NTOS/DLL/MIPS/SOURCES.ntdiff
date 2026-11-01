@@ -1,0 +1,13 @@
+#ntdiff PRIVATE/NTOS/DLL/MIPS/SOURCES
+#crlf
+=1 1 6
++
++#
++# The R3000 has no ll and sc: critsect.s calls the interlocked helpers of
++# x3critsc.s, which the kernel restarts when they are interrupted.
++#
++
++!IFDEF MIPS_R3000
++MIPS_SOURCES=$(MIPS_SOURCES) \
++             ..\mips\x3critsc.s
++!ENDIF

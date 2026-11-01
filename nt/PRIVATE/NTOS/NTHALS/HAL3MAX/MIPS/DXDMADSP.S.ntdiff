@@ -1,0 +1,41 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALACR/MIPS/JXDMADSP.S
+#crlf
++//      TITLE("DECstation I/O Interrupt Dispatch")
+=1 2 6
++//    dxdmadsp.s
+=1 9 4
++//    for I/O interrupts on the DECstation 5000/200 (KN02).
+=1 14 14
++#include "decdef.h"
++
++        SBTTL("I/O Device First Level Dispatch")
+=1 31 5
++//    for an I/O device.
++//
++//    The I/O interrupts are the eight interrupt pending bits of the system
++//    control and status register. The highest numbered of the pending ones
++//    that are enabled is dispatched: the serial lines (7), the network (6)
++//    and SCSI (5) controllers, and then the option slots (2 to 0).
+=1 37 13
++        lw      t0,SYS_CONTROL_ADDRESS  // get system control and status
++        srl     t1,t0,CSR_INTENABLE - CSR_INTPENDING // align enable field
++        and     t0,t0,t1                // isolate enabled pending interrupts
++        and     t0,t0,0xff << CSR_INTPENDING //
++        beq     zero,t0,30f             // if eq, no interrupt pending
++        li      t1,7 * 4                // set offset of highest vector
++        li      t2,1 << (7 + CSR_INTPENDING) // set highest interrupt bit
++10:     and     t3,t0,t2                // test if interrupt pending
++        bne     zero,t3,20f             // if ne, interrupt pending
++        subu    t1,t1,4                 // compute offset of next vector
++        srl     t2,t2,1                 // compute next interrupt bit
++        b       10b                     //
++
++20:     lw      a0,KiPcr + PcInterruptRoutine + (DEVICE_VECTORS * 4)(t1) //
+=1 52 11
++//
++// The interrupt is no longer pending.
++//
++
++30:     j       ra                      // return
++
++        .end    HalpDmaDispatch

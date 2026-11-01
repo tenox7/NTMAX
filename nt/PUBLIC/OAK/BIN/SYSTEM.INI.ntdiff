@@ -1,0 +1,101 @@
+#ntdiff PUBLIC/OAK/BIN/SYSTEM.INI
+#crlf
+=1 1 14
++#if defined(_DECSTATION_)
++#define _HIVE_DECSTATION_
+=1 14 2
++#endif // defined(_DECSTATION_)
+=1 16 159
++// The DECstation 5000/200 (the KN02 system module): its SCSI controller is
++// the NCR 53C94 of TURBOchannel slot 5 (the Ncr53c9x miniport) and its
++// display the PMAG-BA color frame buffer of TURBOchannel slot 0 (the Pmagba
++// miniport), without the PC peripherals.  Its keyboard is the LK201 on line
++// 0 of the DZ serial line multiplexer of the system module and its mouse
++// the VSXXX on line 1: the Lk201 keyboard port driver and the Vsxxx pointer
++// port driver, clients of the Dzport port driver of the multiplexer.
++//
++
++#ifdef _HIVE_DECSTATION_
++#define DECSTATION 1
++#define NCR53C9X 1
++#define PMAGBA 1
+=1 116 3
++#define CDFS 1
++#endif // _HIVE_DECSTATION_
+=1 173 1183
++#elif defined(_HIVE_DECSTATION_)
++            //
++            // The R3000 port: no network yet.  The developer's first run keeps
++            // the domain of the machine in the Parameters of LanmanWorkstation:
++            // winlogon writes Domain and AccountDomainId there from registry.ini
++            // and the LSA's database install reads them (the account domain).
++            //
++            LanmanWorkstation
+=1 1354 294
++#if defined(DECSTATION)
++                  dzport
+=1 1491 2
++#endif // defined(DECSTATION)
+=1 1648 48
++#if defined(DECSTATION)
++                  lk201
+=1 1491 2
++#endif // defined(DECSTATION)
+=1 1696 57
++#if defined(PMAGBA)
++                  Pmagba
+=1 1491 2
++#endif // defined(PMAGBA)
+=1 1753 95
++#if defined(DECSTATION)
++                  vsxxx
+=1 1491 2
++#endif // defined(DECSTATION)
+=1 1848 626
++#if !defined(DECSTATION)
+=1 2474 10
++#endif // !defined(DECSTATION)
+=1 2484 15
++#if !defined(DECSTATION)
+=1 2499 21
++#endif // !defined(DECSTATION)
+=1 2520 165
++#if defined(DECSTATION)
++            Dzport
+=1 2674 8
+=1 2053 1
++#endif // defined(DECSTATION)
+=1 2684 5
++#if !defined(DECSTATION)
+=1 2689 23
++#endif // !defined(DECSTATION)
++
++#if defined(DECSTATION)
++            Lk201
+=1 2690 10
+=1 2704 2
++#endif // defined(DECSTATION)
+=1 2712 5
++#if !defined(DECSTATION)
+=1 2717 48
++#endif // !defined(DECSTATION)
++
++#if defined(DECSTATION)
++            Vsxxx
+=1 2734 11
+=1 2710 1
++#endif // defined(DECSTATION)
+=1 2765 58
++#if defined(PMAGBA)
++            Pmagba
+=1 2842 7
++#endif // defined(PMAGBA)
++
++#if !defined(DECSTATION)
+=1 2823 161
++#endif // !defined(DECSTATION)
+=1 2984 213
++#if !defined(DECSTATION)
+=1 3197 28
++#endif // !defined(DECSTATION)
+=1 3225 376

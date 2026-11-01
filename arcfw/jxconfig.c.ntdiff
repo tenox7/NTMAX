@@ -1,0 +1,24 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/JXCONFIG.C PRIVATE/NTOS/NTHALS/HAL0JENS/ALPHA/XXENVIRV.C
++#if defined(JAZZ) || defined(DECSTATION)
+=1 2 126
++#if !defined(DECSTATION)
+=1 128 1
++#endif
+=1 129 1402
++#if defined(DECSTATION)
++
++    //
++    // Write the non-volatile configuration back to the boot device.
++    //
++
++    FwNvramFlush();
+=2 815 3
+=1 1531 119
++    //
++    // The DECstation firmware has no video driver, so no default monitor.
++    //
++
++#if !defined(DECSTATION)
+=1 1650 13
++#endif
+=1 1663 294

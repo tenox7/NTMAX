@@ -1,0 +1,12 @@
+#ntdiff PUBLIC/SDK/INC/KXMIPS.H PUBLIC/SDK/INC/KXPPC.H
+=1 1 25
++// Load linked and store conditional are r4000 instructions. The r3000
++// versions of the interlocked sequences disable interrupts instead.
+=2 391 3
+=1 37 124
++#define PID_MASK 0x3f                   // Process id mask <5:0>
+=1 160 172
++#define XCODE_FLOATING_EXCEPTION 0x34   // Floating point exception (software)
+=1 332 256
++#define PCR2_ENTRY 5                    // TB entry numbers (2) for second PCR
+=1 590 162

@@ -1,0 +1,12 @@
+#ntdiff PRIVATE/WINDOWS/GDI/FONDRV/VTFD/FDQUERY.C
+#crlf
+=1 1 10
++*
++* The R3000 port: compiled without the global optimizations on the R3000.
+=1 11 8
++// NOTE: the R3000 code generator of C900 (/QMR3000) asserts with -Og on this
++// file (C1001 in msas1)
++#if defined(R3000)
++#pragma optimize("g", off)
++#endif
+=1 18 1050

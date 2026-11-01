@@ -1,0 +1,233 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/JZCONFIG.C PRIVATE/NTOS/FW/ALPHA/JENSEN/ALPHA/JNSETCFG.C PRIVATE/NTOS/FW/ALPHA/JXBOOT.C
+=1 1 23
++#if defined(DECSTATION)
++#include "jazzvdeo.h"
++#else
+=1 24 3
++#endif
+=1 27 275
++    // The processor of the DECstation 5000/200 is an R3000.
++    //
++
++#if defined(DECSTATION)
++    ProcessorName = "R3000";
++#else
+=1 304 14
+=1 627 3
+=1 320 108
++
++    return(ESUCCESS);
+=1 428 3
++#if defined(DECSTATION)
++
++BOOLEAN
++FwGetTurboChannelModule (
++    IN ULONG Slot,
++    OUT PCHAR ModuleName
+=1 45 6
++    This routine reads the module name from the option ROM of a TURBOchannel
++    slot.  The header of the ROM is at the start of the slot or at the offset
++    of the prototype ROM: a header has a width of 1, 2 or 4, a stride of 4
++    and the test pattern.  The slot is read with FwProbeRead, as a read from
++    an empty slot takes a bus error.
+=1 52 3
++    Slot - Supplies the number of the slot.
++
++    ModuleName - Supplies a pointer to a buffer of
++        TURBOCHANNEL_MODULE_NAME_LENGTH + 1 characters that receives the
++        module name, without the blanks at its end.
+=1 56 3
++    TRUE if the slot has an option ROM, otherwise FALSE.
+=3 166 4
++    static UCHAR TestPattern[] = { 0x55, 0x00, 0xaa, 0xff };
++    static ULONG RomOffset[] = { TURBOCHANNEL_ROM_OFFSET,
++                                 TURBOCHANNEL_PROTOTYPE_ROM_OFFSET };
++    ULONG Index;
++    ULONG Offset;
++    PUCHAR Rom;
++    ULONG Value;
++
++    for (Offset = 0; Offset < 2; Offset += 1) {
++        Rom = (PUCHAR)(KSEG1_BASE |
++                       (TURBOCHANNEL_SLOT_PHYSICAL_BASE(Slot) + RomOffset[Offset]));
++
++        //
++        // Check the width and the stride of the ROM and the test pattern.
++        //
++
++        if (!FwProbeRead((PULONG)(Rom + TURBOCHANNEL_ROM_WIDTH), &Value) ||
++            (((Value & 0xff) != 1) && ((Value & 0xff) != 2) && ((Value & 0xff) != 4)) ||
++            !FwProbeRead((PULONG)(Rom + TURBOCHANNEL_ROM_STRIDE), &Value) ||
++            ((Value & 0xff) != 4)) {
+=3 490 3 -4
++        for (Index = 0; Index < sizeof(TestPattern); Index += 1) {
++            if (!FwProbeRead((PULONG)(Rom + TURBOCHANNEL_ROM_TEST + (Index * 4)), &Value) ||
++                ((Value & 0xff) != TestPattern[Index])) {
+=3 476 4 -4
++        if (Index != sizeof(TestPattern)) {
+=3 516 4 -4
++        // Read the module name and remove the blanks at its end.
++        //
++
++        for (Index = 0; Index < TURBOCHANNEL_MODULE_NAME_LENGTH; Index += 1) {
++            if (!FwProbeRead((PULONG)(Rom + TURBOCHANNEL_ROM_MODULE_NAME + (Index * 4)), &Value)) {
+=1 316 3 8
++            ModuleName[Index] = (CHAR)Value;
++        }
++
++        if (Index != TURBOCHANNEL_MODULE_NAME_LENGTH) {
+=3 490 3 -4
++        while ((Index != 0) && (ModuleName[Index - 1] == ' ')) {
++            Index -= 1;
++        }
++
++        ModuleName[Index] = 0;
++        return TRUE;
++    }
++
++    return FALSE;
++}
++
+=1 431 11
++    This routine initializes the configuration entries of the DECstation
++    5000/200 by calling the firmware add child routine: the system, the
++    TURBOchannel with the lines of the DZ serial line multiplexer of the
++    system slot, the network controller of slot 6 and the color frame buffer
++    of slot 0 if the slot has one, and the SCSI adapter of slot 5.
+=1 52 3
++    Monitor - Not used, the firmware has no video driver.
++
++    Floppy, Floppy2 - Not used, the DECstation 5000/200 has no floppy
++        controller.
+=3 1047 8
+=1 238 1
++    PCONFIGURATION_COMPONENT Root, Level1, Level2;
+=1 458 5
+=1 468 1
++    JAZZ_G364_CONFIGURATION_DATA VideoData;
++    ULONG Line;
++    CHAR ModuleName[TURBOCHANNEL_MODULE_NAME_LENGTH + 1];
+=1 475 16
++                    "DEC-KN02"          // Identifier
+=1 496 7
++    // Add the internal bus of the system module as a child of root: the
++    // devices of the system slot of the TURBOchannel, slot 7, which has no
++    // option ROM.  They interrupt at the device level, with the vector of
++    // the slot.
+=1 504 13
++                    "KN02-Internal Bus" // Identifier
+=1 518 6
++    //
++    // Make the descriptor of the DZ, which all its lines share.
+=1 846 5
++                          DZ_PHYSICAL_BASE,             // PortStart
+=1 852 4
++                          DZ_VECTOR,                    // Vector
+=1 1069 11
++    //
++    // Add the serial ports, lines 2 and 3 of the DZ, as children of the
++    // internal bus.
++    //
++
++    for (Line = 0; Line < 2; Line++) {
+=1 1231 9 4
++                        Line,               // Key
+=1 1044 1
++                        (Line == 0) ? "COM1" : "COM2" // Identifier
+=1 1243 5 4
+=1 288 3
++    // Add the keyboard controller, line 0 of the DZ, as a child of the
++    // internal bus, and the keyboard as its child.
+=1 607 4
+=1 1082 3
+=1 1149 6
++                    "DZ"                // Identifier
+=1 880 6
+=1 1102 5
+=1 1171 6
++                    "LK201"             // Identifier
+=1 1114 7
++    // Add the pointer controller, line 1 of the DZ, as a child of the
++    // internal bus, and the mouse as its child.
+=1 607 4
+=1 1146 9
++                    "DZ"                // Identifier
+=1 880 6
+=1 1166 11
++                    "VSXXX"             // Identifier
+=1 1114 7
++    // Add the TURBOchannel as a child of root. The devices of the
++    // TURBOchannel are its children, the interrupt of each described
++    // relative to the bus: the slot of the device is both its level and its
++    // vector.
+=1 504 4
++                    TcAdapter,          // Type
+=1 483 8
++                    "TURBOchannel"      // Identifier
+=1 518 6
++    //
++    // Add the network controller of TURBOchannel slot 6 as a child of the
++    // TURBOchannel.
+=1 846 4
+=1 1410 5
++                          ETHERNET_CHANNEL,             // Level
++                          ETHERNET_CHANNEL,             // Vector
++                          TRUE,                         // Memory
++                          TURBOCHANNEL_SLOT_PHYSICAL_BASE(ETHERNET_CHANNEL), // MemoryStart
++                          TURBOCHANNEL_SLOT_SIZE,       // MemorySize
+=1 1072 10
+=1 1598 9
++                    "PMAD-AA"           // Identifier
+=1 1243 6
++    //
++    // Add the color frame buffer of TURBOchannel slot 0 as a child of the
++    // TURBOchannel, if the option ROM of the slot names one.  The firmware
++    // has no video driver: its console stays on the serial line.
++    //
++    // The configuration data of the frame buffer is the configuration data
++    // of the graphics boards of the Jazz firmware, which the miniport driver
++    // reads as VIDEO_HARDWARE_CONFIGURATION_DATA: the interrupt of the slot,
++    // the Bt459 display controller, which also holds the cursor, and the
++    // video memory at the start of the slot.
++    //
++
++    if (FwGetTurboChannelModule(VIDEO_CHANNEL, ModuleName) &&
++        (strcmp(ModuleName, "PMAG-BA") == 0)) {
++
+=1 635 2 4
++        VideoData.Irql = VIDEO_CHANNEL;
++        VideoData.Vector = VIDEO_CHANNEL;
++        VideoData.ControlBase =
++            TURBOCHANNEL_SLOT_PHYSICAL_BASE(VIDEO_CHANNEL) + CFB_CONTROL_OFFSET;
++        VideoData.ControlSize = CFB_CONTROL_SIZE;
++        VideoData.CursorBase = VideoData.ControlBase;
++        VideoData.CursorSize = VideoData.ControlSize;
++        VideoData.FrameBase =
++            TURBOCHANNEL_SLOT_PHYSICAL_BASE(VIDEO_CHANNEL) + CFB_FRAME_OFFSET;
++        VideoData.FrameSize = CFB_FRAME_SIZE;
+=1 1033 2
+=1 610 5 4
+=1 414 2
+=1 617 2 4
++                        sizeof(JAZZ_G364_CONFIGURATION_DATA), // ConfigurationDataLength
++                        ModuleName          // Identifier
++                        );
++
++        if ((ArcAddChild( Level1, &Component, &VideoData )) == NULL) {
++            return;
+=3 477 4 -8
++    // Add the scsi adapter of TURBOchannel slot 5 as a child of root.  Its
++    // memory is the page of the registers of the 53C94; the DMA address
++    // register and the buffer of the slot belong to the SCSI channel of the
++    // HAL.
+=1 1402 33
+=1 875 4
++                    "PMAZ-AA"           // Identifier
+=2 521 3
+=1 93 3
++#else
++
+=1 431 1183
++
++#endif // defined(DECSTATION)
++

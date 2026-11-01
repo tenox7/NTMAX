@@ -1,0 +1,18 @@
+#ntdiff PRIVATE/NTOS/KE/MIPS/SOURCES
+#crlf
+=1 1 5
++!IFNDEF MIPS_R3000
++MIPS_CPU_PREFIX=x4
++!ELSE
++MIPS_CPU_PREFIX=x3
+=1 4 20
++             ..\mips\$(MIPS_CPU_PREFIX)mpipi.s \
+=1 25 3
++             ..\mips\$(MIPS_CPU_PREFIX)ctxsw.s \
+=1 29 2
++             ..\mips\$(MIPS_CPU_PREFIX)trap.s \
+=1 32 4
++             ..\mips\$(MIPS_CPU_PREFIX)start.s \
++             ..\mips\$(MIPS_CPU_PREFIX)sqrt.s \
++             ..\mips\vdm.c
++

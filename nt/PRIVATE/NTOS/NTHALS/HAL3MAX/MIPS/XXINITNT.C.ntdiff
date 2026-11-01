@@ -1,0 +1,90 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALFXS/MIPS/XXINITNT.C PRIVATE/NTOS/NTHALS/HALTYNE/MIPS/XXINITNT.C PRIVATE/NTOS/FW/ALPHA/JNSETTIM.C
+#crlf
+=1 1 11
++    This module implements the interrupt initialization for a DECstation
++    5000/200 (KN02, MIPS R3000) system.
+=1 14 14
++#include "decrtc.h"
+=1 37 10
+=1 177 3
++//
++// Define the I/O interrupt enable mask: the interrupt enable field of the
++// system control and status register.
++//
++
++UCHAR HalpBuiltinInterruptEnable;
++
++//
++// Define the value of the system control and status register without the
++// interrupt enable field.
++//
++
++ULONG HalpSystemControl;
+=1 56 7
++// The interrupt lines of the KN02 are: int0 the I/O interrupts of the system
++// control and status register (IRQL 3), int1 the realtime clock (IRQL 4),
++// int3 the memory error interrupt (IRQL 6), and int5 the floating point
++// coprocessor (IRQL 8). Int2 and int4 are not used.
+=1 62 18
++
+=1 114 9
++    This function initializes interrupts for a DECstation 5000/200 system.
+=1 124 16
++    UCHAR DataByte;
+=1 141 28
++    // Disable all I/O interrupts and enable the correction of memory errors.
++    //
++    // The memory and serial line settings of the system control and status
++    // register that the console set up (the bank stride, the ECC mode, the
++    // baud rate of the serial lines, and the transmit disable) are kept: the
++    // register is read, the light emitting diodes, the interrupt enable
++    // field, and the fields that must be written zero are cleared, and the
++    // correction of memory errors is enabled.
++    //
++
++    DataLong = READ_REGISTER_ULONG((PULONG)&SYS_CONTROL->SysControlStatus.Read);
++    ((PSYS_CONTROL_STATUS_WRITE)(&DataLong))->Leds = 0;
++    ((PSYS_CONTROL_STATUS_WRITE)(&DataLong))->EccEnable = 1;
++    ((PSYS_CONTROL_STATUS_WRITE)(&DataLong))->InterruptEnable = 0;
++    ((PSYS_CONTROL_STATUS_WRITE)(&DataLong))->Fill = 0;
++    HalpSystemControl = DataLong;
+=1 185 4
++    HalpWriteSystemControl();
++
++    //
++    // Connect the stall interrupt routine to the interval clock interrupt.
++    // The real clock interrupt routine is connected when the stall execution
++    // routine has been calibrated.
++    //
++    // N.B. The interval clock of the DECstation is the periodic interrupt of
++    //      the realtime clock, which interrupts every 7.8125ms.
++    //
++
++    PCR->InterruptRoutine[CLOCK_LEVEL] = HalpStallInterrupt;
++
++    //
++    // Initialize the realtime clock to interrupt at the rate of the interval
++    // clock, then acknowledge any interrupt that is pending.
+=3 158 3 -4
++    ((PRTC_CONTROL_REGISTER_A)(&DataByte))->RateSelect = RTC_RATE_SELECT;
++    ((PRTC_CONTROL_REGISTER_A)(&DataByte))->TimebaseDivisor = RTC_TIMEBASE_DIVISOR;
++    WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcControlRegisterA.Byte, DataByte);
+=3 160 3 -4
++    ((PRTC_CONTROL_REGISTER_B)(&DataByte))->TimerInterruptEnable = 1;
++    WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcControlRegisterB.Byte, DataByte);
++    READ_REGISTER_UCHAR((PUCHAR)TIMER_ACKNOWLEDGE);
++
++    //
++    // Connect the memory error interrupt routine.
++    //
++
++    PCR->InterruptRoutine[MEMORY_LEVEL] = HalpMemoryInterrupt;
++
++    //
++    // Reserve the levels of the I/O interrupt dispatcher, the interval
++    // clock, and the memory error interrupt.
++    //
++
++    PCR->ReservedVectors |=
++            (1 << DEVICE_LEVEL) | (1 << CLOCK_LEVEL) | (1 << MEMORY_LEVEL);
+=2 156 3

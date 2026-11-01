@@ -1,0 +1,9 @@
+#ntdiff PRIVATE/NTOS/DD/SERMOUSE/SERMOUSE.RC
+#crlf
+=1 1 4
++#define VER_FILETYPE                VFT_DRV
++#define VER_FILESUBTYPE             VFT2_DRV_MOUSE
++#define VER_FILEDESCRIPTION_STR     "DECstation VSXXX Mouse Port Driver"
++#define VER_INTERNALNAME_STR        "vsxxx.sys"
++#define VER_ORIGINALFILENAME_STR    "vsxxx.sys"
+=1 10 2

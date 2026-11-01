@@ -1,0 +1,20 @@
+#ntdiff PRIVATE/NTOS/RTL/MIPS/XXCAPTUR.S
+#crlf
+=1 1 239
+=1 32 3
++        lwc1    f20,JbFltF20(a2)        // move floating registers f20 - f31
++        lwc1    f21,JbFltF21(a2)        //
++        lwc1    f22,JbFltF22(a2)        //
++        lwc1    f23,JbFltF23(a2)        //
++        lwc1    f24,JbFltF24(a2)        //
++        lwc1    f25,JbFltF25(a2)        //
++        lwc1    f26,JbFltF26(a2)        //
++        lwc1    f27,JbFltF27(a2)        //
++        lwc1    f28,JbFltF28(a2)        //
++        lwc1    f29,JbFltF29(a2)        //
++        lwc1    f30,JbFltF30(a2)        //
++        lwc1    f31,JbFltF31(a2)        //
+=1 38 5
+=1 240 6
+=1 38 3
+=1 246 136

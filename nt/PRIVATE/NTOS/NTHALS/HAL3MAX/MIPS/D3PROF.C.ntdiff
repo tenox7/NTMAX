@@ -1,0 +1,66 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALFXS/MIPS/J4PROF.C PRIVATE/NTOS/NTHALS/HALTYNE/MIPS/J4PROF.C
+#crlf
+=1 1 6
++    d3prof.c
+=1 8 4
++    and to compute the profiling interval for a DECstation 5000/200 (KN02,
++    MIPS R3000) system.
++
++    The R3000 has no count and compare registers. The performance counter
++    counts the interrupts of the interval clock, the periodic interrupt of
++    the realtime clock, and the profile interrupt is taken at a multiple of
++    the interval clock interrupt.
+=1 13 13
++#include "halp.h"
+=2 37 6
++ULONG HalpProfileCount = 1;
++ULONG HalpProfileCountDown = 1;
+=2 43 1
++BOOLEAN HalpProfilingActive;
++
+=1 43 26
+=1 70 4
++    // Raise IRQL to PROFILE_LEVEL, read the performance counter, and lower
++    // IRQL to its previous value.
++    //
++    // N.B. The performance counter is updated by the interval clock
++    //      interrupt.
+=1 82 3
+=2 88 5
++    // counter frequency, the rate of the interval clock interrupt.
+=1 92 10
++    return PerformanceCounter;
++}
++
+=1 106 28
+=1 135 14
++    // Zero the performance counter.
++    //
++
+=2 140 2
+=1 157 8
++
+=1 166 23
+=1 191 14
++    // First compute the nearest number of interval clock interrupts and then
++    // back calculate the actual profile interval.
++    //
++
++    HalpProfileCount = (Interval + (MAXIMUM_INCREMENT / 2)) / MAXIMUM_INCREMENT;
++    HalpProfileInterval = HalpProfileCount * MAXIMUM_INCREMENT;
+=1 217 2
++
+=1 220 9
++    This routine turns profiling on: from now on, the interval clock
++    interrupt processes the active profiles each time the profile count of
++    interval clock interrupts has elapsed.
+=1 232 16
++    HalpProfileCountDown = HalpProfileCount;
++    HalpProfilingActive = TRUE;
+=2 303 3
+=1 282 9
++    This routine turns the profile interrupt off.
+=1 232 16
++    HalpProfilingActive = FALSE;
++    return;
++}

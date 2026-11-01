@@ -1,0 +1,33 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALTYNE/MIPS/J4FLSHBF.S
+#crlf
++//      TITLE("Flush Write Buffer")
++//++
+=1 7 3
++//    x3flshbf.s
+=1 11 4
++//    the write buffer of the MIPS R3000 of the DECstation 5000/200.
+=1 21 5
+=1 28 3
++
+=1 32 3
++// VOID
+=1 36 6
++//    This function waits until the write buffer of the processor is empty.
++//    The write buffer drives coprocessor 0 condition false while it holds a
++//    store; four instructions must pass after the last store before the
++//    condition can be tested.
+=1 43 13
++        .set    noreorder
++        .set    noat
++        nop                             // four nop's are required
++        nop                             //
++        nop                             //
++        nop                             //
++10:     bc0f    10b                     // if false, write buffer not empty
++        nop                             //
++        j       ra                      // return
++        nop                             //
++        .set    at
++        .set    reorder
++
++        .end    KeFlushWriteBuffer

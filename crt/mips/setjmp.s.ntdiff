@@ -1,0 +1,22 @@
+#ntdiff PRIVATE/CRT32/MISC/MIPS/SETJMP.S
+=1 1 73
++#if defined(R3000)
++
++        swc1    f20,JbFltF20(a0)        // save floating registers f20 - f31
++        swc1    f21,JbFltF21(a0)        //
++        swc1    f22,JbFltF22(a0)        //
++        swc1    f23,JbFltF23(a0)        //
++        swc1    f24,JbFltF24(a0)        //
++        swc1    f25,JbFltF25(a0)        //
++        swc1    f26,JbFltF26(a0)        //
++        swc1    f27,JbFltF27(a0)        //
++        swc1    f28,JbFltF28(a0)        //
++        swc1    f29,JbFltF29(a0)        //
++        swc1    f30,JbFltF30(a0)        //
++        swc1    f31,JbFltF31(a0)        //
++
++#else
+=1 73 7
++
++#endif
+=1 80 22

@@ -1,0 +1,61 @@
+#ntdiff PRIVATE/FP32NT/TRAN/MIPS/HYPOTM.S
+#crlf
+=1 1 91
++
++#if defined(R3000)
++
++    /*
++     * The R3000 has no square root instruction: sqrt (sqrt3000.c) computes
++     * the square root of f12.  The callers fsr and the registers that
++     * _hypot uses after the square root stay in its frame across the call
++     * (ra is in the frame already).
++     */
++
++    s.d     $f6, 16(sp)
++    s.d     $f8, 24(sp)
++    s.d     $f12, 32(sp)
++    s.d     $f14, 40(sp)
++    sw      v0, FSIZE-12(sp)
++    jal     sqrt
++    lw      v0, FSIZE-12(sp)
++    l.d     $f14, 40(sp)
++    l.d     $f12, 32(sp)
++    l.d     $f8, 24(sp)
++    l.d     $f6, 16(sp)
++
++#else
++
++    sqrt.d  $f0, $f12
++
++#endif
++
+=1 93 8
++
++#if defined(R3000)
++
++    /*
++     * The R3000 has no square root instruction: sqrt (sqrt3000.c) computes
++     * the square root of f12.  The callers fsr and the registers that
++     * _hypot uses after the square root stay in its frame across the call
++     * (ra is in the frame already).
++     */
++
++    s.d     $f6, 16(sp)
++    s.d     $f8, 24(sp)
++    s.d     $f12, 32(sp)
++    s.d     $f14, 40(sp)
++    sw      v0, FSIZE-12(sp)
++    jal     sqrt
++    lw      v0, FSIZE-12(sp)
++    l.d     $f14, 40(sp)
++    l.d     $f12, 32(sp)
++    l.d     $f8, 24(sp)
++    l.d     $f6, 16(sp)
++
++#else
++
++    sqrt.d  $f0, $f12
++
++#endif
++
+=1 102 61

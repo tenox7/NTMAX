@@ -1,0 +1,38 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/FWP.H PRIVATE/NTOS/FW/PPC/FWP.H
+=1 1 23
++#if defined(DECSTATION)
++
++//
++// The DECstation firmware is built with the boot library of the system.
++//
++
++#include "bootlib.h"
++#else
++#include "bldr.h"
++#endif
+=1 25 2
++#if defined(DECSTATION)
++#include "decdef.h"
++#include "decdz.h"
++#include "decrtc.h"
++#include "decfw.h"
++#elif !defined(DUO)
+=1 28 9
++#if defined(DECSTATION)
++
++//
++// The serial ports of the DECstation are lines of the DZ multiplexer.  The
++// base of a serial port is its line number.
++//
++
++#define COMPORT1_VIRTUAL_BASE 2
++#define COMPORT2_VIRTUAL_BASE 3
++
+=1 35 352
++#if defined(DECSTATION)
++#define NVRAM_CONFIGURATION ((ULONG)FwNvram)
++#define NVRAM_SYSTEM_ID ((ULONG)FwNvram + 0x00002000)
++#else
+=1 387 2
+=2 413 3
+=1 391 269

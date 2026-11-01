@@ -1,0 +1,111 @@
+#ntdiff PRIVATE/NTOS/KE/MIPS/X4CTXSW.S PRIVATE/NTOS/KE/MIPS/THREADBG.S PRIVATE/NTOS/KE/MIPS/XXAPCINT.S PRIVATE/NTOS/KE/MIPS/X4TRAP.S
+=1 1 7
++//    x3ctxsw.s
+=1 9 7
++//    This is the R3000 version. The kernel stack of the new thread is
++//    mapped by fixed TB entries when the context is swapped.
+=1 15 815
+=3 116 1
++// implement an atomic interlocked increment sequence (as the APC interrupt
++// does). If the interrupted PC is in the range of the interlocked increment
++// code, then back up the PC to the start of the code: another thread can
++// run before this one continues.
++//
++
++        lw      t0,TrFir(s8)            // get interrupted instruction address
+=3 125 2
++        sltu    t3,t0,t1                // address less than start address?
++        sltu    t4,t0,t2                // address less than end address?
++        bne     zero,t3,5f              // if ne, address less than start
++        beq     zero,t4,5f              // if eq, address not less than end
++        sw      t1,TrFir(s8)            // reset address to start of range
++5:                                      //
+=1 828 192
+=2 52 13
+=1 1027 25
++
++//
++// Map the new kernel stack with the fixed TB entries. If the new kernel
++// stack is in KSEG0, then it is not mapped and the fixed entries are left
++// invalid.
++//
++// N.B. Interrupts are disabled and the new kernel stack is not referenced
++//      until it is mapped. The PTEs of the stack are read from the page
++//      table and a TB miss on the page table is resolved by the general
++//      exception vector without a reference to the kernel stack.
++//
++// N.B. A TB entry that already maps a page of the new kernel stack is
++//      invalidated before the fixed entry is written, since a TB with two
++//      matching entries shuts down.
++//
++// N.B. Every value written to entryhi keeps the PID of the current process.
++//      The entryhi PID is the current PID of the processor: a TB miss on
++//      the page table while it is not the PID of the PDR entry cannot be
++//      resolved, since the general exception vector reads the PDE through
++//      the PDR entry.
++//
++
++        mfc0    t3,entryhi              // save current PID and VPN
++        subu    t6,t2,KERNEL_STACK_SIZE // compute base of new kernel stack
++        li      t5,KSTACK_ENTRY << INDEX_INDEX // set index of first stack entry
++        and     t0,t3,PID_MASK << ENTRYHI_PID // isolate current PID
+=4 3507 1
++        or      t4,t4,t0                // merge current PID
++        mtc0    zero,entrylo            // set invalid PTE value
++        mtc0    t4,entryhi              // set invalid address
++        mtc0    t5,index                // set index of first stack entry
++        addu    t9,t5,1 << INDEX_INDEX  // compute index of second stack entry
++        tlbwi                           // invalidate first stack entry
++        mtc0    t9,index                // set index of second stack entry
++        srl     t7,t6,30                // isolate high bits of stack base
++        tlbwi                           // invalidate second stack entry
++        xor     t7,t7,0x3               // check if stack is in KSEG2
++        bne     zero,t7,30f             // if ne, stack is not mapped
++        srl     t7,t6,PAGE_SHIFT        // compute address of first stack PTE
++        sll     t7,t7,2                 //
++        lui     t8,PTE_BASE >> 16       //
++        addu    t7,t7,t8                //
++        li      t9,(KSTACK_ENTRY + 2) << INDEX_INDEX // set ending index
++10:     lw      t8,0(t7)                // get PTE of stack page
++        or      t1,t6,t0                // merge current PID with stack page
++        mtc0    t1,entryhi              // set virtual address of stack page
++        or      t8,t8,1 << ENTRYLO_G    // set global bit
++        tlbp                            // probe TB for stack page
++        addu    t7,t7,4                 // advance to next PTE
++        mfc0    t4,index                // read result of probe
++        addu    t6,t6,PAGE_SIZE         // advance to next stack page
++        bltz    t4,20f                  // if ltz, stack page not in TB
+=4 3507 1
++        or      t4,t4,t0                // merge current PID
++        mtc0    t4,entryhi              // set invalid address
++        mtc0    zero,entrylo            // set invalid PTE value
++        nop                             // 1 cycle hazzard
++        tlbwi                           // invalidate entry that maps the page
++        mtc0    t1,entryhi              // set virtual address of stack page
++20:     mtc0    t8,entrylo              // set PTE of stack page
++        mtc0    t5,index                // set index of stack entry
++        addu    t5,t5,1 << INDEX_INDEX  // compute index of next stack entry
++        tlbwi                           // write fixed stack entry
++        bne     t5,t9,10b               // if ne, more stack pages
++        nop                             // fill
++30:     mtc0    t3,entryhi              // restore current PID and VPN
++
++//
++// Swap address space if the new process is not the old process.
++//
++
++        beq     s3,s4,20f               // if eq, old/new process is the same
+=1 1053 39
++        lwc1    f20,ExFltF20(sp)        // restore floating registers f20 - f31
++        lwc1    f21,ExFltF21(sp)        //
++        lwc1    f22,ExFltF22(sp)        //
++        lwc1    f23,ExFltF23(sp)        //
++        lwc1    f24,ExFltF24(sp)        //
++        lwc1    f25,ExFltF25(sp)        //
++        lwc1    f26,ExFltF26(sp)        //
++        lwc1    f27,ExFltF27(sp)        //
++        lwc1    f28,ExFltF28(sp)        //
++        lwc1    f29,ExFltF29(sp)        //
++        lwc1    f30,ExFltF30(sp)        //
++        lwc1    f31,ExFltF31(sp)        //
+=1 1098 193

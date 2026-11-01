@@ -1,0 +1,486 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALFXS/MIPS/JXHWSUP.C PRIVATE/NTOS/NTHALS/HALACR/MIPS/JXHWSUP.C PRIVATE/NTOS/NTHALS/HAL0JENS/ALPHA/JXHWSUP.C PRIVATE/NTOS/BOOT/LIB/I386/IXBUSDAT.C PRIVATE/NTOS/NTHALS/HALX86/I386/IXISASUP.C PRIVATE/NTOS/NTHALS/HALALPHA/EBSGDMA.C PRIVATE/NTOS/NTHALS/HALAST/I386/ASTMPINT.C
+#crlf
+=1 1 6
++    dxhwsup.c
+=1 8 7
++    This is the version of the DECstation 5000/200 (KN02, MIPS R3000). The
++    KN02 has no system DMA controller and no map registers: the SCSI
++    controller of the system module moves the data of a transfer to and
++    from a 128kb buffer on the module, which the processor copies to and
++    from memory, and a bus master of a TURBOchannel slot addresses memory
++    with physical addresses.
+=1 14 16
++#include "string.h"
+=2 22 15
++//
++// The pages of the buffer of the SCSI controller are the map registers of
++// the SCSI channel. In order to allocate the pages a master adapter object
++// is used. This object is allocated and saved internal to this file. It
++// contains a bit map for allocation of the pages and a queue for requests
++// which are waiting for more pages. This object is allocated during the
++// first request to allocate the adapter of the SCSI channel.
+=1 55 5
++// The following is the adapter object of the SCSI channel.
++//
++
++PADAPTER_OBJECT HalpScsiAdapter;
++
++//
++// Define the descriptor of a common buffer of a bus master that is not
++// cached. The buffer is allocated from nonpaged pool and addressed through
++// KSEG1, and the descriptor keeps the address of the pool allocation to
++// free the buffer.
++//
++
++typedef struct _COMMON_BUFFER_ENTRY {
++    LIST_ENTRY ListEntry;
++    PVOID PoolAddress;
++    PVOID VirtualAddress;
++} COMMON_BUFFER_ENTRY, *PCOMMON_BUFFER_ENTRY;
++
++LIST_ENTRY HalpCommonBufferListHead;
++KSPIN_LOCK HalpCommonBufferLock;
+=1 91 9
+=3 151 3
++    IN PCCHAR MapAddress,
+=3 155 5
+=1 109 27
++    A bus master needs no map registers: its execution routine is passed a
++    map register base of NULL.
+=1 135 32
+=1 168 3
++    // request. A bus master has no master adapter.
+=3 326 23
+=1 199 11
++        if ((NumberOfMapRegisters != 0) && (MasterAdapter != NULL)) {
+=1 211 8
+=6 699 3 8
+=1 223 5
+=5 188 22
+=1 614 2 11
++               // register and base of the master adapter object. A map
++               // register is a page of the buffer.
++               //
++
++               AdapterObject->MapRegisterBase = (PVOID) ((PUCHAR)
++                    MasterAdapter->MapRegisterBase + (MapRegisterNumber << PAGE_SHIFT));
+=3 429 5
+=3 435 12
+=1 285 31
++
+=1 317 14
++    The common buffer of the SCSI channel is allocated from the pages of the
++    buffer of the SCSI controller, which the processor addresses through
++    KSEG1 and the controller with the address of the DMA address register:
++    the memory of the buffer is not cached. The common buffer of a bus master
++    is physically contiguous memory, which the processor addresses through
++    KSEG1 if it is not cached.
+=1 330 20
++    PCOMMON_BUFFER_ENTRY Entry;
++    KIRQL Irql;
+=1 1314 2 1
++    PHYSICAL_ADDRESS MaximumAddress;
++    PVOID PoolAddress;
++
++    //
++    // If the adapter has map registers, then allocate the pages of the
++    // common buffer from the map registers of the master adapter.
+=3 326 3
++    if (MasterAdapter != NULL) {
+=1 223 1 -4
+=5 340 2
++             BYTES_TO_PAGES(Length),
+=5 343 3
+=1 274 1 -4
+=1 257 1 -4
+=1 830 3
++        LogicalAddress->LowPart = MapRegisterNumber << PAGE_SHIFT;
++        LogicalAddress->HighPart = 0;
++        return((PVOID) ((PUCHAR) MasterAdapter->MapRegisterBase +
++                                        LogicalAddress->LowPart));
+=1 178 3
++    // Allocate physically contiguous memory the TURBOchannel addresses for
++    // the common buffer of a bus master.
++    //
++
++    MaximumAddress.LowPart = MAXIMUM_TURBOCHANNEL_ADDRESS;
++    MaximumAddress.HighPart = 0;
++    PoolAddress = MmAllocateContiguousMemory(Length, MaximumAddress);
++    if (PoolAddress == NULL) {
+=1 499 3
++    *LogicalAddress = MmGetPhysicalAddress(PoolAddress);
+=1 366 1
++        return(PoolAddress);
+=1 178 3
++    // The common buffer is not cached. Allocate the descriptor of the buffer
++    // and address the buffer through KSEG1.
++    //
++
++    Entry = ExAllocatePool(NonPagedPool, sizeof(COMMON_BUFFER_ENTRY));
++    if (Entry == NULL) {
++        MmFreeContiguousMemory(PoolAddress);
+=1 499 3
++    Entry->PoolAddress = PoolAddress;
++    Entry->VirtualAddress = (PVOID)(KSEG1_BASE | LogicalAddress->LowPart);
++    ExInterlockedInsertTailList(&HalpCommonBufferListHead,
++                                &Entry->ListEntry,
++                                &HalpCommonBufferLock);
++
++    return(Entry->VirtualAddress);
++}
++
+=1 510 16
++
+=1 526 11
+=5 308 12
++    if (MasterAdapter != NULL) {
+=5 321 48
++        AdapterObject->MapRegisterBase = (PVOID) ((PUCHAR)
++            MasterAdapter->MapRegisterBase + (MapRegisterNumber << PAGE_SHIFT));
++
++    } else {
+=5 386 6
++
+=1 624 40
++
+=1 665 37
++    PCOMMON_BUFFER_ENTRY Entry;
++    KIRQL Irql;
++    PLIST_ENTRY NextEntry;
++    ULONG Offset;
++
++    //
++    // If the adapter has map registers, then free the map registers of the
++    // common buffer.
+=1 172 3
+=1 721 2 4
++            (PVOID) ((PUCHAR) AdapterObject->MasterAdapter->MapRegisterBase +
++                                    (LogicalAddress.LowPart & ~(PAGE_SIZE - 1))),
++            BYTES_TO_PAGES(Length)
++            );
+=3 2501 4
++    //
++    // Free the memory of the common buffer of a bus master. If the common
++    // buffer is not cached, then locate and remove its descriptor and purge
++    // the data cache of the memory of the buffer, which can hold data that
++    // the memory no longer holds.
+=1 364 3
+=3 758 2 4
++    } else {
++        KeAcquireSpinLock(&HalpCommonBufferLock, &Irql);
++        NextEntry = HalpCommonBufferListHead.Flink;
++        while (NextEntry != &HalpCommonBufferListHead) {
++            Entry = CONTAINING_RECORD(NextEntry,
++                                      COMMON_BUFFER_ENTRY,
++                                      ListEntry);
++
++            if (Entry->VirtualAddress == VirtualAddress) {
++                RemoveEntryList(&Entry->ListEntry);
+=1 1570 3 5
++            NextEntry = NextEntry->Flink;
++        }
++
++        KeReleaseSpinLock(&HalpCommonBufferLock, Irql);
++        ASSERT(NextEntry != &HalpCommonBufferListHead);
++        if (NextEntry == &HalpCommonBufferListHead) {
+=3 2502 3 4
++        for (Offset = 0; Offset < Length; Offset += PAGE_SIZE) {
++            HalPurgeDcachePage((PVOID)((PUCHAR)Entry->PoolAddress + Offset),
++                               (LogicalAddress.LowPart + Offset) >> PAGE_SHIFT,
++                               PAGE_SIZE);
++        }
++
++        MmFreeContiguousMemory(Entry->PoolAddress);
++        ExFreePool(Entry);
+=1 736 3
++}
++
+=1 742 11
++    in the device description structure.  Two bus types are supported for the
++    system: Internal and TurboChannel.
++
++    The DMA channel of the system is the SCSI channel, an internal channel. A
++    bus master of the system or a TURBOchannel slot is given an adapter object
++    of its own.
+=1 755 16
+=1 772 6
+=1 499 4
+=1 784 10
+=1 857 4
++    if ((DeviceDescription->InterfaceType != Internal) &&
++        (DeviceDescription->InterfaceType != TurboChannel)) {
+=1 499 4
++    // If this is a master controller, then create an adapter object for it.
+=1 802 3 -4
++        return(HalpAllocateAdapter(NULL, TRUE));
+=1 178 3
++    // Make sure the DMA channel is the SCSI channel of the system.
++    //
++
++    if ((DeviceDescription->InterfaceType != Internal) ||
++        (DeviceDescription->DmaChannel != SCSI_CHANNEL)) {
+=1 499 4
++    // If necessary allocate the adapter of the SCSI channel and return it.
++    //
++
++    if (HalpScsiAdapter == NULL) {
++        HalpScsiAdapter = HalpAllocateAdapter((PVOID) SCSI_DMA_ADDRESS, FALSE);
++        if (HalpScsiAdapter == NULL) {
++            return(NULL);
+=1 310 3
++    if (*NumberOfMapRegisters > MasterAdapterObject->MapRegistersPerChannel) {
++        *NumberOfMapRegisters = MasterAdapterObject->MapRegistersPerChannel;
++    }
++
++    return(HalpScsiAdapter);
++}
+=4 220 17
++    The system and the TURBOchannel have one address space, memory space,
++    whose addresses are system physical addresses.
+=7 72 25
++
++    if ((InterfaceType != Internal) &&
++        ((InterfaceType != TurboChannel) || (BusNumber != 0))) {
+=1 949 2
+=1 927 1 4
+=1 951 3
++    *AddressSpace = 0;
+=7 103 2
+=4 262 3
+=1 1016 2
+=1 1019 1
++    IN BOOLEAN MasterDevice
+=1 1021 11
++    AdapterBaseVa - Supplies the address of the DMA address register of the
++       DMA channel. If AdapterBaseVa is NULL and the adapter is not a bus
++       master, then the MasterAdapterObject is allocated.
++
++    MasterDevice - Supplies a boolean value that determines whether the
++       adapter is a bus master.
+=3 2006 16
+=1 1055 6
++       MasterAdapterObject = HalpAllocateAdapter( NULL, FALSE );
+=1 1065 28
++    if ((AdapterBaseVa == NULL) && (MasterDevice == FALSE)) {
+=1 1096 1
++            (((SCSI_BUFFER_SIZE >> PAGE_SHIFT) + 7) >> 3)) + 3) & ~3);
+=1 1099 4
+=1 1104 1
+=1 1106 53
++            RtlZeroMemory(AdapterObject, sizeof(ADAPTER_OBJECT));
+=1 1159 2
+=1 1163 1
++            AdapterObject->MasterDevice = MasterDevice;
+=1 1166 9
++            // If this is a bus master, then it has no map registers. If this
++            // is the MasterAdatper then initialize the register bit map,
++            // AdapterQueue and the spin lock. The map registers are the
++            // pages of the buffer of the SCSI controller, which is addressed
++            // through KSEG1.
++            //
++
++            if (MasterDevice != FALSE) {
++                AdapterObject->MapRegistersPerChannel = DMA_REQUEST_LIMIT;
+=3 2141 2
++            } else if ( AdapterBaseVa == NULL ) {
+=1 1161 1 3
++                                        SCSI_BUFFER_SIZE >> PAGE_SHIFT;
++
+=3 2141 1 -1
+=1 1182 1
+=1 1184 1
+=1 1186 3
++                                    SCSI_BUFFER_SIZE >> PAGE_SHIFT
++                                    );
++
+=1 1191 1
++               AdapterObject->MapRegisterBase = (PVOID) SCSI_BUFFER;
++
++            } else {
+=1 1161 1 4
++                                MasterAdapterObject->MapRegistersPerChannel;
+=3 2136 2
+=1 1265 11
++
+=1 1276 3
+=3 2236 2
++}
++
+=3 2451 31
+=1 1316 4
++
++    //
++    // Begin by getting the address of the master adapter. A bus master has
++    // no map registers.
+=3 326 3
++    if (MasterAdapter == NULL) {
+=3 2502 3
++   MapRegisterNumber = ((PUCHAR) MapRegisterBase -
++                (PUCHAR) MasterAdapter->MapRegisterBase) >> PAGE_SHIFT;
+=1 1335 37
++      // Attempt to allocate map registers for this request.
++      //
+=1 1377 3
+=3 2556 1 -35
+=3 551 3 3
+=1 1403 17
++     AdapterObject->MapRegisterBase = (PVOID) ((PUCHAR)
++            MasterAdapter->MapRegisterBase + (MapRegisterNumber << PAGE_SHIFT));
+=1 1421 68
++
+=1 1490 36
+=3 2277 12
+=1 1543 45
++        if ((Wcb->NumberOfMapRegisters != 0) && (MasterAdapter != NULL)) {
+=1 1589 6
+=6 699 3 8
+=1 223 5
+=1 1607 3
+=5 191 18
++               AdapterObject->MapRegisterBase = (PVOID) ((PUCHAR)
++                    MasterAdapter->MapRegisterBase + (MapRegisterNumber << PAGE_SHIFT));
+=3 429 5
+=3 435 11
+=1 1661 20
+=3 2426 24
++
+=3 2665 25
++    //
++    // Initialize the list of the common buffers that are not cached and
++    // its spin lock.
++    //
++
++    InitializeListHead(&HalpCommonBufferListHead);
++    KeInitializeSpinLock(&HalpCommonBufferLock);
+=1 1752 12
+=3 150 4
++    IN PCCHAR MapAddress,
+=1 1884 9
++    This routine copies the specific data between the user's buffer and the
++    map register buffer.  First the user buffer is mapped if necessary, then
++    the data is copied.
+=5 1098 6
++    MapAddress - The address in the map register buffer of the transfer.
+=1 1792 4
++    Length - The length of the transfer.
+=1 1799 6
+=1 1514 5
+=3 230 1
+=3 232 14
++    //
++    // Copy the data between the user buffer and map buffer
+=3 251 4
++        RtlMoveMemory( MapAddress, bufferAddress, Length);
+=1 978 3
++        RtlMoveMemory(bufferAddress, MapAddress, Length);
+=1 376 3
++}
++
+=1 1765 17
++    A transfer of the SCSI channel is made through the pages of the buffer
++    of the SCSI controller that are its map registers: the data of a write
++    to the device is copied to the buffer, and the DMA address register is
++    set to the address of the transfer in the buffer.
++
++    A bus master transfers the data with the physical addresses of the
++    pages of the transfer.
+=1 1781 29
++    PCCHAR MapAddress;
+=6 1491 2
++    PHYSICAL_ADDRESS ReturnAddress;
++    ULONG TransferLength;
+=1 1815 7
++    ReturnAddress.HighPart = 0;
++
++    //
++    // If the adapter is a bus master, then return the physical address of
++    // the transfer and limit the length of the transfer to the pages that
++    // are physically contiguous.
+=5 1041 3
+=1 1823 1 4
+=1 1825 1 4
++        ReturnAddress.LowPart = (*PageFrameNumber << PAGE_SHIFT) + Offset;
++        TransferLength = PAGE_SIZE - Offset;
++        while (TransferLength < *Length) {
++            if (*PageFrameNumber + 1 != *(PageFrameNumber + 1)) {
+=1 1570 3 5
+=5 1126 1 4
++            PageFrameNumber += 1;
++        }
++
+=5 1136 3 4
++
++        return(ReturnAddress);
+=1 178 3
++    // The transfer is made through the map registers at the map register
++    // base. If the transfer is a write to the device, then copy the data of
++    // the transfer to the buffer.
++    //
++
++    MapAddress = (PCCHAR) MapRegisterBase + Offset;
++    if (WriteToDevice != FALSE) {
++        HalpCopyBufferMap(Mdl, MapAddress, CurrentVa, *Length, TRUE);
+=1 178 3
++    // Set the DMA address register of the channel to the address of the
++    // transfer in the buffer and the direction of the transfer.
++    //
++
++    ReturnAddress.LowPart = MapAddress -
++                            (PCCHAR) AdapterObject->MasterAdapter->MapRegisterBase;
++
++    WRITE_REGISTER_ULONG(AdapterObject->AdapterBaseVa,
++                         (WriteToDevice ? SCSI_DMA_WRITE : 0) | ReturnAddress.LowPart);
++
++    return(ReturnAddress);
++}
++
+=1 1879 14
++    This routine flushes the DMA adapter object buffers. The data of a read
++    from the device through the buffer of the SCSI controller is copied to
++    the buffer of the transfer.
+=1 1895 30
++    //
++    // If this is a bus master or a write to the device, then there is
++    // nothing to do.
++    //
++
++    if ((MapRegisterBase == NULL) || (WriteToDevice != FALSE)) {
+=3 3240 4
++    // Copy the data of the read from the buffer.
++    //
++
++    HalpCopyBufferMap(Mdl,
++                      (PCCHAR) MapRegisterBase + BYTE_OFFSET( (PCHAR) CurrentVa - (PCHAR) Mdl->StartVa ),
++                      CurrentVa,
++                      Length,
++                      FALSE);
+=7 105 4
+=1 2012 45
+=2 2052 10
+=1 747 5
+=1 2071 2
++    N.B. The system has no bus with configuration data.
+=1 2072 20
+=1 2165 6
+=1 2105 24
+=3 3513 10
+=1 747 5
+=1 2143 2
++    N.B. The system has no bus with configuration data.
+=1 2072 20
+=1 2165 30
+=4 176 16
+=1 2211 33
++}
++
+=1 2247 29
+=5 1768 10
++    to be transferred.
++
++    N.B. The DMA channel of the system has no counter: the SCSI controller
++         counts the bytes of its transfers.
+=1 2598 7
++    Returns the number of bytes still be be transferred.
+=1 656 5
++    return(0);
++}

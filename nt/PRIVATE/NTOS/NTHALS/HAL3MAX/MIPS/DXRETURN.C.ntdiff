@@ -1,0 +1,25 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALDTI/MIPS/JXRETURN.C PRIVATE/NTOS/NTHALS/HALACR/MIPS/JXRETURN.C
+#crlf
+=1 1 6
++    dxreturn.c
+=1 8 3
++    This module implements the HAL return to firmware function for a
++    DECstation 5000/200 (KN02, MIPS R3000).
+=1 12 10
+=1 23 11
++
++    The KN02 has no reset under program control: a reset is done by a jump
++    to the reset entry of the PROM, which initializes the system as a
++    reset does and then takes the halt action of the console.
+=1 38 12
++
+=1 50 5
++
+=1 55 12
+=2 147 4
+=2 92 6
++        // Jump to the reset entry of the PROM.
++        //
++
++        ((VOID (*)(VOID))PROM_RESET_VIRTUAL_ADDRESS)();
+=1 81 9

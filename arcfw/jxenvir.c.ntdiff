@@ -1,0 +1,14 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/JXENVIR.C
++#if defined(JAZZ) || defined(DECSTATION)
+=1 2 145
++
++#if defined(DECSTATION)
++
++    //
++    // Write the non-volatile configuration back to the boot device.
++    //
++
++    FwNvramFlush();
++
++#endif
+=1 147 356

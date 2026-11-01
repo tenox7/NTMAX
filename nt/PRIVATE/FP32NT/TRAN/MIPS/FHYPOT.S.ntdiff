@@ -1,0 +1,33 @@
+#ntdiff PRIVATE/FP32NT/TRAN/MIPS/FHYPOT.S
+#crlf
+=1 1 44
++
++#if defined(R3000)
++
++/*
++ * The R3000 has no square root instruction: sqrt (sqrt3000.c) computes the
++ * square root, and hypotf has a frame for the call.
++ */
++
++#define FSIZE 24
++
++	.frame	sp, FSIZE, ra
++	.mask	0x80000000, -4
++	subu	sp, FSIZE
++	sw	ra, FSIZE-4(sp)
++    .prologue 1
+=1 47 5
++	jal	sqrt
++	cvt.s.d	$f0
++	lw	ra, FSIZE-4(sp)
++	addu	sp, FSIZE
++	j	ra
++
++#undef FSIZE
++
++#else
++
+=1 45 11
++#endif
++
++.end fhypot

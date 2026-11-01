@@ -1,0 +1,6 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/JZUSA.C
+=1 1 168
++#if !defined(DECSTATION)
+=1 169 1
++#endif
+=1 170 4

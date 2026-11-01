@@ -1,0 +1,88 @@
+#ntdiff PRIVATE/NTOS/MM/MIPS/MIR3000.H PRIVATE/NTOS/MM/MIPS/MIR4000.H PRIVATE/NTOS/MM/I386/MI386.H PRIVATE/NTOS/MM/ALPHA/MIALPHA.H
+=1 1 114
+=2 130 8
+=1 123 27
+=2 163 44
+=1 184 100
++#define MM_PROTECT_FIELD_SHIFT 4
+=2 288 10
++// The R3000 translation buffer maps single pages, so an invalid PTE needs
++// no global bit (which is a protection bit in an invalid R3000 PTE).
+=3 326 10
+=3 337 20
+=1 284 84
++                (OUTPTE).u.Long = (((OUTPTE).u.Long & 0xfffffc00) |       \
++                                  ((PROTECT) << MM_PROTECT_FIELD_SHIFT) | \
+=2 454 2
+=1 373 63
+=2 523 1
+=4 541 2
++       }
+=2 528 25
++// does nothing on r3000: the PTE it is given is invalid.
+=3 542 3
+=2 560 8
++//    This macro sets the global bit in the valid PTE.
+=1 315 3
++//    PTE - Supplies the valid PTE to set global.
+=2 573 10
+=2 586 8
++//    This macro clears the global bit in the valid PTE.
+=1 315 3
++//    PTE - Supplies the valid PTE to clear global.
+=2 599 10
+=1 438 154
+=2 772 18
+=1 584 1
+=4 800 19
+=1 630 35
+=2 862 14
++//    COLOR - Supplies a pointer to the process's next page color.
++//
++//    PTE - Supplies the PTE address the page is (or was) mapped at.
+=1 627 9
++#define MI_PAGE_COLOR_PTE_PROCESS(PTE,COLOR)  0
+=2 888 18
++//    COLOR - Supplies a pointer to the process's next page color.
+=1 627 9
+=3 910 2
+=3 916 47
++#define MI_GET_SECONDARY_COLOR(PAGE,PFN) (0)
+=3 964 5
+=1 665 5
+=2 1072 6
+=1 676 53
++//
++// The paging file number is in PageFileLow1 (its low two bits) and
++// PageFileLow0 (its high two bits).
++//
+=1 728 3
++                        ((((FILEINFO) & 3) << 10) | ((FILEINFO) & 0xC) | \
++                        ((OFFSET) << 12))))
+=1 733 28
++//
++// MiProtoAddressForKernelPte returns the bit field to OR into the PTE to
++// reference a prototype PTE for system space: an invalid R3000 PTE has no
++// global bit, so it is the same as for user space.
++//
+=3 1339 4
+=1 762 76
++#define GET_PAGING_FILE_NUMBER(PTE) ((((PTE).u.Long) & 0xC) |           \
++                                     ((((PTE).u.Long) >> 10) & 3))
+=1 840 3
++//
++// Check to see if a given PTE is NOT a demand zero PTE: the prototype,
++// transition and valid bits and the paging file offset are zero in a
++// demand zero PTE.
++//
++
++#define IS_PTE_NOT_DEMAND_ZERO(PTE) ((PTE).u.Long & (ULONG)0xFFFFF203)
+=1 850 26
+=2 1714 24
+=1 329 4
+=2 1742 5
+=1 876 6
+=2 1780 5
+=1 887 11
+=2 1821 10
+=1 907 115

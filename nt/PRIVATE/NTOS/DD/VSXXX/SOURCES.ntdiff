@@ -1,0 +1,10 @@
+#ntdiff PRIVATE/NTOS/DD/SERMOUSE/SOURCES
+#crlf
++!IF 0
+=1 4 12
++    This is the pointer port driver of the DECstation 5000/200: the VSXXX
++    mouse on line 1 of the DZ multiplexer, through the DZ port driver.
+=1 18 6
++TARGETNAME=vsxxx
+=1 25 5
++SOURCES=

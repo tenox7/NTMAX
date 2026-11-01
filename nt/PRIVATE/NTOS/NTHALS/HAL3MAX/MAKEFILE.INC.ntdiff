@@ -1,0 +1,8 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALFXS/MAKEFILE.INC
+#crlf
+=1 1 3
++$(TARGETPATH)\mips\hal.lib: $(TARGETPATH)\mips\hal3max.lib
++    copy $** $@
++
++$(TARGETPATH)\mips\hal.dll: $(TARGETPATH)\mips\hal3max.dll
+=1 8 2

@@ -1,0 +1,63 @@
+#ntdiff PUBLIC/SDK/INC/NTMIPS.H PRIVATE/NTOS/INC/I386.H
+=1 1 624
++
++#if defined(R3000)
++
++//
++// Define R3000 system coprocessor registers.
+=1 627 5
++    ULONG X1 : 8;
++    ULONG INDEX : 6;
++    ULONG X2 : 17;
+=1 634 8
++    ULONG X1 : 8;
++    ULONG INDEX : 6;
++    ULONG X2 : 18;
+=1 644 7
++    ULONG X1 : 8;
+=1 651 3
++    ULONG N : 1;
++    ULONG PFN : 20;
+=1 657 3
++// Define the hardware PTE of the R3000, which memory management uses.
+=1 661 5
++    ULONG filler1 : 6;
+=1 671 2
+=1 666 3
+=2 666 1
+=2 673 4
++// Define R3000 macro to initialize page directory table base.
+=1 677 3
++     *((PULONG)(dirbase)) = 0; \
+=1 680 3
++     ((HARDWARE_PTE *)(dirbase))->Dirty = 1
+=1 704 6
++    ULONG X1 : 6;
++    ULONG PID : 6;
++    ULONG VPN : 20;
+=1 713 7
++    ULONG IEC : 1;
++    ULONG KUC : 1;
++    ULONG IEP : 1;
++    ULONG KUP : 1;
++    ULONG IEO : 1;
++    ULONG KUO : 1;
++    ULONG X1 : 2;
++    ULONG INTMASK : 8;
++    ULONG ISC : 1;
++    ULONG SWC : 1;
++    ULONG PZ : 1;
++    ULONG CM : 1;
++    ULONG PE : 1;
+=1 733 4
++    ULONG X3 : 2;
+=1 739 6
++#endif
++
++#if defined(R4000)
++
+=1 625 62
+=1 706 39
+=2 61 3
+=1 687 19
+=1 746 220

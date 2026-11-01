@@ -1,0 +1,10 @@
+#ntdiff PRIVATE/NTOS/DLL/MIPSDEF.SRC
+#crlf
+=1 1 20
++#if defined(R3000)
++    RtlpLockRangeStart
++    RtlpLockRangeEnd
++    RtlpEnterCritSecHelper
++    RtlpLeaveCritSecHelper
++    RtlpInterlockedExchangeHelper
++#endif

@@ -1,0 +1,5 @@
+#ntdiff PRIVATE/NTOS/VIDEO/JAZZG364/SOURCES
+#crlf
+=1 1 3
++TARGETNAME=pmagba
+=1 5 8

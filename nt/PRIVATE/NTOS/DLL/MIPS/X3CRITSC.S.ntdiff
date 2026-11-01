@@ -1,0 +1,37 @@
+#ntdiff PRIVATE/NTOS/DLL/MIPS/X3CRITSC.S PRIVATE/WINDOWS/BASE/CLIENT/MIPS/CRITSECT.S
+#crlf
+=1 1 25
++//    The R3000 port: an interlocked exchange helper for the Win32
++//    InterlockedExchange, in the same guarded sequence.
+=1 25 36
++        b       10f                     // finish in common code
++
++        SBTTL("Interlocked Exchange Helper")
+=1 31 3
++// RtlpInterlockedExchangeHelper(
++//    IN OUT PLONG Target,
+=2 129 6
++//    a longword in memory and returns the memory value. It is the R3000 code
++//    of the Win32 InterlockedExchange function, which has no other way to do
++//    it in user mode.
+=2 136 6
++//    Value (a1) - Supplies the value to exchange with the target value.
+=2 143 7
++        ALTERNATE_ENTRY(RtlpInterlockedExchangeHelper)
++
+=2 153 1
++        move    t2,zero                 // set mask to replace target value
+=1 61 33
++10:     li      t2,-1                   // set mask to keep addend value
+=1 94 7
++// The new value is the old value masked with t2, plus t1: the addend value
++// plus the increment value, or the exchange value.
+=1 100 8
++        and     t3,v0,t2                // keep addend value or replace it
++        addu    t3,t3,t1                // add increment value
++        sw      t3,0(a0)                // store the result
+=1 110 5
++        beq     zero,t2,20f             // if eq, return previous value
++        move    v0,t3                   // return updated value
++20:     j       ra                      // return
+=1 116 4

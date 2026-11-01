@@ -1,0 +1,86 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALFXS/MIPS/JXSYSINT.C
+#crlf
+=1 1 6
++    dxsysint.c
+=1 8 4
++    request interprocessor interrupt routines for a DECstation 5000/200
++    (KN02, MIPS R3000) system.
++
++    The I/O interrupts of the KN02 are the eight interrupt pending bits of
++    the system control and status register, one for each slot of the
++    TURBOchannel: the option slots 0 to 2, the SCSI controller (5), the
++    network controller (6), and the serial lines of the system slot (7).
++    Each has an enable bit in the same register. Their vectors start at
++    DEVICE_VECTORS, and they interrupt at DEVICE_LEVEL.
+=1 14 14
++
+=1 29 36
++    // If the vector number is within the range of the I/O interrupts, then
++    // disable the I/O interrupt.
++    //
++
++    if ((Vector >= DEVICE_VECTORS) && (Vector <= MAXIMUM_IO_VECTOR)) {
++        HalpBuiltinInterruptEnable &= ~(1 << (Vector - DEVICE_VECTORS));
++        HalpWriteSystemControl();
+=1 73 3
++    // Release the device enable spin lock and lower IRQL to the previous level.
+=1 88 6
++
+=1 95 40
++    // If the vector number is within the range of the I/O interrupts, then
++    // enable the I/O interrupt.
++    //
++    // N.B. The I/O interrupts are level sensitive.
++    //
++
++    if ((Vector >= DEVICE_VECTORS) && (Vector <= MAXIMUM_IO_VECTOR)) {
++        HalpBuiltinInterruptEnable |= (1 << (Vector - DEVICE_VECTORS));
++        HalpWriteSystemControl();
+=1 73 3
++    // Release the device enable spin lock and lower IRQL to the previous level.
+=1 158 6
++
+=1 165 56
++    //
++    // The DECstation 5000/200 has one I/O bus, the TURBOchannel. The bus
++    // interrupt level of a TURBOchannel device is its slot number, and the
++    // interrupt of a slot is the I/O interrupt of the same number.
++    //
++
++    if ((InterfaceType != TurboChannel) || (BusNumber != 0) ||
++        (BusInterruptLevel >= TURBOCHANNEL_SLOTS)) {
+=1 222 8
++    }
++
++    *Irql = DEVICE_LEVEL;
++    *Affinity = 1;
++    return(BusInterruptLevel + DEVICE_VECTORS);
++}
++
+=1 264 14
++    N.B. The DECstation 5000/200 has one processor.
+=1 277 14
++    return;
++}
++
++VOID
++HalpWriteSystemControl (
++    VOID
+=1 33 6
++    This function writes the system control and status register with the
++    current I/O interrupt enable mask.
++
++    N.B. This function is called during initialization, or with the system
++         interrupt lock held at HIGH_LEVEL.
+=1 40 3
++    None.
+=1 46 9
++    ULONG DataLong;
++
++    DataLong = HalpSystemControl;
++    ((PSYS_CONTROL_STATUS_WRITE)(&DataLong))->InterruptEnable =
++                                                HalpBuiltinInterruptEnable;
++
++    WRITE_REGISTER_ULONG((PULONG)&SYS_CONTROL->SysControlStatus.Write,
++                         DataLong);
+=1 302 3

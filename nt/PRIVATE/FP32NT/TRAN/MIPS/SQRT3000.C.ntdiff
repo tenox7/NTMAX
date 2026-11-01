@@ -1,0 +1,18 @@
+#ntdiff PRIVATE/FP32NT/TRAN/MIPS/SQRT3000.C PRIVATE/FP32NT/TRAN/SQRT.C
+#crlf
+=1 1 17
++#define _STICKY  (0x7c)		/* the status flags of the fsr (ISW_*) */
+=1 19 28
++    // mask exceptions and round down, with the internal control word of
++    // trans.h (_ctrlfp returns the control word of the caller, which
++    // _controlfp does not)
++    savedcw = _ctrlfp(ICW | IRC_DOWN, IMCW);
+=1 49 42
++    (void) _clrfp();
+=1 92 2
++    stat = _clrfp();
++    _set_statfp(savedcw & _STICKY);
++
+=2 82 3
+=2 86 30
+=1 129 3

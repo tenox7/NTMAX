@@ -1,0 +1,41 @@
+#ntdiff PRIVATE/NTOS/KE/MIPS/X4MPIPI.S PRIVATE/NTOS/KE/MIPS/THREADBG.S
+=1 1 7
++//    x3mpipi.s
+=1 9 6
++//    This is the R3000 version. An R3000 system has one processor: the
++//    request summary is accessed with interrupts disabled and the send
++//    functions have nothing to send.
+=1 14 61
+=2 52 13
+=1 82 24
++        lwc1    f20,ExFltF20(sp)        // restore floating registers f20 - f31
++        lwc1    f21,ExFltF21(sp)        //
++        lwc1    f22,ExFltF22(sp)        //
++        lwc1    f23,ExFltF23(sp)        //
++        lwc1    f24,ExFltF24(sp)        //
++        lwc1    f25,ExFltF25(sp)        //
++        lwc1    f26,ExFltF26(sp)        //
++        lwc1    f27,ExFltF27(sp)        //
++        lwc1    f28,ExFltF28(sp)        //
++        lwc1    f29,ExFltF29(sp)        //
++        lwc1    f30,ExFltF30(sp)        //
++        lwc1    f31,ExFltF31(sp)        //
+=1 112 74
++// The request summary is in the low 32-bits and the entry address in the
++// high 32-bits of the summary quadword, which is read and zeroed with
++// interrupts disabled.
+=1 189 4
++        lw      s0,PbRequestSummary(t0) // get request summary
++        lw      a0,PbRequestSummary + 4(t0) // get entry address
++        sw      zero,PbRequestSummary(t0) // zero request summary
++        sw      zero,PbRequestSummary + 4(t0) //
+=1 198 43
++        nop                             // fill for R3000
+=1 241 30
++        nop                             // fill for R3000
+=1 271 68
++        j       ra                      // return
+=1 371 38
++        j       ra                      // return
++
++        .end    KiIpiSendPacket

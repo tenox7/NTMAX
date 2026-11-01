@@ -1,0 +1,689 @@
+#ntdiff PRIVATE/NTOS/VIDEO/JAZZG364/JAZZG364.C PRIVATE/NTOS/VIDEO/JAZZG300/JAZZG300.C PRIVATE/NTOS/VIDEO/JZVXL484/JZVXL484.C PRIVATE/NTOS/INC/JAZZVDEO.H
+#crlf
+=1 1 6
++    pmagba.c
+=1 8 3
++    This module contains the code that implements the miniport driver of
++    the color frame buffer of the DECstation 5000 (PMAG-BA), a TURBOchannel
++    option.
++
++    The color frame buffer displays 1024 by 864 pixels of eight bits with a
++    fixed timing, from a video memory of 1024 by 1024 bytes at the start of
++    its TURBOchannel slot. Its Bt459 display controller holds the color map
++    and a hardware cursor of 64 by 64 pixels of two bits. The frame buffer
++    requests an interrupt at the start of each vertical retrace, which loads
++    the color map and the cursor position and enable into the Bt459.
+=1 13 15
++#include "decbt459.h"
+=4 118 3
++// Define the layout of the TURBOchannel slot of the color frame buffer:
++// the video memory, the Bt459 display controller, and the interrupt
++// register, a write to which clears the vertical retrace interrupt.
++//
++
++#define CFB_FRAME_OFFSET     0x000000
++#define CFB_FRAME_LENGTH     0x100000
++#define CFB_CONTROL_OFFSET   0x200000
++#define CFB_INTERRUPT_OFFSET 0x300000
++
++//
++// Define the geometry and the timing of the color frame buffer, and the
++// size of the screen of its 19 inch monitor.
++//
++
++#define CFB_HORIZONTAL_RESOLUTION 1024
++#define CFB_VERTICAL_RESOLUTION   864
++#define CFB_SCREEN_STRIDE         1024
++#define CFB_VIDEO_MEMORY_HEIGHT   1024
++#define CFB_FREQUENCY             72
++#define CFB_X_MILLIMETER          350
++#define CFB_Y_MILLIMETER          295
++
++//
++// Define the offset of the cursor position of the Bt459 from the position
++// of the cursor on the screen: the Bt459 positions the cursor relative to
++// the sync of the fixed timing, not to the first pixel displayed.
++//
++
++#define CFB_CURSOR_X_ORIGIN 220
++#define CFB_CURSOR_Y_ORIGIN 35
++
++//
++// Defines used to determine which frame buffer is present. This is stored
++// in the DeviceTypeIdentifier in the device extension.
++//
++
++#define PMAGBA 1
++
++//
++// Define the identifier of the frame buffer, the module name of its option
++// ROM, which the firmware puts in the configuration of the TURBOchannel.
++// The length includes the terminating null.
++//
++
++#define PMAGBA_NAME        L"PMAG-BA"
++#define PMAGBA_NAME_LENGTH 16
++
++//
++// Define the Bt459 internal register addresses: the cursor color
++// registers, the identification register, the command registers, the
++// cursor command register and the cursor position that follows it, and
++// the cursor ram.
++//
++
++#define BT459_CURSOR_COLOR_1 0x181
++#define BT459_ID             0x200
++#define BT459_COMMAND_0      0x201
++#define BT459_CURSOR_COMMAND 0x300
++#define BT459_CURSOR_X_LOW   0x301
++#define BT459_CURSOR_RAM     0x400
++
++//
++// Define the value of the identification register of the Bt459, and the
++// cursor command register values: the cursor off, and the cursor
++// displaying both of its planes.
++//
++
++#define BT459_ID_VALUE   0x4a
++#define BT459_CURSOR_OFF 0x00
++#define BT459_CURSOR_ON  0xc0
++
++//
++// Define the hardware cursor and the color map.
+=4 30 9
++    ((CURSOR_WIDTH * CURSOR_HEIGHT * CURSOR_BITS_PER_PIXEL) / 8)
++#define NUMBER_OF_CURSOR_COLORS 3       // cursor colors 1 to 3
++
++//
++// Define macros to access the display controller.
++//
++
++#define VIDEO_CONTROL (hwDeviceExtension->VideoAddress)
++
++#define BT459_SET_ADDRESS(Address)                                      \
++    VideoPortWriteRegisterUchar(&VIDEO_CONTROL->AddressLow.Byte,        \
++                                (UCHAR)(Address));                      \
++    VideoPortWriteRegisterUchar(&VIDEO_CONTROL->AddressHigh.Byte,       \
++                                (UCHAR)((Address) >> 8))
++
++#define BT459_WRITE_REGISTER(Value)                                     \
++    VideoPortWriteRegisterUchar(&VIDEO_CONTROL->RegisterData.Byte,      \
++                                (UCHAR)(Value))
++
++#define BT459_WRITE_COLOR(Value)                                        \
++    VideoPortWriteRegisterUchar(&VIDEO_CONTROL->ColorMapData.Byte,      \
++                                (UCHAR)(Value))
+=4 118 3
+=1 63 5
++    PBT459_REGISTERS VideoAddress;
++    PUCHAR InterruptAddress;
+=1 73 5
++    VIDEO_CLUTDATA ColorMap[NUMBER_OF_COLORS];
+=1 82 2
+=1 86 4
++    VIDEO_CLUTDATA CursorColorMap[NUMBER_OF_CURSOR_COLORS];
++    UCHAR CursorPixels[CURSOR_MAXIMUM];
+=1 95 3
+=1 103 1
+=1 108 3
+=3 102 3
+=1 116 3
++// Functions that start with 'Cfb' are entry points for the OS port driver.
+=1 120 3
++CfbFindAdapter(
+=1 124 8
++CfbInitialize(
+=1 133 4
++CfbInterruptService (
+=1 133 4
++CfbStartIO(
+=1 143 9
++CfbGetDeviceDataCallback(
+=1 153 12
++CfbSetColorRegisters(
+=1 166 4
++CfbEnablePointer(
+=1 166 4
++CfbDisablePointer(
+=1 166 4
++CfbSetPointerPosition(
+=1 166 4
++CfbSetPointer(
+=1 186 4
++CfbAttributesSetup (
+=1 191 4
++CfbControllerSetup (
+=1 191 4
++CfbRequestUpdate (
+=1 191 3
++
+=1 200 47
++    hwInitData.HwFindAdapter = CfbFindAdapter;
++    hwInitData.HwInitialize = CfbInitialize;
++    hwInitData.HwInterrupt = CfbInterruptService;
++    hwInitData.HwStartIO = CfbStartIO;
+=1 251 8
++    // The color frame buffer is an option of the TURBOchannel. So return
++    // the status value directly to the operating system.
++    //
++
++    hwInitData.AdapterInterfaceType = TurboChannel;
+=1 270 7
++
++VP_STATUS
++CfbFindAdapter(
+=1 280 57
++    UCHAR identification;
+=1 337 12
++    //
++    // Get the slot and the interrupt of the frame buffer from the
++    // configuration of the TURBOchannel, and map its registers.
++    //
+=1 348 3
++                               &CfbGetDeviceDataCallback,
++                               ConfigInfo)) {
++
++        VideoDebugPrint((2, "PMAGBA: VideoPort get controller info failed\n"));
+=1 366 6
++    // Make sure the display controller of the slot is a Bt459.
++    //
++
++    BT459_SET_ADDRESS(BT459_ID);
++    identification =
++        VideoPortReadRegisterUchar(&VIDEO_CONTROL->RegisterData.Byte);
++
++    if (identification != BT459_ID_VALUE) {
++
++        VideoDebugPrint((1, "PMAGBA: bad Bt459 identification %x\n",
++                         identification));
++
+=1 515 3 -12
+=1 370 22
++
++    //
++    // Set the resolution of the frame buffer.
++    //
++
++    hwDeviceExtension->HorizontalResolution = CFB_HORIZONTAL_RESOLUTION;
++    hwDeviceExtension->VerticalResolution = CFB_VERTICAL_RESOLUTION;
+=1 393 19
++} // end CfbFindAdapter()
++
++VP_STATUS
++CfbGetDeviceDataCallback(
+=1 416 17
++    The configuration data of the frame buffer is the configuration data
++    of the graphics boards of the ARC firmware: the interrupt of the slot of
++    the frame buffer, the Bt459 display controller and the video memory.
++    The register that clears the vertical retrace interrupt is at a fixed
++    offset in the slot.
+=1 432 36
++    PVIDEO_HARDWARE_CONFIGURATION_DATA cfbConfigData = ConfigurationData;
+=1 471 7
++        VideoDebugPrint((2, "PMAGBA: getting controller information\n"));
++
++        VideoDebugPrint((2, "PMAGBA: controller identifier is %ws\n", Identifier));
+=1 481 4
++        //
++
++        if ((IdentifierLength >= PMAGBA_NAME_LENGTH) &&
++            (PMAGBA_NAME_LENGTH ==
++             VideoPortCompareMemory(Identifier,
++                                    PMAGBA_NAME,
++                                    PMAGBA_NAME_LENGTH))) {
++
++            hwDeviceExtension->DeviceTypeIdentifier = PMAGBA;
+=1 494 3
+=1 515 3 -8
++
++        if (ConfigurationDataLength < sizeof(VIDEO_HARDWARE_CONFIGURATION_DATA)) {
++
++            VideoDebugPrint((1, "PMAGBA: configuration data too short\n"));
+=1 586 6
++        // The frame buffer must hold the video memory of the board.
++        //
++
++        if (cfbConfigData->FrameSize < CFB_FRAME_LENGTH) {
++
++            VideoDebugPrint((1, "PMAGBA: frame buffer too small\n"));
+=1 586 6
+=1 522 4
++        ConfigInfo->BusInterruptLevel = cfbConfigData->Irql;
++        ConfigInfo->BusInterruptVector = cfbConfigData->Vector;
+=1 528 6
++        accessRanges[0].RangeStart.LowPart = cfbConfigData->ControlBase;
++        accessRanges[0].RangeLength = sizeof(BT459_REGISTERS);
+=1 536 5
++        accessRanges[1].RangeStart.LowPart = cfbConfigData->FrameBase -
++                                             CFB_FRAME_OFFSET +
++                                             CFB_INTERRUPT_OFFSET;
++        accessRanges[1].RangeLength = sizeof(ULONG);
+=1 543 5
++        accessRanges[2].RangeStart.LowPart = cfbConfigData->FrameBase;
++        accessRanges[2].RangeLength = cfbConfigData->FrameSize;
+=1 550 22
++        hwDeviceExtension->PhysicalFrameAddress = accessRanges[2].RangeStart;
++        hwDeviceExtension->FrameLength = accessRanges[2].RangeLength;
+=1 576 16
++        // Map the interrupt register into the system virtual address space
++        // so we can clear the vertical retrace interrupt.
++        //
++
++        if ( (hwDeviceExtension->InterruptAddress =
+=1 582 1
++                                     accessRanges[1].RangeStart, // Interrupt
+=3 533 11
++    default:
++
++        VideoDebugPrint((2, "PMAGBA: callback has bad device type\n"));
+=1 683 4
++} //end CfbGetDeviceDataCallback()
++
++BOOLEAN
++CfbInitialize(
+=1 691 22
++    CfbAttributesSetup((PHW_DEVICE_EXTENSION) HwDeviceExtension);
++
++    CfbControllerSetup((PHW_DEVICE_EXTENSION) HwDeviceExtension);
+=1 716 3
++} // end CfbInitialize()
++
++
++BOOLEAN
++CfbStartIO(
+=1 723 33
+=1 763 11
++        VideoDebugPrint((2, "CfbStartIO - MapVideoMemory\n"));
+=1 775 7
+=3 993 3
+=1 784 32
++        VideoDebugPrint((2, "CfbStartIO - UnMapVideoMemory\n"));
+=1 817 4
+=3 993 3
+=1 823 12
++        VideoDebugPrint((2, "CfbStartIO - Query(Available/Current)Modes\n"));
+=1 836 14
++            modeInformation->VisScreenWidth = hwDeviceExtension->HorizontalResolution;
+=1 852 1
++            modeInformation->ScreenStride = CFB_SCREEN_STRIDE;
+=1 854 4
++            modeInformation->XMillimeter = CFB_X_MILLIMETER;
++            modeInformation->YMillimeter = CFB_Y_MILLIMETER;
++            modeInformation->Frequency = CFB_FREQUENCY;
+=1 861 13
++            modeInformation->VideoMemoryBitmapWidth = CFB_SCREEN_STRIDE;
++            modeInformation->VideoMemoryBitmapHeight = CFB_VIDEO_MEMORY_HEIGHT;
+=1 873 10
++        VideoDebugPrint((2, "CfbStartIO - QueryNumAvailableModes\n"));
+=1 884 28
++        VideoDebugPrint((2, "CfbStartIO - SetCurrentMode\n"));
++
++        //
++        // The frame buffer has one mode, of a fixed timing.
++        //
++
++        if ((RequestPacket->InputBufferLength < sizeof(VIDEO_MODE)) ||
++            ((((PVIDEO_MODE)(RequestPacket->InputBuffer))->RequestedMode &
++              ~VIDEO_MODE_NO_ZERO_MEMORY) != 0)) {
+=1 993 3
++        } else {
+=1 873 8
+=1 919 3
++        // The frame buffer has no basic mode to return to: turn the hardware
++        // cursor off, as the display controller is for the HAL again.
++        //
++
++        VideoDebugPrint((2, "CfbStartIO - ResetDevice\n"));
+=1 1039 4
++                                          CfbDisablePointer,
+=1 1044 7
+=1 934 2
++        VideoDebugPrint((2, "CfbStartIO - SetPaletteRegs\n"));
+=1 937 8
++        VideoDebugPrint((2, "CfbStartIO - SetColorRegs\n"));
+=3 1020 22
+=2 882 4
+=1 975 10
++                                              CfbSetColorRegisters,
+=1 986 6
+=1 994 13
++            VideoDebugPrint((2,"CfbStartIO - QueryPointerCapabilities\n"));
+=1 1008 30
++        VideoDebugPrint((2, "CfbStartIO - EnablePointer\n"));
+=1 1039 4
++                                          CfbEnablePointer,
+=1 1044 9
++        VideoDebugPrint((2, "CfbStartIO - DisablePointer\n"));
+=1 1039 4
++                                          CfbDisablePointer,
+=1 1059 9
++        VideoDebugPrint((2,"CfbStartIO - SetPointerPosition\n"));
+=1 1069 13
+=1 1087 5
++                                              CfbSetPointerPosition,
+=1 1044 4 4
+=1 1098 7
++        VideoDebugPrint((2, "CfbStartIO - QueryPointerPosition\n"));
+=1 1106 35
++            ULONG   NumBytes;
++            PUCHAR  pAnd;
++            PUCHAR  pXor;
++
++            VideoDebugPrint((2, "CfbStartIO - SetPointerAttributes\n"));
+=1 1146 13
+=1 1160 8
++            // If the specified cursor width or height is not valid, or the
++            // pointer is not monochrome, then return an invalid parameter
++            // error.
+=1 1170 3
++                (pointerAttributes->Height > CURSOR_HEIGHT) ||
++                (pointerAttributes->WidthInBytes != CURSOR_WIDTH / 8) ||
++                !(pointerAttributes->Flags & VIDEO_MODE_MONO_POINTER)) {
+=1 1174 9
++            // The Bt459 has no XOR cursor: its cursor colors replace the
++            // pixels of the screen. Scan the input data for the cursor shape
++            // and look for any pixels that require XOR  ie: AND = 1, XOR = 1
++            //
++
++            NumBytes = (CURSOR_WIDTH/8) * CURSOR_HEIGHT;
++            pAnd = pointerAttributes->Pixels;
++            pXor = pAnd + NumBytes;
++
++            for (Index=0;Index<NumBytes;Index++) {
+=1 1193 23
++                                                  CfbSetPointer,
+=1 1217 13
++        VideoDebugPrint((1, "Fell through Cfb startIO routine - invalid command\n"));
+=1 1231 11
++} // end CfbStartIO()
++
++VOID
++CfbRequestUpdate(
+=1 1864 7
++    This routine requests the vertical retrace interrupt that loads the
++    updates of the device extension into the Bt459. A vertical retrace
++    that occurred while the interrupt was disabled is cleared first, so the
++    update waits for the start of the next one.
+=1 1252 5
+=2 1155 10
++    VideoPortWriteRegisterUchar(HwDeviceExtension->InterruptAddress, 0);
++
++    VideoPortEnableInterrupt(HwDeviceExtension);
+=1 1929 3
++} // end CfbRequestUpdate()
++
++BOOLEAN
++CfbSetColorRegisters(
+=1 1246 23
++    ULONG index2;
++
++    VideoDebugPrint((2,"PMAGBA SetColorRegisters\n"));
++
++    //
++    // Add the new entries to the range of the entries that the next
++    // vertical retrace interrupt loads.
++    //
+=1 1274 2
++    index2 = index1 + clutBuffer->NumEntries;
++
++    if ((hwDeviceExtension->UpdateColorMap == FALSE) ||
++        (index1 < hwDeviceExtension->FirstEntry)) {
++
+=1 1276 1 4
+=1 346 3
++    if ((hwDeviceExtension->UpdateColorMap == FALSE) ||
++        (index2 > hwDeviceExtension->LastEntry)) {
++
++        hwDeviceExtension->LastEntry = (USHORT)index2;
+=1 346 3
++    while (index1 < index2) {
++
++        hwDeviceExtension->ColorMap[index1] =
++            clutBuffer->LookupTable[index1 - clutBuffer->FirstEntry].RgbArray;
++
++        index1++;
+=1 1294 8
++    CfbRequestUpdate(hwDeviceExtension);
+=1 716 3
++} // end CfbSetColorRegisters()
++
++BOOLEAN
++CfbEnablePointer(
+=1 1310 25
++    // it and update the pointer position.
++    //
++    // N.B. Explicit synchronization is required since the enable and
++    // update pointer position parameters must be atomically written.
+=1 1340 6
++    VideoDebugPrint((2,"PMAGBA EnablePointer\n"));
+=1 1347 4
+=1 1352 1
++        CfbRequestUpdate(hwDeviceExtension);
+=1 1354 5
++} // end CfbEnablePointer()
++
++BOOLEAN
++CfbDisablePointer(
+=1 1246 8
++    It disables the pointer in the device extension.
+=1 1319 14
++    VideoDebugPrint((2,"PMAGBA DisablePointer\n"));
+=1 1387 17
++        CfbRequestUpdate(hwDeviceExtension);
+=1 1354 5
++} // end CfbDisablePointer()
++
++BOOLEAN
++CfbSetPointerPosition(
+=1 1414 30
+=1 1446 3
+=1 1460 6
++    CfbRequestUpdate(hwDeviceExtension);
+=1 716 3
++} // end CfbSetPointerPosition()
++
++BOOLEAN
++CfbSetPointer(
+=1 1246 8
++    It sets the shape of the pointer in the cursor ram of the Bt459, and
++    its position and enable in the device extension.
+=1 1484 18
++    ULONG  index3;
+=1 1505 4
++    UCHAR  PixelValue;
+=1 1510 8
+=1 1520 2
++    hwDeviceExtension->CursorColumn = (SHORT)pointerAttributes->Column;
++    hwDeviceExtension->CursorRow    = (SHORT)pointerAttributes->Row;
+=1 1535 6
++    // Each hardware pixel has two bits, the pixel of plane one and the
++    // pixel of plane zero. The value 0 displays the pixel of the screen,
++    // the values 1 to 3 the cursor colors 1 to 3. Each byte of the
++    // cursor ram holds 4 pixels, the leftmost one in its high order bits;
++    // a scan line of the cursor is 16 bytes.
+=1 1567 4
++    //  -----------------------      -----------------------
++    //  A7 A6 A5 A4 A3 A2 A1 A0      X7 X6 X5 X4 X3 X2 X1 X0
++    //
++    // into two bytes of hw Cursor ram, stored as
+=1 1569 2
++    //  -----------------------      -----------------------
++    //  X7 A7 X6 A6 X5 A5 X4 A4      X3 A3 X2 A2 X1 A1 X0 A0
++    //
++    // with the And mask inverted: the pixels of an And mask of zero and an
++    // Xor mask of zero show cursor color 1, black, those of an And mask of
++    // zero and an Xor mask of one cursor color 3, white.
+=1 1581 5
++    for (index1 = 0; index1 < (CURSOR_WIDTH / 8) * CURSOR_HEIGHT; index1++) {
+=1 1587 3
++
++        for (index2 = 0; index2 < 2; index2++) {
++
++            PixelValue = 0;
++
++            for (index3 = 0; index3 < 4; index3++) {
+=1 1593 3
++                PixelValue |= (UCHAR)((XorSrc & 0x80) >> 6);
++
++                PixelValue |= (UCHAR)((AndSrc & 0x80) >> 7);
++
++                AndSrc <<= 1;
++                XorSrc <<= 1;
+=1 1164 3
++            hwDeviceExtension->CursorPixels[(index1 * 2) + index2] = PixelValue;
++        }
++
+=1 1607 6
++    // Load the cursor ram immediately, with the cursor turned off, rather
++    // than in the interrupt service routine: the cursor ram is a thousand
++    // registers of the Bt459, more than a vertical retrace can load.
++    //
++
++    BT459_SET_ADDRESS(BT459_CURSOR_COMMAND);
++    BT459_WRITE_REGISTER(BT459_CURSOR_OFF);
++
++    BT459_SET_ADDRESS(BT459_CURSOR_RAM);
+=1 1585 3
++        BT459_WRITE_REGISTER(hwDeviceExtension->CursorPixels[index1]);
+=1 368 4
+=1 1683 5
++    CfbRequestUpdate(hwDeviceExtension);
+=1 716 3
++} // end CfbSetPointer()
++
++BOOLEAN
++CfbInterruptService(
+=1 691 7
++    This routine is the interrupt service routine for the vertical retrace
++    interrupt of the color frame buffer.
+=1 1705 14
++    LONG x;
++    LONG y;
++
++    //
++    // Clear the vertical retrace interrupt and disable it.
++    //
++
++    VideoPortWriteRegisterUchar(hwDeviceExtension->InterruptAddress, 0);
+=1 1727 5
++    // Bt459 display controller. The red, green, and blue values of an entry
++    // are written in turn.
+=1 1733 4
++        BT459_SET_ADDRESS(hwDeviceExtension->FirstEntry);
+=1 1736 4
++            BT459_WRITE_COLOR(hwDeviceExtension->ColorMap[index].Red);
++            BT459_WRITE_COLOR(hwDeviceExtension->ColorMap[index].Green);
++            BT459_WRITE_COLOR(hwDeviceExtension->ColorMap[index].Blue);
+=1 1742 16
++            // Store the position in the cursor position registers, x and
++            // then y, the low byte and then the high byte of each. A
++            // position above the screen, which the origin does not make
++            // positive, is set to the top.
+=1 1761 7
++            if (x < 0) {
++                x = 0;
++            }
++
++            if (y < 0) {
++                y = 0;
++            }
++
++            BT459_SET_ADDRESS(BT459_CURSOR_X_LOW);
++            BT459_WRITE_REGISTER(x);
++            BT459_WRITE_REGISTER(x >> 8);
++            BT459_WRITE_REGISTER(y);
++            BT459_WRITE_REGISTER(y >> 8);
++
++            BT459_SET_ADDRESS(BT459_CURSOR_COMMAND);
++            BT459_WRITE_REGISTER(BT459_CURSOR_ON);
+=1 494 3
++            BT459_SET_ADDRESS(BT459_CURSOR_COMMAND);
++            BT459_WRITE_REGISTER(BT459_CURSOR_OFF);
+=1 1804 6
++    return TRUE;
++
++} // end CfbInterruptService()
++
++VOID
++CfbAttributesSetup(
+=1 1864 7
++    This routine initializes the device extension copy of the color map
++    and the hardware cursor.
+=1 1872 12
++    ULONG index;
++
++    VideoDebugPrint((2,"CfbAttributesSetup\n"));
+=1 1889 15
++        HwDeviceExtension->CursorPixels[index] = 0x00;
+=1 1905 8
++    HwDeviceExtension->UpdateColorMap       = FALSE;
+=1 1914 3
++    // set the cursor color map: color 1 is black, colors 2 and 3 are white.
++    //
++
++    HwDeviceExtension->CursorColorMap[0].Red   = 0x00;
++    HwDeviceExtension->CursorColorMap[0].Green = 0x00;
++    HwDeviceExtension->CursorColorMap[0].Blue  = 0x00;
++
++    for (index = 1; index < NUMBER_OF_CURSOR_COLORS; index++) {
++        HwDeviceExtension->CursorColorMap[index].Red   = 0xff;
++        HwDeviceExtension->CursorColorMap[index].Green = 0xff;
++        HwDeviceExtension->CursorColorMap[index].Blue  = 0xff;
++    }
+=1 1929 3
++} // end CfbAttributesSetup()
++
++VOID
++CfbControllerSetup(
+=1 1864 7
++    This routine initializes the Bt459 display controller chip. The timing
++    of the color frame buffer is fixed: the command registers select the
++    pixel format, and the cursor is turned off with the cursor colors set.
+=1 1944 13
++    ULONG index;
++
++    //
++    // Initialize the Bt459 command registers: four to one multiplexing of
++    // the pixels, sync on green with the blanking pedestal, all eight planes
++    // read, and no blinking and no overlay.
++    //
++
++    BT459_SET_ADDRESS(BT459_COMMAND_0);
++    BT459_WRITE_REGISTER(0x40);         // command register 0
++    BT459_WRITE_REGISTER(0x00);         // command register 1
++    BT459_WRITE_REGISTER(0xc0);         // command register 2
++    BT459_WRITE_REGISTER(0xff);         // pixel read mask
++    BT459_WRITE_REGISTER(0x00);         // reserved
++    BT459_WRITE_REGISTER(0x00);         // pixel blink mask
++    BT459_WRITE_REGISTER(0x00);         // reserved
++    BT459_WRITE_REGISTER(0x00);         // overlay read mask
++    BT459_WRITE_REGISTER(0x00);         // overlay blink mask
++    BT459_WRITE_REGISTER(0x00);         // interleave
++    BT459_WRITE_REGISTER(0x00);         // test
++
++    //
++    // Turn the hardware cursor off.
++    //
++
++    BT459_SET_ADDRESS(BT459_CURSOR_COMMAND);
++    BT459_WRITE_REGISTER(BT459_CURSOR_OFF);
++
++    //
++    // Set the cursor colors. The red, green, and blue values of a color are
++    // written in turn.
++    //
++
++    BT459_SET_ADDRESS(BT459_CURSOR_COLOR_1);
++
++    for (index = 0; index < NUMBER_OF_CURSOR_COLORS; index++) {
++        BT459_WRITE_REGISTER(hwDeviceExtension->CursorColorMap[index].Red);
++        BT459_WRITE_REGISTER(hwDeviceExtension->CursorColorMap[index].Green);
++        BT459_WRITE_REGISTER(hwDeviceExtension->CursorColorMap[index].Blue);
+=1 369 3
++    // Set the X and Y origin values for the cursor.
++    //
++
++    hwDeviceExtension->CursorXOrigin = CFB_CURSOR_X_ORIGIN;
++    hwDeviceExtension->CursorYOrigin = CFB_CURSOR_Y_ORIGIN;
+=1 1929 3
++} // end CfbControllerSetup()

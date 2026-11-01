@@ -1,0 +1,65 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALFXS/MIPS/X4CLOCK.S PRIVATE/NTOS/NTHALS/HALACR/MIPS/X4CLOCK.S
+#crlf
++//      TITLE("Interval Clock Interrupt")
+=1 2 6
++//    d3clock.s
+=1 9 4
++//    interval clock interrupt of a DECstation 5000/200 (KN02, MIPS R3000).
++//
++//    The interval clock is the periodic interrupt of the realtime clock, and
++//    the profile interrupt is taken at a multiple of it: the R3000 has no
++//    count and compare registers.
+=1 14 14
++#include "decdef.h"
++
+=2 32 6
++//    the interval timer. Its function is to acknowledge the interrupt,
++//    update the performance counter, transfer control to the standard
++//    system routine to update the system time and the execution time of
++//    the current thread and process, and process any active profiles.
+=2 41 24
++//
++// Acknowledge the interval clock interrupt: reading control register C of
++// the realtime clock clears its interrupt request.
++//
++
++        lbu     t0,TIMER_ACKNOWLEDGE    // acknowledge timer interrupt
++
++//
++// The performance counter counts the interval clock interrupts.
++//
++
++        lw      t0,HalpPerformanceCounter + LiLowPart // get low part of count
++        lw      t1,HalpPerformanceCounter + LiHighPart // get high part of count
++        addu    t0,t0,1                 // update low part of count
++        sltu    t2,t0,1                 // generate carry into high part
++        addu    t1,t1,t2                // update high part of count
++        sw      t0,HalpPerformanceCounter + LiLowPart // store low part of count
++        sw      t1,HalpPerformanceCounter + LiHighPart // store high part of count
+=1 90 6
++// If profiling is active and the profile interval has expired, then reload
++// the profile count and process the active profiles.
++//
++
++        lbu     t0,HalpProfilingActive  // get profiling active flag
++        beq     zero,t0,10f             // if eq, profiling not active
++        lw      t1,HalpProfileCountDown // decrement profile count
++        subu    t1,t1,1                 //
++        sw      t1,HalpProfileCountDown //
++        bne     zero,t1,10f             // if ne, profile interval not expired
++        lw      t2,HalpProfileCount     // reload profile count
++        sw      t2,HalpProfileCountDown //
+=1 90 1
++        lw      t0,__imp_KeProfileInterrupt // process profile interrupt
+=1 93 3
++// If the debugger is enabled, then check if a break in is requested.
++//
++
++10:     lw      t0,KdDebuggerEnabled    // get address of debugger enable
+=1 139 1
++        beq     zero,t0,20f             // if eq, debugger not enabled
+=1 174 1
++        beq     zero,v0,20f             // if eq, no breakin requested
+=1 176 1
++20:     lw      ra,CiRa(sp)             // restore return address
+=2 107 4

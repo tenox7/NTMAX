@@ -1,0 +1,168 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALACR/MIPS/JXPORT.C
+#crlf
+=1 1 6
++    d3port.c
+=1 8 4
++    the kernel debugger on a DECstation 5000/200 (KN02, MIPS R3000) and
++    the kernel debugger on another machine.
++
++    The kernel debugger uses line DEBUG_LINE of the DZ multiplexer
++    (decdef.h). The other lines of the multiplexer are the keyboard, the
++    mouse, and the console, so the multiplexer is not cleared and only the
++    debugger line is set up. The registers of the multiplexer are addressed
++    through KSEG1.
+=1 14 14
++#include "decdz.h"
++
+=1 45 11
++
++//
++// Define the line parameters of the debugger line.
++//
++
++USHORT HalpLineParameters;
++
+=1 86 13
++    N.B. The receive silo of the multiplexer holds the characters of all
++         its lines. A character of another line that is read from the silo
++         here is discarded.
+=1 98 22
++    USHORT DataShort;
+=1 122 12
++        // Wait until a character of the debugger line is available in the
++        // receive silo.
+=1 135 3
++        DataShort = READ_REGISTER_USHORT(&DZ_READ->ReceiveBuffer.Short);
++        if ((((PDZ_RECEIVE_BUFFER)(&DataShort))->DataValid == 0) ||
++            (((PDZ_RECEIVE_BUFFER)(&DataShort))->ReceiveLine != DEBUG_LINE)) {
+=1 140 4
++        // Store input byte in callers buffer.
++        //
++
++        *Input = (UCHAR)((PDZ_RECEIVE_BUFFER)(&DataShort))->ReceiveData;
+=1 160 5
++        if (((PDZ_RECEIVE_BUFFER)(&DataShort))->ParityError ||
++            ((PDZ_RECEIVE_BUFFER)(&DataShort))->FramingError ||
++            ((PDZ_RECEIVE_BUFFER)(&DataShort))->OverrunError) {
+=1 169 8
++
+=1 178 33
++    ULONG BaudRate;
++    USHORT DataShort;
++    USHORT SpeedCode;
++
++    //
++    // Compute the speed code of the line from the baud rate. The baud rate
++    // defaults to 19200, as does a baud rate the multiplexer does not have.
++    //
+=1 235 3
++
+=1 238 4
++    switch (BaudRate) {
++    case 4800:
++        SpeedCode = BAUD_4800;
++        break;
++
++    case 7200:
++        SpeedCode = BAUD_7200;
++        break;
++
++    case 9600:
++        SpeedCode = BAUD_9600;
++        break;
++
++    default:
++        SpeedCode = BAUD_19200;
++        break;
+=1 240 3
++    // The line parameters of the debugger line are eight bit characters
++    // with one stop bit and no parity checking, and the receiver of the
++    // line is enabled.
++    //
++
++    DataShort = 0;
++    ((PDZ_LINE_PARAMETERS)(&DataShort))->LineNumber = DEBUG_LINE;
++    ((PDZ_LINE_PARAMETERS)(&DataShort))->CharacterLength = EIGHT_BIT_CHARACTERS;
++    ((PDZ_LINE_PARAMETERS)(&DataShort))->StopCode = ONE_STOP_BIT;
++    ((PDZ_LINE_PARAMETERS)(&DataShort))->SpeedCode = SpeedCode;
++    ((PDZ_LINE_PARAMETERS)(&DataShort))->ReceiveEnable = 1;
++    HalpLineParameters = DataShort;
+=1 264 9
++    KdComPortInUse = (PUCHAR)DZ_PHYSICAL_BASE;
++
++    //
++    // Set the line parameters of the debugger line.
++    //
++
++    WRITE_REGISTER_USHORT(&DZ_WRITE->LineParameters.Short, HalpLineParameters);
++
++    //
++    // Set data terminal ready and request to send of the debugger line.
++    //
++
++    DataShort = READ_REGISTER_USHORT(&DZ_READ->TransmitControlRead.Short);
++    ((PDZ_TRANSMIT_CONTROL)(&DataShort))->DEBUG_LINE_NAME(DataTerminalReady) = 1;
++    ((PDZ_TRANSMIT_CONTROL)(&DataShort))->DEBUG_LINE_NAME(RequestToSend) = 1;
++    WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitControlWrite.Short, DataShort);
++
++    //
++    // Enable the scan of the lines of the multiplexer.
++    //
++
++    DataShort = READ_REGISTER_USHORT(&DZ_READ->ControlStatus.Short);
++    ((PDZ_CONTROL_STATUS)(&DataShort))->MasterScanEnable = 1;
++    WRITE_REGISTER_USHORT(&DZ_WRITE->ControlStatus.Short, DataShort);
+=1 270 3 -4
+=1 374 36
++
+=1 411 37
++    // Save port status, get byte from the debugger port is one is
++    // avaliable, restore port status, and return the operation status.
+=1 451 7
++
+=1 459 27
++    USHORT DataShort;
++    USHORT Enable;
++    USHORT TransmitControl;
++
++    //
++    // Enable the transmitter of the debugger line and wait for transmit
++    // ready. The multiplexer scans the enabled lines and reports a line
++    // that can take a character in the control status register. Another
++    // line that it reports is disabled until the character is transmitted.
++    //
++
++    TransmitControl = READ_REGISTER_USHORT(&DZ_READ->TransmitControlRead.Short);
++    Enable = TransmitControl | (1 << DEBUG_LINE);
++    WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitControlWrite.Short, Enable);
++    for (;;) {
++        DataShort = READ_REGISTER_USHORT(&DZ_READ->ControlStatus.Short);
++        if (((PDZ_CONTROL_STATUS)(&DataShort))->TransmitReady != 0) {
++            if (((PDZ_CONTROL_STATUS)(&DataShort))->TransmitLine == DEBUG_LINE) {
++                break;
++            }
++
++            Enable &= ~(1 << ((PDZ_CONTROL_STATUS)(&DataShort))->TransmitLine);
++            WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitControlWrite.Short, Enable);
+=1 503 4
++    // Transmit data and restore the transmitter enables of the lines.
++    //
++
++    WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitBuffer.Short, (USHORT)Output);
++    WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitControlWrite.Short, TransmitControl);
++    return;
++}
++
+=1 528 12
++    N.B. This routine performs no function on the DECstation system.
+=1 541 13
++    return;
++}
++
+=1 567 12
++    N.B. This routine performs no function on the DECstation system: the
++         multiplexer is addressed through KSEG1, and the parameters of the
++         debugger line are never changed by another component.
+=1 541 13
++    return;
++}

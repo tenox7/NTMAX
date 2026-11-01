@@ -1,0 +1,15 @@
+#ntdiff PRIVATE/FP32/TRAN/MIPS/POWM.S
+#crlf
+=1 1 539
++#if defined(R3000)
++	nop					/* (the R3000 branches on the condition one instruction later) */
++#endif
+=1 540 102
++#if defined(R3000)
++	nop					/* (the R3000 moves to f0 one instruction later) */
++#endif
+=1 642 43
++#if defined(R3000)
++	nop					/* (the R3000 branches on the condition one instruction later) */
++#endif
+=1 685 95

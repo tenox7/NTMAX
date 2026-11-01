@@ -1,0 +1,134 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALFXS/MIPS/XXINITHL.C PRIVATE/NTOS/NTHALS/HALACR/MIPS/XXINITHL.C PRIVATE/NTOS/NTHALS/HALSGI/MIPS/XXINITHL.C
+#crlf
+=1 1 13
++    DECstation 5000/200 (KN02, MIPS R3000).
+=2 15 15
+=1 30 47
++    ULONG CheckSyndrome;
++    ULONG SystemControl;
+=1 79 4
++//
++// Define the count of the single bit memory errors that the memory
++// corrected.
++//
++
++ULONG HalpCorrectedMemoryErrors;
+=1 82 4
++
+=1 87 11
++    DECstation 5000/200.
+=2 57 17
+=1 120 25
++        // The KN02 has no fixed TB entries: its registers and the slots
++        // of the TURBOchannel are addressed through KSEG1.
+=1 150 8
++            // Set the number of process id's and TB entries. The R3000
++            // has a six bit process id and 64 TB entries.
++            //
++
++            **((PULONG *)(&KeNumberProcessIds)) = 64;
++            **((PULONG *)(&KeNumberTbEntries)) = 64;
++
++            //
++            // Set the interval clock increment value. The periodic
++            // interrupt of the realtime clock interrupts at one rate.
+=3 88 3 4
+=3 93 3 4
+=1 174 3
+=1 179 4
++            //
++            // The R3000 has no cache error exception, so there is no
++            // cache error routine.
+=1 191 7
+=1 204 12
++        // Clear the memory error address register.
++        //
++
++        WRITE_REGISTER_ULONG(ERROR_ADDRESS, 0);
+=1 226 24
++            // Calibrate the stall execution scale factor and create DMA
++            // data structures.
++            //
++
+=2 160 6
+=1 33 5
+=1 285 27
++    // Capture the failed memory address, the check syndrome, and the system
++    // control and status registers.
+=1 313 3
++    DumpBuffer->FailedAddress = READ_REGISTER_ULONG(ERROR_ADDRESS);
++    DumpBuffer->CheckSyndrome = READ_REGISTER_ULONG(CHECK_SYNDROME);
++    DumpBuffer->SystemControl =
++        READ_REGISTER_ULONG((PULONG)&SYS_CONTROL->SysControlStatus.Read);
+=1 545 3
+=1 39 8
+=1 346 30
++    ULONG CheckSyndrome;
++    ULONG FailedAddress;
++    ULONG SystemControl;
+=1 379 3
++    // failed memory address, the check syndrome, and the system control
++    // and status register.
++    //
++
++    FailedAddress = READ_REGISTER_ULONG(ERROR_ADDRESS);
++    CheckSyndrome = READ_REGISTER_ULONG(CHECK_SYNDROME);
++    SystemControl = READ_REGISTER_ULONG((PULONG)&SYS_CONTROL->SysControlStatus.Read);
+=1 402 3
++                 CheckSyndrome,
++                 SystemControl);
+=1 407 3
++
++VOID
++HalpMemoryInterrupt (
+=1 524 7
++    This function is called when a memory error interrupt occurs. The KN02
++    interrupts for an ECC error or a timeout of a memory or TURBOchannel
++    transaction that is not a read of the processor, which takes a bus
++    error instead.
++
++    The memory corrects a single bit error: the error is counted and
++    dismissed. Otherwise, the system is bug checked specifying the failed
++    memory address, the check syndrome, and the system control and status
++    register.
+=1 532 5
+=1 301 8
++    ULONG CheckSyndrome;
++    ULONG FailedAddress;
++    ULONG SystemControl;
++
++    //
++    // Read the memory error registers. If the error is an ECC error and
++    // each word with valid error data has a single bit error, then the
++    // memory corrected the error.
++    //
++
++    FailedAddress = READ_REGISTER_ULONG(ERROR_ADDRESS);
++    CheckSyndrome = READ_REGISTER_ULONG(CHECK_SYNDROME);
++    if (((FailedAddress & ERROR_ADDRESS_VALID) != 0) &&
++        ((FailedAddress & ERROR_ADDRESS_ECC) != 0) &&
++        ((CheckSyndrome & (CHECK_SYNDROME_VALID_HIGH | CHECK_SYNDROME_VALID_LOW)) != 0) &&
++        (((CheckSyndrome & CHECK_SYNDROME_VALID_HIGH) == 0) ||
++         ((CheckSyndrome & CHECK_SYNDROME_SINGLE_HIGH) != 0)) &&
++        (((CheckSyndrome & CHECK_SYNDROME_VALID_LOW) == 0) ||
++         ((CheckSyndrome & CHECK_SYNDROME_SINGLE_LOW) != 0))) {
++        HalpCorrectedMemoryErrors += 1;
++        WRITE_REGISTER_ULONG(ERROR_ADDRESS, 0);
++        return;
++    }
++
++    SystemControl = READ_REGISTER_ULONG((PULONG)&SYS_CONTROL->SysControlStatus.Read);
++    KeBugCheckEx(NMI_HARDWARE_FAILURE,
++                 (FailedAddress & ERROR_ADDRESS_WORD) << 2,
++                 FailedAddress,
++                 CheckSyndrome,
++                 SystemControl);
+=1 545 3
++
+=1 411 29
++
+=1 441 12
++    N.B. The DECstation 5000/200 has one processor.
+=1 452 19
++    return FALSE;
++}

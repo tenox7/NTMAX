@@ -1,0 +1,197 @@
+#ntdiff PRIVATE/NTOS/KE/MIPS/X4SQRT.S
++#if defined(R3000)
+=1 2 4
++// Module Name:
++//
++//    x3sqrt.s
+=1 11 6
++//    The R3000 has no square root instruction. The root is computed one bit
++//    at a time with integer arithmetic. The result is rounded to nearest if
++//    the rounding mode is round to nearest. Otherwise the result is truncated
++//    and the returned inexact bit lets the caller round the result in the
++//    direction of the rounding mode.
+=1 20 5
+=1 27 3
++
+=1 31 19
++//    DoubleValue (a0) - Supplies a pointer to the double denormalized
+=1 51 10
++        lw      t0,4(a0)                // get high part of double value
++        lw      t1,0(a0)                // get low part of double value
++        cfc1    t9,fsr                  // get current floating status
++
++//
++// Form the 53-bit mantissa. If the biased exponent is even, then the
++// unbiased exponent is odd and the mantissa is doubled, so the exponent
++// of the result is half of an even exponent.
++//
++
++        srl     t2,t0,20                // isolate biased exponent
++        and     t3,t0,0xfffff           // isolate high part of mantissa
++        or      t3,t3,0x100000          // set hidden bit
++        and     t4,t2,1                 // check if biased exponent odd
++        bne     zero,t4,10f             // if ne, biased exponent odd
++        sll     t3,t3,1                 // double mantissa
++        srl     t4,t1,31                //
++        or      t3,t3,t4                //
++        sll     t1,t1,1                 //
++10:     addu    t2,t2,1023              // compute biased exponent of result
++        srl     t2,t2,1                 //
++
++//
++// The radicand is the mantissa shifted left 54 bits. Its high 64 bits are
++// the mantissa shifted left 10 bits and the remaining bits are zero.
++//
++
++        sll     t3,t3,10                // set high 64 bits of radicand
++        srl     t4,t1,22                //
++        or      t3,t3,t4                //
++        sll     t1,t1,10                //
++
++//
++// Compute the 54-bit root, which is the 53-bit result mantissa and a guard
++// bit, two radicand bits at a time.
++//
++//    a1:a2 - root,
++//    t5:t6 - remainder,
++//    t7:t8 - trial value.
++//
++
++        move    a1,zero                 // clear root
++        move    a2,zero                 //
++        move    t5,zero                 // clear remainder
++        move    t6,zero                 //
++        li      t4,54                   // set number of root bits
++20:     sll     t5,t5,2                 // shift remainder left two bits
++        srl     v0,t6,30                //
++        or      t5,t5,v0                //
++        sll     t6,t6,2                 //
++        srl     v0,t3,30                // merge next two radicand bits
++        or      t6,t6,v0                //
++        sll     t3,t3,2                 // advance radicand bits
++        srl     v0,t1,30                //
++        or      t3,t3,v0                //
++        sll     t1,t1,2                 //
++        sll     t7,a1,2                 // compute trial value
++        srl     v0,a2,30                //
++        or      t7,t7,v0                //
++        sll     t8,a2,2                 //
++        or      t8,t8,1                 //
++        sll     a1,a1,1                 // shift root left one bit
++        srl     v0,a2,31                //
++        or      a1,a1,v0                //
++        sll     a2,a2,1                 //
++        sltu    v0,t5,t7                // check if remainder less than trial
++        bne     zero,v0,30f             // if ne, remainder less than trial
++        bne     t5,t7,25f               // if ne, remainder greater than trial
++        sltu    v0,t6,t8                // check low parts
++        bne     zero,v0,30f             // if ne, remainder less than trial
++25:     sltu    v0,t6,t8                // compute borrow
++        subu    t6,t6,t8                // subtract trial value from remainder
++        subu    t5,t5,t7                //
++        subu    t5,t5,v0                //
++        or      a2,a2,1                 // set root bit
++30:     subu    t4,t4,1                 // decrement number of root bits
++        bne     zero,t4,20b             // if ne, more root bits
++
++//
++// Merge the exponent and the mantissa and round the result.
++//
++
++        and     t7,a2,1                 // isolate guard bit
++        srl     a2,a2,1                 // isolate result mantissa
++        sll     v0,a1,31                //
++        or      a2,a2,v0                //
++        srl     a1,a1,1                 //
++        subu    t2,t2,1                 // merge exponent and mantissa
++        sll     t2,t2,20                //
++        addu    a1,a1,t2                //
++        or      v0,t5,t6                // compute sticky bit
++        sltu    t8,zero,v0              //
++        or      v1,t7,t8                // compute inexact bit
++        and     t9,t9,0x3               // isolate rounding mode
++        bne     zero,t9,40f             // if ne, not round to nearest
++        beq     zero,t7,40f             // if eq, guard bit clear
++        and     v0,a2,1                 // merge low bit and sticky bit
++        or      v0,v0,t8                //
++        beq     zero,v0,40f             // if eq, round to even
++        addu    a2,a2,1                 // round result up
++        bne     zero,a2,40f             // if ne, no carry
++        addu    a1,a1,1                 // propagate carry
++40:     sw      a2,0(a0)                // store result value
++        sw      a1,4(a0)                //
++        move    v0,v1                   // set inexact bit
++        j       ra                      // return
+=1 73 2
++
+=1 76 30
++        lw      t0,0(a0)                // get single value
++        cfc1    t9,fsr                  // get current floating status
++
++//
++// Form the 24-bit mantissa. If the biased exponent is even, then the
++// unbiased exponent is odd and the mantissa is doubled, so the exponent
++// of the result is half of an even exponent.
++//
++
++        srl     t1,t0,23                // isolate biased exponent
++        and     t2,t0,0x7fffff          // isolate mantissa
++        or      t2,t2,0x800000          // set hidden bit
++        and     t3,t1,1                 // check if biased exponent odd
++        bne     zero,t3,10f             // if ne, biased exponent odd
++        sll     t2,t2,1                 // double mantissa
++10:     addu    t1,t1,127               // compute biased exponent of result
++        srl     t1,t1,1                 //
++
++//
++// The radicand is the mantissa shifted left 25 bits. Its high 32 bits are
++// the mantissa shifted left 7 bits and the remaining bits are zero.
++//
++// Compute the 25-bit root, which is the 24-bit result mantissa and a guard
++// bit, two radicand bits at a time.
++//
++//    v0 - root,
++//    v1 - remainder,
++//    t5 - trial value.
++//
++
++        sll     t3,t2,7                 // set high 32 bits of radicand
++        move    v0,zero                 // clear root
++        move    v1,zero                 // clear remainder
++        li      t4,25                   // set number of root bits
++20:     srl     t5,t3,30                // get next two radicand bits
++        sll     v1,v1,2                 // merge with remainder
++        or      v1,v1,t5                //
++        sll     t3,t3,2                 // advance radicand bits
++        sll     t5,v0,2                 // compute trial value
++        or      t5,t5,1                 //
++        sll     v0,v0,1                 // shift root left one bit
++        sltu    t6,v1,t5                // check if remainder less than trial
++        bne     zero,t6,30f             // if ne, remainder less than trial
++        subu    v1,v1,t5                // subtract trial value from remainder
++        or      v0,v0,1                 // set root bit
++30:     subu    t4,t4,1                 // decrement number of root bits
++        bne     zero,t4,20b             // if ne, more root bits
++
++//
++// Merge the exponent and the mantissa and round the result.
++//
++
++        and     t5,v0,1                 // isolate guard bit
++        srl     v0,v0,1                 // isolate result mantissa
++        subu    t1,t1,1                 // merge exponent and mantissa
++        sll     t1,t1,23                //
++        addu    t0,t1,v0                //
++        sltu    t6,zero,v1              // compute sticky bit
++        or      t7,t5,t6                // compute inexact bit
++        and     t9,t9,0x3               // isolate rounding mode
++        bne     zero,t9,40f             // if ne, not round to nearest
++        beq     zero,t5,40f             // if eq, guard bit clear
++        and     t8,v0,1                 // merge low bit and sticky bit
++        or      t8,t8,t6                //
++        beq     zero,t8,40f             // if eq, round to even
++        addu    t0,t0,1                 // round result up
++40:     sw      t0,0(a0)                // store result value
++        move    v0,t7                   // set inexact bit
++        j       ra                      // return
+=1 116 4

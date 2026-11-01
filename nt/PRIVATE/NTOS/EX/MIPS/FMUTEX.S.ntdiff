@@ -1,0 +1,68 @@
+#ntdiff PRIVATE/NTOS/EX/MIPS/FMUTEX.S PRIVATE/NTOS/KE/MIPS/XXSPINLK.S
+=1 1 14
++//    On an r3000 system the ownership count is updated with interrupts
++//    disabled.
+=1 14 77
++
++#if defined(R3000)
++
++        DISABLE_INTERRUPTS(t7)          // disable interrupts
++
++        lw      t4,FmCount(a0)          // get ownership count
+=1 92 1
++        sw      t5,FmCount(a0)          // store ownership count
++
++        ENABLE_INTERRUPTS(t7)           // enable interrupts
+=2 257 3
+=1 91 4
+=1 117 3
+=1 95 78
++
++#if defined(R3000)
+=1 200 3
++        lw      t0,FmCount(a0)          // get ownership count
+=1 174 1
++        sw      t1,FmCount(a0)          // store ownership count
+=1 206 3
++#else
++
+=1 173 4
+=1 117 3
+=1 177 78
++
++#if defined(R3000)
++
++        lw      t4,FmCount(a0)          // get ownership count
++        subu    t6,t4,1                 // decrement ownership count
+=1 95 1
++        sw      t6,FmCount(a0)          // store ownership count
+=2 260 2
++#else
++
+=1 255 5
+=1 117 3
+=1 260 57
++
++#if defined(R3000)
+=1 77 3
++        lw      t1,FmCount(a0)          // get ownership count
+=1 318 1
++        sw      t2,FmCount(a0)          // store ownership count
+=1 83 3
++#else
++
+=1 317 4
+=1 117 3
+=1 321 73
++
++#if defined(R3000)
+=1 200 3
++        lw      t0,FmCount(a0)          // get ownership count
+=1 174 1
++        sw      t1,FmCount(a0)          // store ownership count
+=1 206 3
++#else
++
+=1 173 4
+=1 117 3
+=1 398 69

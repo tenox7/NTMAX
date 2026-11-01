@@ -1,0 +1,29 @@
+#ntdiff PRIVATE/CRT32/MISC/MIPS/LONGJMP.S
+#crlf
+=1 1 85
++#if defined(R3000)
++
++//
++// The R3000 port: the R3000 has no sdc1 and ldc1 (MIPS II): the floating
++// registers go one word at a time.
++//
++
++        lwc1    f20,JbFltF20(a0)        // restore floating registers f20 - f31
++        lwc1    f21,JbFltF21(a0)        //
++        lwc1    f22,JbFltF22(a0)        //
++        lwc1    f23,JbFltF23(a0)        //
++        lwc1    f24,JbFltF24(a0)        //
++        lwc1    f25,JbFltF25(a0)        //
++        lwc1    f26,JbFltF26(a0)        //
++        lwc1    f27,JbFltF27(a0)        //
++        lwc1    f28,JbFltF28(a0)        //
++        lwc1    f29,JbFltF29(a0)        //
++        lwc1    f30,JbFltF30(a0)        //
++        lwc1    f31,JbFltF31(a0)        //
++
++#else
++
+=1 86 6
++
++#endif
+=1 92 37

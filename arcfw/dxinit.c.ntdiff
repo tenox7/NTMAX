@@ -1,0 +1,224 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/SELFTEST.C PRIVATE/NTOS/FW/ALPHA/JENSEN/ALPHA/JNFS.C PRIVATE/NTOS/FW/ALPHA/JENSEN/ALPHA/SELFTEST.C
++/*++
+=1 4 3
++    dxinit.c
+=1 8 3
++    This module starts the ARC firmware on the DECstation 5000/200.  The
++    REX console has run the power-up self test and loaded the firmware, so
++    FwSelftest initializes what the self test of a Jazz ROM initializes: the
++    system parameter block, the boot status, the memory size and the PCR.
++    Then it starts the boot manager.
++
++    The module also holds the interface to the REX console callback vector
++    (dectccbv.h), which the firmware uses to read and write the boot device,
++    to get the memory bitmap and the system identifier, and to halt and
++    reboot.
+=1 17 3
++    Kernel mode only.
+=1 22 4
+=1 31 1
++#include "decfw.h"
++#define CALLBACK_VECTOR
++#include "dectccbv.h"
++
++//
++// Define the firmware version printed in the banner.
++//
++
++#define FW_VERSION 1
++
++//
++// Define the values saved from the console by FwStart, and the console
++// callback vector, which dectccbv.h names ccv.
++//
++
++ULONG FwRexArgc;
++PCHAR *FwRexArgv;
++ULONG FwRexMagic;
++PVOID FwRexVector;
++#define ccv ((PTcCBV)FwRexVector)
++
++//
++// Define the firmware stack, the memory size in megabytes and the state the
++// Jazz self test keeps.
++//
++
++ULONG FwStack[FW_STACK_SIZE / sizeof(ULONG)];
++ULONG FwRexMemoryMap[REX_MEMORY_MAP_SIZE / sizeof(ULONG)];
++ULONG MemorySize;
++BOOLEAN KeyboardInitialized;
++BOOLEAN MctadrRev2;
+=1 138 6
++VOID
++InitializePCR(
+=1 187 4
+=1 208 4
+=1 2263 5
++    This routine is called by FwEntry.  It initializes the system parameter
++    block, the master processor boot status, the memory size and the PCR,
++    and calls the boot manager.
+=1 219 3
++    Cause - Supplies the reset cause, zero.
++
++    Arg1 - Supplies the reset argument, zero.
+=3 176 8
++    ULONG Bitmap;
++    ULONG Pages;
+=1 244 2
+=1 305 1
++    SerialOutput = TRUE;
+=1 307 1
++    MctadrRev2 = FALSE;
++
++    //
++    // Initialize MemorySize to the size of memory in megabytes.  The console
++    // returns the bitmap of the memory it tested, one bit per page.
++    //
++
++    Pages = FwRexGetMemoryMap();
++    MemorySize = Pages >> (20 - PAGE_SHIFT);
+=1 346 17
+=1 372 3
+=1 377 8
+=1 544 2
++
+=1 546 8
++    // Read the non-volatile configuration from the boot device.
++    //
++
++    FwNvramLoad();
++
++    FwPrintVersion();
++    InitializePCR();
+=3 438 7
+=1 286 3 -4
+=1 2369 9
++     This routine prints the firmware version.
+=1 2379 12
++    FwPrint(ST_ARC_MULTIBOOT_MSG, FW_VERSION);
+=1 2392 4
++LONG
++FwRexBootRead (
++    IN ULONG Block,
++    OUT PVOID Buffer,
++    IN ULONG Length
+=1 2262 6
++    This routine reads from the boot device with the console bootread
++    service.
+=1 219 3
++    Block - Supplies the number of the first 512 byte block to read.
++
++    Buffer - Supplies the address of the buffer.
++
++    Length - Supplies the number of bytes to read.
+=1 229 3
++    The number of bytes read, or a negative value if the read failed.
+=1 2073 4
++    return (*RexBootRead)(Block, Buffer, Length);
++}
++
++LONG
++FwRexBootWrite (
++    IN ULONG Block,
++    IN PVOID Buffer,
++    IN ULONG Length
+=1 2262 6
++    This routine writes to the boot device with the console bootwrite
++    service.
+=1 219 3
++    Block - Supplies the number of the first 512 byte block to write.
++
++    Buffer - Supplies the address of the data.
++
++    Length - Supplies the length of the data in bytes.
+=1 229 3
++    The number of bytes written, or a negative value if the write failed.
+=1 2073 4
++    return (*RexBootWrite)(Block, Buffer, Length);
++}
++
++PCHAR
++FwRexGetEnvironment (
++    IN PCHAR Name
+=1 2262 6
++    This routine returns the value of a console environment variable.
+=1 219 3
++    Name - Supplies the name of the variable.
+=1 229 3
++    A pointer to the value, or NULL if the variable is not defined.
+=1 2073 4
++    return (*RexGetEnv)(Name);
++}
++
++ULONG
++FwRexGetSystemId (
+=1 2261 7
++    This routine returns the console system identifier: the processor type
++    in bits 31-24, the system type in bits 23-16, the firmware revision in
++    bits 15-8 and the hardware revision in bits 7-0.
+=1 658 7
++    The system identifier.
+=1 2073 4
++    return (*RexGetSysId)();
++}
++
++ULONG
++FwRexGetMemoryMap (
+=1 2261 7
++    This routine reads the memory map of the console into FwRexMemoryMap:
++    the size of a page in bytes, followed by one bit for each page that the
++    console found good, and counts the good pages from page zero up to the
++    first page that is not good.
++
++    N.B. The length that the console returns is the length of its map, which
++         can describe more pages than memory has (gxemul returns the length
++         of a map for 480mb): the bits tell where memory ends.
+=1 658 7
++    The number of good pages from page zero.
+=1 2073 4
++    PUCHAR Bitmap;
++    LONG Index;
++    LONG Length;
++    ULONG Pages;
++
++    Length = (*RexGetBitMap)(FwRexMemoryMap);
++    if ((Length <= 0) || (Length > (REX_MEMORY_MAP_SIZE - 4))) {
++        return 0;
++    }
++
++    Bitmap = (PUCHAR)&FwRexMemoryMap[1];
++    Pages = 0;
++    for (Index = 0; Index < Length; Index += 1) {
++        if (Bitmap[Index] != 0xff) {
++            while ((Bitmap[Index] & (1 << (Pages & 7))) != 0) {
++                Pages += 1;
++            }
++
+=2 154 3 4
++        Pages += 8;
++    }
++
++    return Pages;
++}
++
++VOID
++FwRexHalt (
+=1 2261 7
++    This routine returns to the console prompt with the console command
++    service, command 'h'.
+=1 658 7
++    Does not return.
+=1 2073 4
++    (*ccv->_reboot)('h');
++}
++
++VOID
++FwRexReboot (
+=1 2261 7
++    This routine restarts the system the way the console boot action does,
++    with the console command service, command 'b'.
+=1 658 7
++    Does not return.
+=1 2073 4
++    (*ccv->_reboot)('b');
++}

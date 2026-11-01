@@ -1,0 +1,15 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALTYNE/MIPS/XXIDLE.S
+#crlf
+=1 1 67
++
++#if defined(R3000)
++
++        or      v0,v0,1 << PSR_IEC      // set interrupt enable.
++
++#else
++
+=1 68 1
++
++#endif
++
+=1 69 11

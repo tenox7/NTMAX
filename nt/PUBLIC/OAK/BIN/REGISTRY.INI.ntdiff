@@ -1,0 +1,33 @@
+#ntdiff PUBLIC/OAK/BIN/REGISTRY.INI
+#crlf
+=1 1 11
++// The R3000 port (the DECstation 5000/200): no network yet, and the        //
++// Password logs the first run on by itself.                                //
+=1 14 4
+=1 30 10
+=1 50 8
++    DECSTATION
+=1 74 9
++    Developer
++
++;
++;  The R3000 port: the password of that account.  The first run creates the
++;  account with it and logs on to it by itself (winlogon.cmd sets
++;  AutoAdminLogon and DefaultPassword); without a password winlogon.cmd
++;  waits for a key.
++;
++
++Password
++    nt35
+=1 84 6
++
++Environment
++    tmp = c:\tmp
+=1 183 14
+=1 221 37
+=1 424 21
++;  The R3000 port: the LSA's developer install (DBINSTAL.C) needs both
++;  (without DomainId it sets no account domain and SAM fails with
++;  STATUS_INVALID_SID).  No network yet, so DisablePasswordChange (a
++;  value of Netlogon, which the hive does not have) is left out.
+=1 444 21

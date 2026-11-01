@@ -1,0 +1,42 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/FWIO.C PRIVATE/NTOS/FW/ALPHA/FWIO.C
+=1 1 37
++#if !defined(DECSTATION)
+=2 56 20
+=1 57 755
++    // Check for OMF protocol.  The DECstation has no EISA bus, so no OMF.
++    //
++
++#if !defined(DECSTATION)
+=1 815 5
++#else
++    OmfProtocol = FALSE;
+=2 1016 8
+=1 827 23
++#if !defined(DECSTATION)
+=1 850 13
++        } else
++#endif
++        {
+=1 864 99
++#if !defined(DECSTATION)
+=2 1166 32
+=1 994 182
++    // Call the Display driver initialization routine.  The console of the
++    // DECstation firmware is the console serial line.
++    //
++#if !defined(DECSTATION)
+=1 1178 2
++#endif
+=1 1180 26
++#if !defined(DECSTATION)
+=1 1206 9
++#endif
++
++#if !defined(DUO) && !defined(DECSTATION)
+=1 1217 13
++#if !defined(DECSTATION)
+=1 1230 5
+=1 1228 3
++    // Call the scsi driver initialization routine.  On the DECstation it
++    // is the boot device driver over the console boot services.
+=1 1238 90

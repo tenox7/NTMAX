@@ -1,0 +1,15 @@
+!IF 0
+
+Module Name:
+
+    sources.
+
+Abstract:
+
+    The MIPS part of the NCR 53C9X miniport: it is built for the SCSI
+    controller of the DECstation 5000/200 (PMAZ-AA, TURBOchannel slot 5),
+    whose chip registers are a word apart (NCR53C9X.H).
+
+!ENDIF
+
+C_DEFINES=$(C_DEFINES) -DDECSTATION

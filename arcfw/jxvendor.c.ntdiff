@@ -1,0 +1,14 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/JXVENDOR.C
++#if defined(JAZZ) || defined(DECSTATION)
+=1 2 183
++    // The R3000 of the DECstation 5000/200 runs at 25,000,000 instructions
++    // per second.
+=1 184 3
++#if defined(DECSTATION)
++    Limit = (MicroSeconds * 25 / 4);
++#else
+=1 187 1
++#endif
+=1 188 6
++
++

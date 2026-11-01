@@ -1,0 +1,9 @@
+#ntdiff PRIVATE/WINDOWS/INC/WINBASE.W
+#crlf
+=1 1 903
++// N.B. The R3000 has no interlocked instructions: an R3000 program calls the
++//      Win32 functions, which use the interlocked helpers of the system.
++//
++
++#if ((defined(_M_MRX000) && (_M_MRX000 > 3000)) || defined(_M_ALPHA)) && !defined(RC_INVOKED)
+=1 906 4535

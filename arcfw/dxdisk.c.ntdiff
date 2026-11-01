@@ -1,0 +1,296 @@
+#ntdiff PRIVATE/NTOS/BOOT/LIB/SCSIDISK.C PRIVATE/NTOS/FW/DUOBASE/MIPS/SCSIDISK.C
++#if defined(DECSTATION)
+=1 2 6
++    dxdisk.c
+=1 9 3
++    This module implements the hard disk boot driver for the DECstation
++    5000/200.  The disk is the device the REX console booted the firmware
++    from, which the driver reads and writes in 512 byte blocks with the
++    console boot services.  It is named scsi(0)disk(N)rdisk(0), N being the
++    SCSI identifier of the disk in the console boot path (slot/rzN/file).
+=1 13 13
++#include "fwp.h"
++#include "decfw.h"
+=1 40 1
+=1 43 3
++//
++// Disk driver constants.
++//
++
++#define SECTOR_SHIFT 9                  // the console reads 512 byte blocks
++#define SECTOR_SIZE (1 << SECTOR_SHIFT)
++#define MAXIMUM_TRANSFER_LENGTH 0x10000 // largest transfer of one service call
++
++CHAR ScsiTempBuffer[SECTOR_SIZE + 128];
++
++//
++// Define the SCSI identifier of the boot device and the name of the disk.
++//
++
++ULONG FwBootUnit;
++CHAR ScsiDiskDevicePath[sizeof("scsi(0)disk(000)rdisk(0)")];
++CHAR ScsiDiskIdentifier[sizeof("rz000")];
++
+=1 65 65
++    IN PVOID Buffer,
+=1 131 1
++    IN ULONG Length,
+=1 133 3
+=1 181 4
+=1 186 18
+=1 214 44
+=1 75 4
+=1 262 23
+=1 80 5
+=1 290 18
+=1 86 6
+=1 314 7
++    of the device is determined from the name, and the partition information
++    is read from the device.  The console boot services reach only the boot
++    device, whose blocks are 512 bytes.
+=1 324 18
+=1 344 5
++    // Determine the scsi port.
+=1 350 6
+=1 382 4
++    //
++    // Get the logical unit and target id from the name.
+=1 364 4
+=1 411 4
++    // Booting is only allowed on LUN 0.
+=1 380 6
++    Context->DiskId = (UCHAR)Id;
+=2 314 5
++    if (Id != FwBootUnit) {
+=1 353 3
++    Context->PathId = 0;
++    Context->TargetId = (UCHAR)Id;
++    Context->DeviceUnit = (UCHAR)Id;
++    Context->SectorShift = SECTOR_SHIFT;
++
++    //
++    // The whole disk is partition zero.  The console does not tell the size
++    // of the device: the whole disk ends with the last partition the
++    // partition table describes.
++    //
+=1 421 8
++    Context->StartingSector = 0;
++    Context->EndingSector = 0;
++    Context->PartitionLength = RtlConvertLongToLargeInteger(0);
++    Context->Size = 0;
++
++    if (Partition != 0) {
++        if (ScsiDiskBootPartitionOpen(*FileId,0,(UCHAR)Partition) != STATUS_SUCCESS) {
+=1 353 3 4
++    } else {
++        for (Partition = 1;
++             ScsiDiskBootPartitionOpen(*FileId,0,(UCHAR)Partition) == STATUS_SUCCESS;
++             Partition++) {
++            if (Context->EndingSector > Context->Size) {
++                Context->Size = Context->EndingSector;
++            }
++        }
++        Context->StartingSector = 0;
++        Context->EndingSector = Context->Size;
++        Context->PartitionLength = RtlConvertLongToLargeInteger(Context->Size);
+=1 1198 1 -12
+=1 248 1 6
++        BlFileTable[*FileId].Position.LowPart = 0;
++        BlFileTable[*FileId].Position.HighPart = 0;
+=1 755 4
+=1 93 7
+=1 446 33
+=1 480 2
++    NTSTATUS NtStatus;
+=1 487 4
+=1 494 29
+=2 413 7
++    while (Offset != 0) {
+=1 558 53
++        // Transfer at most the maximum length of one console call.
++        //
++
++        Limit = (BytesToTransfer > MAXIMUM_TRANSFER_LENGTH ?
++                 MAXIMUM_TRANSFER_LENGTH : BytesToTransfer);
++
++        //
++        // Read from the boot device.
++        //
++
+=1 642 3
++
++        NtStatus = ScsiDiskBootIO(Buffer,
+=1 646 1 22
++                                  Limit,
++                                  TRUE);
+=1 649 43
+=1 101 4
+=1 2473 13
+=1 255 3
+=1 715 44
+=1 113 7
+=1 766 31
+=1 480 2
++    NTSTATUS NtStatus;
+=1 487 2
+=1 807 2
++    CHAR TempBuffer[SECTOR_SIZE + 128];
+=1 812 4
+=2 390 9
+=1 825 11
+=2 407 8
++    // first sector separately and merge the data.
+=1 553 4
++    while (Offset != 0) {
+=1 879 62
+=1 942 9
++        // Transfer at most the maximum length of one console call.
++        //
++
++        Limit = (BytesToTransfer > MAXIMUM_TRANSFER_LENGTH ?
++                 MAXIMUM_TRANSFER_LENGTH : BytesToTransfer);
++
++        //
++        // Write to the boot device.
++        //
++
+=1 642 3
++
++        NtStatus = ScsiDiskBootIO(Buffer,
+=1 646 1 22
++                                  Limit,
++                                  FALSE);
+=1 987 31
++
++        //
++        // Merge the data with the specified buffer.
++        //
++        RtlCopyMemory(TempPointer,Buffer,Length);
+=1 914 4
+=1 1029 3
+=1 920 8
+=1 684 8
+=1 68 6
+=1 1062 21
+=1 1085 10
++    USHORT DataBuffer[SECTOR_SIZE / sizeof(USHORT) + 128];
++    PUSHORT DataPointer;
+=1 1100 26
+=1 1134 6
++    do {
++        Status = ScsiDiskBootIO(DataPointer,PartitionOffset,SectorSize,TRUE);
+=1 1154 8
+=1 1163 8
++
+=1 1171 3
++
+=1 1174 38
++
+=1 1212 3
++
+=1 1215 17
+=1 1249 4
+=2 636 7
++    This routine initializes the device entry table for the scsi driver and
++    the configuration database entries of the boot disk.  The boot path of
++    the console command (slot/rzN/file) names the disk.
+=1 225 3
++    LookupTable - Supplies the driver lookup table entries the driver may
++        fill in.
++
++    Entries - Supplies the number of entries.
+=1 1267 8
++    PCHAR Name;
++    ULONG Index;
++    PCHAR Identifier;
+=1 1285 4
+=1 1290 1
+=1 1292 1
++
++    if (Entries == 0) {
+=1 1307 4
++    // Find the disk in the console boot path: the argument with "/rz" in it,
++    // which is followed by the SCSI identifier.  The console boots from SCSI
++    // identifier 0 when the boot command names no disk.
++    //
++
++    FwBootUnit = 0;
++    for (Index = 0; Index < FwRexArgc; Index++) {
++        Name = strstr(FwRexArgv[Index], "/rz");
++        if (Name != NULL) {
++            FwBootUnit = atol(Name + 3);
+=1 937 4
++    //
++    // Create the name for the disk object.
++    //
++
++    sprintf(ScsiDiskDevicePath, "scsi(0)disk(%d)rdisk(0)", FwBootUnit);
++    sprintf(ScsiDiskIdentifier, "rz%d", FwBootUnit);
++    LookupTable->DevicePath = ScsiDiskDevicePath;
+=1 1451 3 -16
++    // Search the configuration database for scsi disk devices and delete
++    // them, then add the boot disk.
++    //
++
++    ScsiComponent = FwGetComponent("scsi(0)");
++    if ((ScsiComponent == NULL) || (ScsiComponent->Type != ScsiAdapter)) {
+=1 1307 3
+=1 1330 1 -12
+=1 1332 2 -12
++        if (ControllerComponent->Type == DiskController) {
+=1 1338 7 -12
++
+=1 1463 11 -24
++    ControllerEntry.Key = FwBootUnit;
+=1 1475 2 -24
++    Identifier = ScsiDiskIdentifier;
+=1 1492 2 -24
+=1 1495 1 -24
++    if (ControllerComponent == NULL) {
+=1 1307 4
+=1 1500 4 -16
++    PeripheralEntry.Type = DiskPeripheral;
+=1 1505 2 -16
++    PeripheralEntry.Flags.Removable = 0;
+=1 1508 6 -16
++    PeripheralEntry.Key = 0;
+=1 1515 4 -16
+=1 1520 2 -16
+=1 1307 3 -4
+=1 128 2
++    IN PVOID Buffer,
+=1 131 1
++    IN ULONG Length,
+=1 1691 7
++    This routine reads or writes blocks of the boot device with the console
++    boot services.
+=1 225 3
++    Buffer - Supplies the address of the data.
++
++    LogicalBlock - Supplies the number of the first block.
++
++    Length - Supplies the number of bytes, a multiple of the block size.
++
++    Operation - Supplies TRUE to read, FALSE to write.
+=1 231 3
++    STATUS_SUCCESS if every byte was transferred, otherwise
++    STATUS_UNSUCCESSFUL.
+=1 235 4
++    LONG Transferred;
++
++    if (Operation) {
++        Transferred = FwRexBootRead(LogicalBlock, Buffer, Length);
++    } else {
++        Transferred = FwRexBootWrite(LogicalBlock, Buffer, Length);
++    }
++
++    if (Transferred != (LONG)Length) {
+=1 1734 3
++    return STATUS_SUCCESS;
++}
+=1 3205 7
++    if ((BlFileTable[FileId].Flags.Open != 0) &&
++        (BlFileTable[FileId].DeviceEntryTable == &ScsiDiskEntryTable)) {
+=1 3213 3
+=1 3235 4
++#endif

@@ -1,0 +1,28 @@
+#ntdiff PRIVATE/NTOS/MINIPORT/NCR53C94/NCR53C9X.C
+#crlf
+=1 1 291
++//
++// Read and write macros of the registers of the MicroChannel adapter: bytes
++// in I/O space on every system (the chip registers of the DECstation are a
++// word apart, see above).
++//
++
++#define ADAPTER_READ(AdapterAddr, Register) ScsiPortReadPortUchar(&((AdapterAddr)->ReadRegisters.Register))
++#define ADAPTER_WRITE(AdapterAddr, Register, Value) (ScsiPortWritePortUchar(&((AdapterAddr)->WriteRegisters.Register), (Value)))
+=1 291 1747
++        dataByte = ADAPTER_READ(deviceExtension->AdapterBase, OptionSelect1);
+=1 2039 1
++        ADAPTER_WRITE(deviceExtension->AdapterBase, OptionSelect1, dataByte);
+=1 2041 65
++        *((PUCHAR) &DmaStatus) = ADAPTER_READ( deviceExtension->AdapterBase, DmaStatus );
+=1 2107 78
++#if defined(MIPS) && !defined(DECSTATION)
+=1 2186 6
++            // N.B. The DECstation has no such DMA controller: the SCSI
++            //      controller of its TURBOchannel moves the data to and
++            //      from a buffer of its own.
+=1 2191 1369
++        *((PUCHAR) &DmaStatus) = ADAPTER_READ( deviceExtension->AdapterBase, DmaStatus );
+=1 3561 468
++        *((PUCHAR) &DmaStatus) = ADAPTER_READ( DeviceExtension->AdapterBase, DmaStatus );
+=1 4030 1587

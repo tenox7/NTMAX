@@ -1,0 +1,612 @@
+#ntdiff PRIVATE/NTOS/KE/MIPS/X4TRAP.S PRIVATE/NTOS/FW/MIPS/X4TRAP.S PRIVATE/NTOS/KE/MIPS/THREADBG.S PRIVATE/NTOS/KE/MIPS/XXAPCINT.S
+=1 1 7
++//    x3trap.s
+=1 9 6
++//    This is the R3000 version. The R3000 has a user TB miss vector for
++//    misses on the user part of the address space and a general exception
++//    vector for all other exceptions. The TB maps single pages, the process
++//    status register has a three level stack of mode and interrupt enable
++//    bits that is pushed by an exception and popped by rfe, and floating
++//    exceptions are signaled by the floating point coprocessor as an
++//    interrupt at FLOAT_LEVEL.
+=1 14 20
++
+=1 35 7
++#define PSR_ENABLE_MASK ((0xff << PSR_INTMASK) | (0x3 << PSR_IEC))
+=1 45 5
++// Define the offset of the PTE load in the user TB miss vector routine.
++//
++
++#define TB_MISS_PTE_LOAD 0x8            // offset of PTE load instruction
+=1 48 25
+=1 117 24
++        SBTTL("User TB Miss Vector Routine")
+=1 142 5
++//    to the user part of the address space from either kernel or user mode.
+=1 148 2
++//    The function of this routine is to load a second level PTE from the
++//    current page table into the TB. The context register is loaded by
++//    hardware with the virtual address of the PTE. In addition, the entryhi
++//    register is loaded with the virtual tag, such that the PTE can be loaded
++//    directly into the TB.
++//
++//    If a fault occurs when attempting to load the specified PTE from the
+=1 159 1
++//    vector at KSEG0_BASE + 0x80.
+=1 161 11
++//    N.B. This routine saves the exception PC in k1 before the PTE is
++//       loaded so that it can be used by the general exception vector
++//       routine if an exception occurs while trying to load the PTE from
++//       memory. The PTE load must remain at offset TB_MISS_PTE_LOAD.
+=1 176 5
++        START_REGION(KiTbMissStartAddress)
+=1 187 3
++        mfc0    k0,context              // get virtual address of PTE
+=2 107 1
++        lw      k0,0(k0)                // get PTE - may fault
++        nop                             // 1 cycle hazzard
++        mtc0    k0,entrylo              // set PTE value
++        nop                             // 1 cycle hazzard
+=1 240 1
++        j       k1                      // return from exception
++        rfe                             // restore mode and interrupt enable
+=1 261 6
++
+=1 323 16
++//    This routine is copied to address KSEG0_BASE + 0x80 at system startup.
+=1 340 7
++//    k1 - Supplies the exception PC of the user TB miss if the exception
++//       occurred in the user TB miss vector routine while attempting to load
++//       a PTE into the TB.
+=1 350 14
++        nop                             // 1 cycle hazzard
++        and     k0,k0,R3000_MISS_MASK   // isolate exception code
++        xor     k0,k0,XCODE_READ_MISS   // check for read or write miss
+=1 367 7
++        bne     zero,k0,40f             // if ne, not read or write miss
++        mfc0    k0,epc                  // get exception PC
++
++//
++// The exception is either a read or a write to an address that is not in
++// the user part of the address space and is not mapped by the TB, or a
++// reference to an invalid entry that is in the TB.
++//
++// N.B. A TB miss on an address in the user part of the address space is
++//      vectored to the user TB miss routine, which loads the PTE into the
++//      TB whether it is valid or not.
++//
++// Attempt to resolve the reference by loading the PTE from the page table
++// page that maps the bad virtual address. The page directory page is mapped
++// by a fixed TB entry and the page table page is addressed in KSEG0, and
++// therefore, the PTE is obtained without a TB miss.
++//
++// There are two cases to be considered:
++//
++//    1. The exception occurred in the user TB miss routine while attempting
++//       to load a PTE from the current page table.
++//
++//       For this case, the bad virtual address is the address of the PTE,
++//       the TB entry that maps the page table page is loaded from the page
++//       directory page, and execution is resumed at the exception PC of the
++//       user TB miss, which is in k1. If the page table page does not exist,
++//       then an invalid entry is loaded into the TB for the user page, which
++//       causes the user reference to fault on the invalid entry.
++//
++//       N.B. The return to the exception PC of the user TB miss pops two
++//            levels of the mode and interrupt enable stack in the PSR.
++//
++//    2. The exception occurred elsewhere.
++//
++//       For this case, the PTE that maps the bad virtual address is loaded
++//       into the TB if it is valid and execution is continued. Otherwise,
++//       the exception is a page fault and is passed to the appropriate
++//       exception routine.
++//
++// N.B. The TB is probed before a valid PTE is loaded into the TB. If the TB
++//      contains an invalid entry for the bad virtual address, then the entry
++//      is overwritten. A TB that contains two matching entries shuts down.
++//
++
++        nop                             // 1 cycle hazzard
++        bgez    k0,10f                  // if gez, exception PC in user space
++        sll     k0,k0,1                 // isolate offset of exception PC
++        xor     k0,k0,TB_MISS_PTE_LOAD << 1 // check if PTE load of user TB miss
++        beq     zero,k0,20f             // if eq, exception in user TB miss
+=1 716 3
++// Case 2 - The exception did not occur in the user TB miss routine.
++//
++// Load the PDE that maps the page table page from the page directory page.
++//
++
++10:     mfc0    k0,badvaddr             // get bad virtual address
++        lui     k1,PDE_BASE >> 16       // get virtual address of PDR
++        srl     k0,k0,PDI_SHIFT         // isolate page directory index
++        sll     k0,k0,2                 // compute offset of PDE
++        or      k0,k0,k1                // compute virtual address of PDE
++        lw      k0,0(k0)                // get PDE value
++        nop                             // 1 cycle hazzard
++        sll     k1,k0,0x1f - ENTRYLO_V  // shift valid bit into sign position
++        bgez    k1,40f                  // if gez, PDE is not valid
++        srl     k0,k0,ENTRYLO_PFN       // isolate page frame number
++
++//
++// Load the PTE that maps the bad virtual address from the page table page.
++//
++
+=1 211 1
++        sll     k0,k0,PAGE_SHIFT        // compute physical address of page
++        srl     k1,k1,PTI_SHIFT - 2     // compute offset of PTE
++        and     k1,k1,0xffc             //
++        or      k0,k0,k1                // compute physical address of PTE
++        lui     k1,KSEG0_BASE >> 16     // compute KSEG0 address of PTE
++        or      k0,k0,k1                //
++        lw      k0,0(k0)                // get PTE value
++        nop                             // 1 cycle hazzard
++        sll     k1,k0,0x1f - ENTRYLO_V  // shift valid bit into sign position
++        bgez    k1,40f                  // if gez, PTE is not valid
+=1 495 3
++// An address in system space is mapped by a global TB entry.
++//
++
++        nop                             // 1 cycle hazzard
++        srl     k1,k1,23                // isolate high bits of virtual address
++        addu    k1,k1,-(SYSTEM_BASE >> 23) // check if system space address
++        bltz    k1,15f                  // if ltz, not system space address
++        nop                             // fill
++        or      k0,k0,1 << ENTRYLO_G    // set global bit
++15:     tlbp                            // probe TB for bad virtual address
++        nop                             // 1 cycle hazzard
+=1 431 1
++        mtc0    k0,entrylo              // set PTE value
++        bltz    k1,17f                  // if ltz, entry is not in TB
++        nop                             // fill
++        tlbwi                           // overwrite invalid entry in TB
+=2 107 1
++        nop                             // 1 cycle hazzard
++        j       k1                      // continue execution
++        rfe                             // restore mode and interrupt enable
++
++17:     tlbwr                           // write entry randomly into TB
+=2 107 1
++        nop                             // 1 cycle hazzard
++        j       k1                      // continue execution
++        rfe                             // restore mode and interrupt enable
++
++//
++// Case 1 - The exception occurred in the user TB miss routine.
++//
++// The bad virtual address is the address of a PTE. Save the exception PC
++// of the user TB miss and load the PDE that maps the page table page from
++// the page directory page.
++//
++
++20:     sw      k1,KiPcr + PcSavedEpc(zero) // save user TB miss exception PC
++        mfc0    k0,badvaddr             // get virtual address of PTE
++        lui     k1,PDE_BASE >> 16       // get virtual address of PDR
++        srl     k0,k0,PTI_SHIFT - 2     // compute offset of PDE
++        and     k0,k0,0xffc             //
++        or      k0,k0,k1                // compute virtual address of PDE
++        lw      k0,0(k0)                // get PDE value
++        nop                             // 1 cycle hazzard
++        sll     k1,k0,0x1f - ENTRYLO_V  // shift valid bit into sign position
++        bgez    k1,25f                  // if gez, PDE is not valid
++        nop                             // fill
++        tlbp                            // probe TB for page table page
++        nop                             // 1 cycle hazzard
+=1 431 1
++        mtc0    k0,entrylo              // set PDE value
++        bltz    k1,23f                  // if ltz, entry is not in TB
++        nop                             // fill
++        tlbwi                           // overwrite invalid entry in TB
++        b       30f                     // finish in common code
++        nop                             // fill
++
++23:     tlbwr                           // write entry randomly into TB
++        b       30f                     // finish in common code
+=1 716 3
++// The page table page does not exist. Load an invalid entry for the user
++// page into the TB.
++//
++
++25:     mfc0    k0,badvaddr             // get virtual address of PTE
++        mfc0    k1,entryhi              // get current PID
++        sll     k0,k0,PDI_SHIFT - PTI_SHIFT // compute virtual address of page
++        and     k1,k1,PID_MASK << ENTRYHI_PID // isolate current PID
++        or      k0,k0,k1                // merge PID with virtual page number
++        mtc0    k0,entryhi              // set VPN and PID of user page
++        mtc0    zero,entrylo            // set invalid PTE value
++        nop                             // 1 cycle hazzard
+=1 240 1
++
++//
++// Pop the mode and interrupt enable of the user TB miss routine from the
++// PSR and continue execution at the exception PC of the user TB miss.
++//
++
++30:     mfc0    k0,psr                  // get current processor status
++        nop                             // 1 cycle hazzard
++        srl     k1,k0,2                 // shift old mode and enable into
++        and     k1,k1,0x3 << PSR_IEP    // previous position
++        or      k0,k0,k1                // set previous mode and enable
++        mtc0    k0,psr                  // set new processor status
++        lw      k1,KiPcr + PcSavedEpc(zero) // get user TB miss exception PC
++        nop                             // 1 cycle hazzard
++        j       k1                      // repeat the reference
++        rfe                             // restore mode and interrupt enable
+=1 507 6
++40:     mfc0    k0,epc                  // get exception PC
+=1 211 1
+=1 516 10
++// N.B. The kernel stack is mapped by fixed TB entries and a TB miss cannot
++//      occur when the stack is switched and the context is saved.
+=1 528 3
+=1 532 1
+=1 534 2
++        bne     zero,t8,50f             // if ne, previous mode was user
+=1 537 9
++        beq     zero,t8,50f             // if eq, no stack overflow
+=1 547 23
++
++50:     sw      sp,TrIntSp(t8)          // save integer register sp
+=1 577 8
++        and     t8,t7,R3000_XCODE_MASK  // isolate exception code
++
++//
++// A floating exception is signaled as an interrupt at FLOAT_LEVEL. If the
++// floating interrupt is pending and enabled, then the exception code is set
++// to floating exception so the floating state is saved and the exception is
++// dispatched to the floating exception routine.
++//
++
++        bne     zero,t8,55f             // if ne, not interrupt exception
++        and     k1,t7,t9                // merge pending and enabled interrupts
++        srl     k1,k1,FLOAT_LEVEL + CAUSE_INTPEND - 1 // isolate floating interrupt
++        and     k1,k1,1                 //
++        beq     zero,k1,55f             // if eq, no floating interrupt
++        nop                             // fill
++        li      t8,XCODE_FLOATING_EXCEPTION // set floating exception code
+=1 586 7
++55:     xor     k1,t8,XCODE_SYSTEM_CALL // check for system call exception
++        bne     zero,k1,60f             // if ne, not system call exception
+=1 595 7
++        srl     t8,t9,PSR_IEP           // set current interrupt enable to
++        and     t8,t8,1 << PSR_IEC      // previous interrupt enable
++        or      t8,t8,t9                //
+=1 604 49
++60:     sw      AT,TrIntAt(s8)          // save assembler temporary register
+=1 655 26
++        beq     zero,t6,80f             // if eq, interrupt exception
+=1 682 6
++        swc1    f0,TrFltF0(s8)          // save floating register f0 - f19
+=1 1571 1
+=2 965 18
+=1 698 2
++        srl     t0,t9,PSR_IEP           // set current interrupt enable to
++        and     t0,t0,1 << PSR_IEC      // previous interrupt enable
++        or      t9,t9,t0                //
+=1 702 7
++//    t9 - If not an interrupt, then the new PSR with the current interrupt
++//         enable set to the previous interrupt enable. Otherwise the PSR
++//         of the exception.
++//
++
++80:     bgez    t7,90f                  // if gez, exception not in delay slot
++        nop                             // fill
+=1 714 1
++90:     j       t5                      // dispatch to exception routine
+=1 716 16
++
+=1 733 42
++//    t9 - The new PSR with the current interrupt enable set to the
++//         previous interrupt enable.
+=1 776 106
++//    t9 - The new PSR with the current interrupt enable set to the
++//         previous interrupt enable.
+=1 883 70
+=1 955 11
++//    t9 - The new PSR with the current interrupt enable set to the
++//         previous interrupt enable.
+=1 776 9
+=1 986 65
++//    t9 - The new PSR with the current interrupt enable set to the
++//         previous interrupt enable.
+=1 1052 74
++//    t9 - The new PSR with the current interrupt enable set to the
++//         previous interrupt enable.
+=1 1127 72
++//    t9 - The new PSR with the current interrupt enable set to the
++//         previous interrupt enable.
+=1 1200 20
+=1 804 1
++        nop                             // 2 cycle hazzard
+=1 803 1
+=1 2367 4
+=1 1225 52
++//    t9 - The new PSR with the current interrupt enable set to the
++//         previous interrupt enable.
+=1 1278 75
++//    t9 - The new PSR with the current interrupt enable set to the
++//         previous interrupt enable.
+=1 1354 73
++//    t9 - The new PSR with the current interrupt enable set to the
++//         previous interrupt enable.
+=1 1428 75
++//    t9 - The PSR of the exception.
+=1 1504 52
++        and     t9,t9,t2                // clear interrupt mask and enable
+=1 1557 1
++        or      t9,t9,1 << PSR_IEC      // set interrupt enable
+=1 1559 131
++        and     t9,t9,t2                // clear interrupt mask and enable
+=1 1691 13
++        or      t9,t9,1 << PSR_IEC      // set interrupt enable
+=1 1705 84
++        bne     zero,t2,50f             // if ne, stay on interrupt stack
++        nop                             // fill
+=1 1790 111
++//    t9 - The new PSR with the current interrupt enable set to the
++//         previous interrupt enable.
+=1 1902 14
+=1 2246 2
+=1 2250 46
+=4 114 3
++// implement an atomic interlocked increment sequence (as the APC interrupt
++// does). If the fault PC is in the range of the interlocked increment code,
++// then back up the PC to the start of the code: another thread can have run
++// while the fault was resolved.
++//
++
++37:     lw      t0,TrFir(s8)            // get fault instruction address
+=4 125 3
++        sltu    t4,t0,t2                // fault address less than end address?
++        bne     zero,t3,38f             // if ne, fault address less than start
++        beq     zero,t4,38f             // if eq, fault address not less than end
+=4 131 1
++38:     move    v0,zero                 // set success status
+=1 2297 94
++//    t9 - Supplies the PSR of the exception.
+=1 2392 112
++10:     lwc1    f0,16(t0)               // get twelve argument values from
++        lwc1    f1,20(t0)               // callers stack
++        lwc1    f2,24(t0)               //
++        lwc1    f3,28(t0)               //
++        lwc1    f4,32(t0)               //
++        lwc1    f5,36(t0)               //
++        lwc1    f6,40(t0)               //
++        lwc1    f7,44(t0)               //
++        lwc1    f8,48(t0)               //
++        lwc1    f9,52(t0)               //
++        lwc1    f10,56(t0)              //
++        lwc1    f11,60(t0)              //
++        swc1    f0,16(sp)               // stores arguments on kernel stack
++        swc1    f1,20(sp)               //
++        swc1    f2,24(sp)               //
++        swc1    f3,28(sp)               //
++        swc1    f4,32(sp)               //
++        swc1    f5,36(sp)               //
++        swc1    f6,40(sp)               //
++        swc1    f7,44(sp)               //
++        swc1    f8,48(sp)               //
++        swc1    f9,52(sp)               //
++        swc1    f10,56(sp)              //
++        swc1    f11,60(sp)              //
+=1 2516 295
+=1 2888 34
+=3 52 15
+=1 2931 44
++        lwc1    f20,ExFltF20(sp)        // restore floating registers f20 - f31
++        lwc1    f21,ExFltF21(sp)        //
++        lwc1    f22,ExFltF22(sp)        //
++        lwc1    f23,ExFltF23(sp)        //
++        lwc1    f24,ExFltF24(sp)        //
++        lwc1    f25,ExFltF25(sp)        //
++        lwc1    f26,ExFltF26(sp)        //
++        lwc1    f27,ExFltF27(sp)        //
++        lwc1    f28,ExFltF28(sp)        //
++        lwc1    f29,ExFltF29(sp)        //
++        lwc1    f30,ExFltF30(sp)        //
++        lwc1    f31,ExFltF31(sp)        //
+=1 2981 34
+=2 924 1
+=2 1029 18
++        b       KiTrapExit              //
+=2 1047 2
+=1 3027 43
+=1 3072 2
++        nop                             // 1 cycle hazzard
++        mtc0    k0,psr                  // set new PSR value
+=1 429 2
++        j       k1                      // continue execution
++        rfe                             // restore mode and interrupt enable
+=1 3084 34
++        li      t1,~(1 << PSR_IEC)      // set interrupt enable mask
+=1 3119 2
++        and     v0,t0,1 << PSR_IEC      // isolate current interrupt enable
++        srl     v0,v0,PSR_IEC           //
+=1 3123 6
++
+=1 3130 28
++        sll     t1,a0,PSR_IEC           // shift previous enable into position
+=1 3159 9
++
+=1 3169 16
++//    N.B. A TB entry of the R3000 maps a single page. An entry that maps an
++//       address in system space is made global.
+=1 124 3
++//    Pte (a0) - Supplies a pointer to the page table entry that is to be
+=1 3188 16
++        lw      t0,0(a0)                // get PTE value
++        srl     t1,a1,23                // isolate high bits of virtual address
++        subu    t1,t1,SYSTEM_BASE >> 23 // check if system space address
++        bltz    t1,5f                   // if ltz, not system space address
++        or      t0,t0,1 << ENTRYLO_G    // set global bit
++5:                                      //
+=1 3217 5
++        mfc0    t3,entryhi              // get current PID and VPN
++        srl     a1,a1,ENTRYHI_VPN       // isolate VPN of virtual address
++        sll     a1,a1,ENTRYHI_VPN       //
+=1 3225 1
++        or      a1,t3,a1                // merge PID with VPN of virtual address
++        mtc0    a1,entryhi              // set VPN and PID for probe
++        nop                             // 1 cycle hazzard
+=1 1981 1
++        nop                             // 1 cycle hazzard
+=1 3234 1
++        mtc0    t0,entrylo              // set PTE value
+=1 3237 5
++        srl     t4,t3,INDEX_INDEX       // isolate TB index
++        sltu    t4,t4,FIXED_ENTRIES     // check if fixed entry within range
+=1 3243 7
+=1 3252 4
+=1 3258 9
++
+=1 3342 14
++//    N.B. The fixed entries of the R3000 are the eight entries that are
++//       never selected by the random register.
+=1 124 3
++//    Pte (a0) - Supplies a pointer to the page table entry that is to be
+=1 3359 15
++        lw      t0,0(a0)                // get PTE value
++        sll     a2,a2,INDEX_INDEX       // shift index into position
+=1 3217 5
++        mfc0    t3,entryhi              // get current PID and VPN
++        srl     a1,a1,ENTRYHI_VPN       // isolate VPN of virtual address
++        sll     a1,a1,ENTRYHI_VPN       //
+=1 3225 1
++        or      a1,t3,a1                // merge PID with VPN of virtual address
++        mtc0    a1,entryhi              // set VPN and PID of TB entry
++        mtc0    t0,entrylo              // set PTE value
+=1 3389 3
+=1 3394 9
++
+=1 3404 26
++
+=1 3431 28
++        li      t3,FIXED_ENTRIES        // set highest index number + 1
+=1 3460 4
++
+=1 3465 23
++        li      t0,RANDOM_BASE          // set base index of random TB entries
+=1 3491 1
+=1 3494 3
+=1 3218 4
++        mfc0    t1,entryhi              // get current PID and VPN
+=1 3504 4
++        or      t4,t4,t1                // merge PID with VPN of invalid address
++        mtc0    zero,entrylo            // set low part of TB entry
+=1 3511 14
++
+=1 3526 49
++        mfc0    t1,entryhi              // get current PID and VPN
+=1 3576 11
++        mfc0    t1,entryhi              // save current PID and VPN
+=1 3588 4
++        srl     t2,v0,ENTRYHI_VPN       // isolate VPN of virtual address
++        sll     t2,t2,ENTRYHI_VPN       //
++        or      t2,t2,a3                // merge PID with VPN of virtual address
++        mtc0    t2,entryhi              // set VPN and PID for probe
++        nop                             // 1 cycle hazzard
+=1 3599 1
++        nop                             // 1 cycle hazzard
+=1 3234 1
+=1 3631 1
+=1 3604 1
++        or      t2,t2,a3                // merge PID with VPN of invalid address
+=1 92 3
++        srl     t4,t3,INDEX_INDEX       // isolate TB index
++        sltu    t4,t4,FIXED_ENTRIES     // check if fixed entry region
+=1 3610 7
++        mtc0    t2,entryhi              // set VPN and PID for TB write
++        mtc0    zero,entrylo            // set invalid PTE value
+=1 3634 2
+=1 3640 1
++        mtc0    t1,entryhi              // restore current PID and VPN
+=1 3642 9
++
+=1 3652 45
++        mfc0    t1,entryhi              // get current PID and VPN
+=1 3698 11
++        mfc0    t1,entryhi              // save current PID and VPN
+=1 3710 1
++5:      srl     t2,a1,ENTRYHI_VPN       // isolate VPN of virtual address
++        sll     t2,t2,ENTRYHI_VPN       //
++        or      t2,t2,a2                // merge PID with VPN of virtual address
++        mtc0    t2,entryhi              // set VPN and PID for probe
++        nop                             // 1 cycle hazzard
+=1 3599 1
++        nop                             // 1 cycle hazzard
+=1 3234 1
+=1 3631 1
+=1 3604 1
++        or      t2,t2,a2                // merge PID with VPN of invalid address
+=1 92 3
++        srl     t4,t3,INDEX_INDEX       // isolate TB index
++        sltu    t4,t4,FIXED_ENTRIES     // check if fixed entry region
+=1 3610 7
++        mtc0    t2,entryhi              // set VPN and PID for TB write
++        mtc0    zero,entrylo            // set invalid PTE value
+=1 3634 2
++30:     mtc0    t1,entryhi              // restore current PID and VPN
+=1 3760 9
++
+=1 3770 30
++        mfc0    t1,entryhi              // get current PID and VPN
++        srl     t2,a0,ENTRYHI_VPN       // isolate VPN of virtual address
++        sll     t2,t2,ENTRYHI_VPN       //
+=1 3506 1
++        or      t2,t2,t1                // merge PID with VPN of virtual address
++        mtc0    t2,entryhi              // set VPN and PID for probe
++        nop                             // 1 cycle hazzard
+=1 1981 1
++        nop                             // 1 cycle hazzard
+=1 3812 3
++        nop                             // fill
+=1 1989 1
++        nop                             // 1 cycle hazzard
++        mfc0    t2,entrylo              // get PTE for probe
+=1 4057 1
+=1 3825 4
++        sltu    v0,t3,FIXED_ENTRIES     // check if entry in fixed part of TB
+=1 3832 8
++
+=1 3841 13
++//    N.B. A TB entry of the R3000 maps a single page and has no page mask.
++//       The single PTE is returned as the first PTE, and the second PTE
++//       and the page mask are returned zero.
+=1 3853 23
++        nop                             // 1 cycle hazzard
+=1 1989 1
++        nop                             // 1 cycle hazzard
++        mfc0    t2,entrylo              // save PTE value
+=1 3883 1
+=1 3885 1
+=1 3642 6
++        sw      t2,TbEntrylo0(a1)       // set PTE value
++        sw      zero,TbEntrylo1(a1)     // clear second PTE value
+=1 3895 1
++        sw      zero,TbPagemask(a1)     // clear page mask value
+=1 3897 3
++
+=1 3901 26
++
+=1 3928 15
++//    N.B. The process id of a process is kept as the number of the id. It
++//       is shifted into position when it is merged into a TB entry.
+=1 3942 14
+=1 3959 17
+=1 3997 11
++        addu    v1,v1,1                 // increment master system PID
+=1 4009 5
++// All the process ids have been used. Increment the master sequence number
++// and flush the random part of the TB, which holds the entries of the
++// process ids that are reassigned.
++//
+=1 4029 7
+=1 4063 10
+=1 4074 1
++        sll     v1,v1,ENTRYHI_PID       // shift process PID into position
+=1 4075 7
++        mtc0    t3,entryhi              // set VPN and PID of TB entry
++        mtc0    t1,entrylo              // set PDE value
+=1 4085 3
+=1 4090 11

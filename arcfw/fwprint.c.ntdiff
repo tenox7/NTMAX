@@ -1,0 +1,10 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/FWPRINT.C
+=1 1 76
++#if !defined(DECSTATION)
++
++        //
++        // The DECstation firmware has no display driver yet.
++        //
+=1 76 4
++#endif
+=1 80 5

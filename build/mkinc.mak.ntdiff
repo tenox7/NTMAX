@@ -1,0 +1,32 @@
+#ntdiff PUBLIC/OAK/BIN/MAKEFILE.DEF
++#
++#  mkinc.mak -- what makefile.def gives the makefile.inc of a directory.
++#  build-lib.sh runs nmake -f mkinc.mak in the directory of a SOURCES file
++#  for its NTTARGETFILE0 targets and for the sources that the tree does not
++#  have.  The macros of makefile.def come from the command line (the
++#  NTTARGETFILE0 targets, with the * of SOURCES made mips as MIPSMK.INC
++#  does, CDEFINES, INCPATH0 and the others of build-lib.sh); then come the
++#  inference rules of makefile.def that a makefile.inc uses when it names a
++#  target without a command of its own (the export list of a DLL from its
++#  .src or .def, a .res from its .rc), then makefile.inc itself.  The .res
++#  is made the way build-lib.sh makes the .res of a .rc source: the linker
++#  converts it (makefile.def runs cvtres).
++#
++
++C_PREPROCESSOR=cl -nologo -EP -Imips\ -I. $(INCPATH0) $(CDEFINES) -D_LANGUAGE_C -DLANGUAGE_C /Tc
++
++.SUFFIXES: .def .src .rc .res
+=1 1098 2
++    $(C_PREPROCESSOR) $< > $@
+=1 1101 2
++    $(C_PREPROCESSOR) $< > $@
+=1 1104 2
++    $(C_PREPROCESSOR) $< > $@
+=1 1107 2
++    $(C_PREPROCESSOR) $< > $@
+=1 966 2
++    rc -l 409 -r -fo $@ $(CDEFINES) -x $(INCPATH0) $<
+=1 973 2
++    rc -l 409 -r -fo $@ $(CDEFINES) -x $(INCPATH0) $<
++
+=1 1177 1

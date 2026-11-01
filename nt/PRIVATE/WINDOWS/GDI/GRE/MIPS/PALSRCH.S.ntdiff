@@ -1,0 +1,13 @@
+#ntdiff PRIVATE/WINDOWS/GDI/GRE/MIPS/PALSRCH.S
+#crlf
++#if defined(R3000) || defined(R4000)
+=1 2 25
++//    The R3000 port: the R3000 does not wait for a load, the instruction
++//    after it must not use the loaded value.
+=1 26 110
++#if !defined(R4000)
++
++        nop                         // load delay
++
++#endif
+=1 135 24

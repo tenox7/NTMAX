@@ -1,0 +1,12 @@
+#ntdiff PRIVATE/NTOS/DD/SERMOUSE/SOURCES
+#crlf
++!IF 0
+=1 4 12
++    This is the port driver of the DZ serial line multiplexer of the
++    DECstation 5000/200 (KN02).
+=1 18 6
++TARGETNAME=dzport
+=1 25 5
++C_DEFINES=-DDECSTATION -DKN02_AA
++
++SOURCES=

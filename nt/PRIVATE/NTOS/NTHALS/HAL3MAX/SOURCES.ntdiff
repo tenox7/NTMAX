@@ -1,0 +1,29 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALFXS/SOURCES
+#crlf
+=1 1 15
++    This is the HAL of the DECstation 5000/200 (KN02, MIPS R3000).
+=1 15 13
++TARGETNAME=hal3max
+=1 29 1
+=1 31 11
++C_DEFINES=-DDECSTATION -DKN02_AA
+=1 43 8
++             mips\d3clock.s  \
++             mips\d3port.c   \
++             mips\d3prof.c   \
++             mips\d3time.c   \
++             mips\dxbeep.c   \
++             mips\dxdisp.c   \
++             mips\dxdmadsp.s \
++             mips\dxenvirv.c \
++             mips\dxflshio.c \
++             mips\dxhwsup.c  \
++             mips\dxreturn.c \
++             mips\dxsysint.c \
++             mips\dxusage.c  \
++             mips\x3cache.s  \
++             mips\x3flshbf.s \
++             mips\x86bios.c  \
+=1 71 4
++             mips\xxinithl.c
+=1 78 9

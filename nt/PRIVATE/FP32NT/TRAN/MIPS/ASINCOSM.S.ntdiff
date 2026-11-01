@@ -1,0 +1,31 @@
+#ntdiff PRIVATE/FP32NT/TRAN/MIPS/ASINCOSM.S
+#crlf
+=1 1 150
++
++#if defined(R3000)
++
++    /*
++     * The R3000 has no square root instruction: sqrt (sqrt3000.c) computes
++     * the square root of f2.  The return address to asin/acos, the callers
++     * fsr, the sign of x and f2 stay in the frame of asin/acos across the
++     * call.
++     */
++
++    s.d     $f2, 16(sp)
++    sw      v0, 24(sp)
++    sw      t1, 28(sp)
++    sw      ra, 32(sp)
++    mov.d   $f12, $f2
++    jal     sqrt
++    lw      ra, 32(sp)
++    lw      t1, 28(sp)
++    lw      v0, 24(sp)
++    l.d     $f2, 16(sp)
++
++#else
++
++    sqrt.d  $f0, $f2
++
++#endif
++
+=1 152 55

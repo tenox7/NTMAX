@@ -1,0 +1,7 @@
+#ntdiff PRIVATE/NTOS/VIDEO/JAZZG364/JAZZG364.RC
+#crlf
+=1 1 6
++#define VER_FILEDESCRIPTION_STR     "DECstation PMAG-BA Miniport Driver"
++#define VER_INTERNALNAME_STR        "pmagba.sys"
++#define VER_ORIGINALFILENAME_STR    "pmagba.sys"
+=1 10 2

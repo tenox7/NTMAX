@@ -1,0 +1,177 @@
+#ntdiff PRIVATE/NTOS/FW/MIPS/FWTRAP.S PRIVATE/NTOS/FW/ALPHA/JENASSEM.S
++#if defined(R3000)
+=1 2 10
++        This module contains the fw exception handling functions for the
++        R3000 of the DECstation 5000/200.
+=1 13 12
++#include "decfw.h"
+=1 25 40
++        j       k0                          // Handler returns return address in K0
++        rfe                                 // restore from exception
+=1 70 29
++        j       k0                          // Handler returns return address in K0
++        rfe                                 // restore from exception
+=1 104 5
+=1 139 1 -1
+=1 140 5
++        the General Exception dispatcher to the R3000 vector
+=1 146 28
++        li      t4,KSEG1_BASE + 0x80    // get copy address
+=1 175 6
+=1 190 14
++        // Clear the BEV in the psr.  The firmware polls its devices and
++        // leaves interrupts disabled.
++        //
++        li      t0,(1<<PSR_CU1)
+=1 207 10
++
++        SBTTL("Probe Read")
+=1 42 4
++        This routine reads a longword where a read may take a bus error: the
++        TURBOchannel of the DECstation 5000/200 answers a read from an empty
++        slot with a bus error.  During the read the general exception
++        vector goes to FwProbeHandler, which ends a data bus error at
++        FwProbeFault.  After a bus error the error address register of the
++        KN02 is cleared.
+=1 49 3
++        a0 - Supplies the address of the longword.
++
++        a1 - Supplies a pointer to a variable that receives the longword.
+=1 53 3
++        TRUE if the longword was read, FALSE if the read took a bus error.
+=1 17 3
++        LEAF_ENTRY(FwProbeRead)
++
++        li      t0,KSEG0_BASE           // get the address of the vectors
++        lw      t1,0x1014(t0)           // save the general exception handler
++        la      t2,FwProbeHandler       // get the probe handler
++        sw      t2,0x1014(t0)           // set the general exception handler
++        lw      t3,0(a0)                // read the longword
++        nop                             //
++        sw      t3,0(a1)                // store the longword
++        sw      t1,0x1014(t0)           // restore the general exception handler
++        j       ra                      // return
++        li      v0,TRUE                 // set the longword read
++
++        ALTERNATE_ENTRY(FwProbeFault)
++
++        li      t2,KSEG1_BASE | KN02_ERROR_ADDRESS_PHYSICAL_BASE //
++        sw      zero,0(t2)              // clear the error address register
++        sw      t1,0x1014(t0)           // restore the general exception handler
++        j       ra                      // return
++        move    v0,zero                 // set the read failed
++
++        .end    FwProbeRead
+=2 179 5
++        This routine is the general exception handler while FwProbeRead
++        reads.  It is called from the general exception dispatcher with the
++        address where to return in k1.  A data bus error returns to
++        FwProbeFault, every other exception goes to the monitor.
+=1 49 3
++        None.
+=1 53 3
++        k0 - the address where the dispatcher continues.
+=1 17 3
++        LEAF_ENTRY(FwProbeHandler)
++
++        mfc0    k0,cause                // get the cause of the exception
++        nop                             //
++        andi    k0,k0,0x1f << CAUSE_XCODE // isolate the exception code
++        xori    k0,k0,XCODE_DATA_BUS_ERROR // check for a data bus error
++        bne     k0,zero,MonitorExceptionHandler // if ne, other exception
++        nop                             //
++        la      k0,FwProbeFault         // continue at the probe fault
++        j       k1                      // return to the dispatcher
++        nop                             //
++
++        .end    FwProbeHandler
+=1 216 29
++        //
++        // The firmware takes no interrupts and has no kernel debugger:
++        // every exception goes to the monitor.  No state has been destroyed
++        // and register k1 still contains the address where to return.
++        //
++        b       MonitorExceptionHandler // go to the monitor
+=1 317 13
+=1 336 45
++        swc1    f0,f0RegTable(k0)
++        swc1    f1,f1RegTable(k0)
++        swc1    f2,f2RegTable(k0)
++        swc1    f3,f3RegTable(k0)
++        swc1    f4,f4RegTable(k0)
++        swc1    f5,f5RegTable(k0)
++        swc1    f6,f6RegTable(k0)
++        swc1    f7,f7RegTable(k0)
++        swc1    f8,f8RegTable(k0)
++        swc1    f9,f9RegTable(k0)
++        swc1    f10,f10RegTable(k0)
++        swc1    f11,f11RegTable(k0)
++        swc1    f12,f12RegTable(k0)
++        swc1    f13,f13RegTable(k0)
++        swc1    f14,f14RegTable(k0)
++        swc1    f15,f15RegTable(k0)
++        swc1    f16,f16RegTable(k0)
++        swc1    f17,f17RegTable(k0)
++        swc1    f18,f18RegTable(k0)
++        swc1    f19,f19RegTable(k0)
++        swc1    f20,f20RegTable(k0)
++        swc1    f21,f21RegTable(k0)
++        swc1    f22,f22RegTable(k0)
++        swc1    f23,f23RegTable(k0)
++        swc1    f24,f24RegTable(k0)
++        swc1    f25,f25RegTable(k0)
++        swc1    f26,f26RegTable(k0)
++        swc1    f27,f27RegTable(k0)
++        swc1    f28,f28RegTable(k0)
++        swc1    f29,f29RegTable(k0)
++        swc1    f30,f30RegTable(k0)
++        swc1    f31,f31RegTable(k0)
+=1 397 8
++        mfc0    v1,entrylo
++        mfc0    v0,context
+=1 408 1
++        sw      v0,contextRegTable(k0)
++        mfc0    v1,badvaddr
++        mfc0    v0,entryhi
++        sw      v1,badvaddrRegTable(k0)
+=1 421 1
++        mfc0    v1,psr
++        mfc0    v0,cause
++        sw      v1,psrRegTable(k0)
++        sw      v0,causeRegTable(k0)
++        mfc0    v1,epc
++        mfc0    v0,prid
++        sw      v1,epcRegTable(k0)
++        sw      v0,pridRegTable(k0)
++        //
++        //  The R3000 has none of the other R4000 cop0 registers.
++        //
++        sw      zero,entrylo1RegTable(k0)
++        sw      zero,pagemaskRegTable(k0)
++        sw      zero,wiredRegTable(k0)
++        sw      zero,countRegTable(k0)
++        sw      zero,compareRegTable(k0)
++        sw      zero,configRegTable(k0)
++        sw      zero,lladdrRegTable(k0)
++        sw      zero,watchloRegTable(k0)
++        sw      zero,watchhiRegTable(k0)
++        sw      zero,eccRegTable(k0)
++        sw      zero,cacheerrorRegTable(k0)
++        sw      zero,tagloRegTable(k0)
++        sw      zero,taghiRegTable(k0)
++        sw      zero,errorepcRegTable(k0)
+=1 460 1
++                                                // return from the exception.
++        li      v0,0x3
++        beq     v0,k1,10f                       // if k1=3 do not change sp
+=1 457 1
++        la      sp,FwStack + FW_STACK_SIZE - (4 * 4) //  set the stack pointer.
++        j       k0                              // jump to the monitor and leave exception level
++        rfe
++10:     j       Monitor
++        nop
+=1 468 42
+=1 511 64
++        nop                                 // load delay
+=1 575 80
++#endif  // defined(R3000)
