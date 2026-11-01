@@ -16,8 +16,9 @@ the mouse.
   `winlogon.cmd` in a cmd console, then the logon) ends at the logon dialog
   and Program Manager.
 - The LK201 keyboard and the VSXXX mouse work, Ctrl+Alt+Del too.
-- Not yet: the Spooler (at each start the service controller says that a
-  service failed: `spoolss.exe` is not built), networking, most applications.
+- Not yet: networking, most applications.
+- Not part of the port: the Spooler (printing) and RAS. The hive has no
+  Spooler service.
 
 ## No Microsoft code
 

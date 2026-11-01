@@ -22,7 +22,8 @@
 =1 116 3
 +#define CDFS 1
 +#endif // _HIVE_DECSTATION_
-=1 173 1183
+=1 173 1034
+=1 1220 136
 +#elif defined(_HIVE_DECSTATION_)
 +            //
 +            // The R3000 port: no network yet.  The developer's first run keeps
