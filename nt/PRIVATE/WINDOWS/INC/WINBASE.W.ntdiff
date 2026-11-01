@@ -6,4 +6,12 @@
 +//
 +
 +#if ((defined(_M_MRX000) && (_M_MRX000 > 3000)) || defined(_M_ALPHA)) && !defined(RC_INVOKED)
-=1 906 4535
+=1 906 30
++//
++// N.B. A program that includes the MIPS.H of the kernel first has the
++//      declarations of the interlocked functions of the R3000 from it.
++//
++
++#if !defined(_MIPSH_)
+=1 935 25
+=1 958 4483

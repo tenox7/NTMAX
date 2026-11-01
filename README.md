@@ -144,6 +144,7 @@ that `build-image.sh` builds them from:
 | winlogon, userinit | `PRIVATE/WINDOWS/USER/WINLOGON/DAYTONA`, `USER/USERINIT` |
 | progman, cmd, control + main.cpl, t1instal | `PRIVATE/WINDOWS/SHELL/PROGMAN`, `PRIVATE/WINDOWS/CMD`, `SHELL/CONTROL/CPANEL`, `CONTROL/MAIN`, `CONTROL/T1INSTAL` |
 | shell32, comdlg32, mpr, lz32, version, winspool.drv | `PRIVATE/WINDOWS/SHELL/LIBRARY`, `SHELL/COMDLG`, `PRIVATE/WINDOWS/MPR`, `SHELL/LZ/LZEXPAND`, `SHELL/VERSION`, `SPOOLER/SPOOLSS/CLIENT` |
+| setupdll | `PRIVATE/WINDOWS/SETUP/SETUPDLL` |
 | ini, ech, adduser, shutdown, sleep | `PRIVATE/SDKTOOLS/INI`, `ECH`, `ADDUSER`, `SHUTDOWN`, `SLEEP` |
 
 Every object and image goes through `tools/r3kcheck.pl`: the compiler in
