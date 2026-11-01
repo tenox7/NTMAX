@@ -7,25 +7,75 @@
 =1 13 14
 +#include "decrtc.h"
 +
-=1 45 40
++//
++// The REX firmware sets the year of the realtime clock to 72 when it is not
++// 72 or 73, as ULTRIX expects.  The year is kept in register 63, a byte of
++// the battery backed up RAM, as Linux keeps it: the year is 2000 plus that
++// byte plus the years that the realtime clock counted from 72.
++//
++
++#define RTC_YEAR_SINCE_2000 (&(&RTC_CONTROL->RtcBatteryBackedUpRam)[63 - 14].Byte)
++
+=1 45 32
++    UCHAR Year;
++    UCHAR YearSince2000;
+=1 77 8
 +    DataByte = READ_REGISTER_UCHAR(&RTC_CONTROL->RtcControlRegisterD.Byte);
 =1 86 7
 +            DataByte = READ_REGISTER_UCHAR(&RTC_CONTROL->RtcControlRegisterA.Byte);
-=1 94 6
-+        TimeFields->Year = BASE_YEAR + (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcYear.Byte);
+=1 94 3
++        // Read the realtime clock values.  If register 63 holds no year, the
++        // year of the realtime clock counts from BASE_YEAR.
++        //
++
++        Year = READ_REGISTER_UCHAR(&RTC_CONTROL->RtcYear.Byte);
++        YearSince2000 = READ_REGISTER_UCHAR(RTC_YEAR_SINCE_2000);
++        if ((YearSince2000 < 100) && (Year >= 72)) {
++            TimeFields->Year = (CSHORT)(2000 + YearSince2000 + Year - 72);
++
++        } else {
++            TimeFields->Year = BASE_YEAR + (CSHORT)Year;
++        }
++
 +        TimeFields->Month = (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcMonth.Byte);
 +        TimeFields->Day = (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcDayOfMonth.Byte);
 +        TimeFields->Weekday  = (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcDayOfWeek.Byte) - 1;
 +        TimeFields->Hour = (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcHours.Byte);
 +        TimeFields->Minute = (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcMinutes.Byte);
 +        TimeFields->Second = (CSHORT)READ_REGISTER_UCHAR(&RTC_CONTROL->RtcSeconds.Byte);
-=1 107 49
+=1 107 41
++    UCHAR Year;
++    UCHAR YearSince2000;
+=1 148 8
 +    DataByte = READ_REGISTER_UCHAR(&RTC_CONTROL->RtcControlRegisterD.Byte);
 =1 157 9
 +        ((PRTC_CONTROL_REGISTER_B)(&DataByte))->Settime = 1;
 +        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcControlRegisterB.Byte, DataByte);
-=1 168 5
-+        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcYear.Byte, (UCHAR)(TimeFields->Year - BASE_YEAR));
++
++        //
++        // Write the realtime clock values.  A year from 2000 to 2099 is
++        // written as 72, a leap year, in the realtime clock, or as 73 in
++        // January and February of a year that is not a leap year (February
++        // then has 28 days), and the rest of the year in register 63.  Another
++        // year counts from BASE_YEAR in the realtime clock, and register 63
++        // holds no year.
++        //
++
++        if ((TimeFields->Year >= 2000) && (TimeFields->Year <= 2099)) {
++            Year = 72;
++            YearSince2000 = (UCHAR)(TimeFields->Year - 2000);
++            if (((TimeFields->Year % 4) != 0) && (TimeFields->Month < 3)) {
++                Year = 73;
++                YearSince2000 -= 1;
++            }
++
++        } else {
++            Year = (UCHAR)(TimeFields->Year - BASE_YEAR);
++            YearSince2000 = 0xff;
++        }
++
++        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcYear.Byte, Year);
++        WRITE_REGISTER_UCHAR(RTC_YEAR_SINCE_2000, YearSince2000);
 +        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcMonth.Byte, (UCHAR)TimeFields->Month);
 +        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcDayOfMonth.Byte, (UCHAR)TimeFields->Day);
 +        WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcDayOfWeek.Byte, (UCHAR)(TimeFields->Weekday + 1));
