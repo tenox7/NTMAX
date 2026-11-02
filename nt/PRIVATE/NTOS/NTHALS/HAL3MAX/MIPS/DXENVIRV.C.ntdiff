@@ -3,7 +3,7 @@
 =1 1 6
 +    dxenvirv.c
 =1 8 4
-+    for a DECstation 5000/200 (KN02, MIPS R3000) system.
++    for a DECstation 5000 (MIPS R3000) system.
 +
 +    The DECstation has no NVRAM for the environment of the ARC firmware,
 +    which keeps it on the boot device: the environment variables are read

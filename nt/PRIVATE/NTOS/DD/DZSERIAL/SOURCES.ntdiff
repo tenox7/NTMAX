@@ -1,0 +1,14 @@
+#ntdiff PRIVATE/NTOS/DD/SERIAL/SOURCES
+#crlf
++!IF 0
+=1 4 12
++    This is the serial driver of the communications and printer lines of
++    the DZ serial line multiplexer of the DECstation 5000/200 (KN02): the
++    serial driver of ..\serial over the DZ port driver.  The sources that
++    do not touch the hardware are those of ..\serial.
+=1 22 6
++TARGETNAME=dzserial
+=1 29 3
++INCLUDES=..\..\inc;..\serial
++
++SOURCES=

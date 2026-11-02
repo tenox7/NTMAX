@@ -1,0 +1,9 @@
+#ntdiff PRIVATE/NTOS/DD/SERIAL/WRITE.C
+#crlf
+=1 1 23
++    The DZ serial driver of the DECstation starts a write by
++    enabling the transmitter of the line: the DZ port driver calls the
++    output service when the line is ready.
+=1 23 882
++            (Extension->Port.EnableTransmit)(Extension->Port.PortContext);
+=1 907 479

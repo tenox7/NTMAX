@@ -59,20 +59,20 @@ rm -f "$out/"*
 	rem crtdll.cmd -- made by build-crtdll.sh: crtdll.lib and crtdll.dll for the R3000
 	set TOP=T:\NTOS\3MAX
 	set NT=%TOP%\NT
-	set PATH=%TOP%\C900\BIN;C:\MSDEV\BIN;C:\WINNT\system32
+	set PATH=%TOP%\C900\BIN;%MSDevDir%\BIN;%SystemRoot%\system32
 	set INCLUDE=
 	set L=%TOP%\out
 	set O=%L%\img\crtdll
 	cd /d %NT%\PRIVATE\CRTLIB
 	copy /b lib\crtdll.def+lib\mips\crtdll.mip %O%\crtdll.def > nul
-	C:\MSDEV\BIN\LIB.EXE -nologo -machine:mips -def:%O%\crtdll.def -out:%O%\tmp.lib > %O%\def.log 2>&1
+	%MSDevDir%\BIN\LIB.EXE -nologo -machine:mips -def:%O%\crtdll.def -out:%O%\tmp.lib > %O%\def.log 2>&1
 	ren %O%\tmp.exp crtdll.exp
 	EOF
-	printf '%s\n' "C:\\MSDEV\\BIN\\LIB.EXE -nologo -machine:mips -out:%O%\\crtdll.lib %O%\\tmp.lib$objs > %O%\\lib.log 2>&1" \
+	printf '%s\n' "%MSDevDir%\\BIN\\LIB.EXE -nologo -machine:mips -out:%O%\\crtdll.lib %O%\\tmp.lib$objs > %O%\\lib.log 2>&1" \
 		'del %O%\tmp.lib'
 	# (RCMIPS_DEFS and RC_INCL of the makefile)
 	printf '%s\n' "rc -l 409 -r -fo %O%\\crtdll.res -DMIPS=1 -D_MIPS_=1 -DNO_EXT_KEYS -DWIN32_LEAN_AND_MEAN=1 -DMIPSEL -DCONDITION_HANDLING=1 -DNT_INST=0 -DJAZZ -DNT_UP=1 -DR3000 -D_M_MRX000=3000 -DDBG=0 -DDEVL=1 -DNOFIREWALLS -DNDEBUG -D_WIN32_=1 -D__stdcall= -D__cdecl= -D_INTL -x -I%NT%\\PUBLIC\\OAK\\INC -I%NT%\\PUBLIC\\SDK\\INC -I%NT%\\PUBLIC\\SDK\\INC\\CRT crtdll.rc > %O%\\rc.log 2>&1"
-	printf '%s\n' "C:\\MSDEV\\BIN\\LINK.EXE -nologo -dll -out:%O%\\crtdll.dll -debugtype:both -debug:minimal -machine:mips -release -pdb:none -incremental:no -base:0x10010000 -entry:_CRTDLL_INIT -map:%O%\\crtdll.map %O%\\crtdll.exp %O%\\crtdll.res$lnk > %O%\\link.log 2>&1"
+	printf '%s\n' "%MSDevDir%\\BIN\\LINK.EXE -nologo -dll -out:%O%\\crtdll.dll -debugtype:both -debug:minimal -machine:mips -release -pdb:none -incremental:no -base:0x10010000 -entry:_CRTDLL_INIT -map:%O%\\crtdll.map %O%\\crtdll.exp %O%\\crtdll.res$lnk > %O%\\link.log 2>&1"
 } | sed 's/$/\r/' > "$SHARE/build/crtdll.cmd"
 vmrun "T:\\NTOS\\3MAX\\build\\crtdll.cmd" || echo "build-crtdll: crtdll.cmd ended with an error"
 
@@ -97,6 +97,7 @@ mkdir -p "$here/obj/system32"
 cp "$out/crtdll.dll" "$out/crtdll.map" "$here/obj/system32/"
 docker run --rm -v "$here":/work/3MAX -w /work/3MAX --entrypoint sh 3max-build \
 	-c "perl tools/r3kcheck.pl obj/system32/crtdll.dll && perl tools/r3kmark.pl obj/system32/crtdll.dll" \
-	> "$here/obj/system32/crtdll-r3k.txt" 2>&1 || true
+	> "$here/obj/system32/crtdll-r3k.txt" 2>&1 ||
+	{ cat "$here/obj/system32/crtdll-r3k.txt"; echo "build-crtdll: crtdll.dll fails the R3000 check"; exit 1; }
 grep -F "crtdll.dll:" "$here/obj/system32/crtdll-r3k.txt" || cat "$here/obj/system32/crtdll-r3k.txt"
 ls -l "$here/obj/system32/crtdll.dll"

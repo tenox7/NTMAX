@@ -8,8 +8,11 @@
 #	blocks 2016..2047	the firmware's non-volatile configuration
 #	partition 1, at 1 MB	the system partition, FAT16, with the OS loader
 #				in \os\nt\osloader.exe (build-osloader.sh) and
-#				the HAL beside it, \os\nt\hal.dll (the OS
-#				loader takes the HAL from its own directory),
+#				the HALs beside it, \os\nt\hal.dll of the
+#				5000/200, hal3min.dll of the 5000/1xx and
+#				hal3maxp.dll of the 5000/240 (the OS loader
+#				takes the HAL from its own directory, the
+#				firmware names it),
 #				and the system in \winnt: the kernel in
 #				system32 (build-kernel.sh), the drivers in
 #				system32\drivers and the other images (the
@@ -22,7 +25,9 @@
 #				loads, and those of the Win32 base) and the
 #				fonts in \winnt\system (vgaoem.fon, the OEM
 #				font, is also the font of the HAL: the OS
-#				loader looks for it there)
+#				loader looks for it there), the help files
+#				of the programs and the texts of the
+#				performance counters (system32)
 #
 #  A new disk (none yet, or FORCE=1) is DISK_MB (default 256) MB, with the
 #  system partition formatted and the configuration not set yet (the
@@ -78,10 +83,14 @@ if [ -f obj/ntoskrnl.exe ] && [ -f obj/hal.dll ]; then
 	for f in obj/drivers/*.sys; do
 		[ ! -f "$f" ] || mcopy -o -i "$p" "$f" ::/winnt/system32/drivers/$(basename "$f")
 	done
-	for f in obj/system32/*.dll obj/system32/*.drv obj/system32/*.exe obj/system32/*.cpl; do
+	for f in obj/system32/*.dll obj/system32/*.drv obj/system32/*.acm obj/system32/*.exe \
+	    obj/system32/*.com obj/system32/*.cpl; do
 		[ ! -f "$f" ] || mcopy -o -i "$p" "$f" ::/winnt/system32/$(basename "$f")
 	done
 	mcopy -o -i "$p" obj/hal.dll ::/os/nt/hal.dll
+	for f in obj/hal3min.dll obj/hal3maxp.dll; do
+		[ ! -f "$f" ] || mcopy -o -i "$p" "$f" ::/os/nt/$(basename "$f")
+	done
 	mdel -i "$p" ::/winnt/system32/hal.dll 2>/dev/null || true
 	if [ "$keep" != 1 ]; then
 		# the new hives; the other files of config (the alternate
@@ -125,6 +134,24 @@ if [ -f obj/ntoskrnl.exe ] && [ -f obj/hal.dll ]; then
 	done
 	mcopy -o -i "$p" $F/L_10646.TTF ::/winnt/system/l_10646.ttf
 	mdel -i "$p" ::/winnt/system32/vgaoem.fon 2>/dev/null || true
+	# the help files of the programs, where Setup puts them, and the names
+	# and explanations of the performance counters (Perflib)
+	W=/work/PRIVATE/WINDOWS
+	for h in WINHELP/HLP/WINHELP SHELL/PROGMAN/PROGMAN SHELL/WINFILE/WINFILE SHELL/CONTROL/CONTROL \
+	    SHELL/ACCESORY/NOTEPAD/NOTEPAD SHELL/ACCESORY/CALC/CALC SHELL/ACCESORY/SPECHARS/CHARMAP \
+	    SHELL/GAMES/SOL/SOL EP/WINMINE/HELP/WINMINE EP/FREECELL/FREECELL SHELL/ACCESORY/CARDFILE/CARDFILE \
+	    SHELL/ACCESORY/PAINTBRS/PBRUSH SHELL/ACCESORY/TERMINAL/TERMINAL MEDIA/MPLAYER2/HELP/MPLAYER; do
+		mcopy -o -i "$p" $W/$h.HLP ::/winnt/system32/$(basename $h | tr A-Z a-z).hlp
+	done
+	mcopy -o -i "$p" /work/PRIVATE/UTILS/FDISK/DISKMAN.HLP ::/winnt/system32/windisk.hlp
+	mcopy -o -i "$p" /work/PRIVATE/UTILS/REGEDIT/SRC/REGEDIT.HLP ::/winnt/system32/regedt32.hlp
+	mcopy -o -i "$p" /work/PRIVATE/MVDM/BIN86/PIFEDIT.HLP ::/winnt/system32/pifedit.hlp
+	# (the command list of help.exe, a text file: MSG_HELP_HELP_FILE_NAME)
+	mcopy -o -i "$p" /work/PRIVATE/UTILS/HELP/DOSHELP.HLP ::/winnt/system32/doshelp.hlp
+	for f in PERFC009 PERFH009; do
+		mcopy -o -i "$p" /work/PRIVATE/SDKTOOLS/CNTRTEXT/PERFINI/$f.DAT \
+			::/winnt/system32/$(echo $f | tr A-Z a-z).dat
+	done
 	mdir -/ -i "$p" ::/winnt | grep -v "^ *$"
 fi
 mdir -/ -i "$p" ::/ | grep -v "^ *$"

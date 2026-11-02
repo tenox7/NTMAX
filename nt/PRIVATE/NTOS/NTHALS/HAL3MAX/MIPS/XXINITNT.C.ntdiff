@@ -2,11 +2,13 @@
 #crlf
 =1 1 11
 +    This module implements the interrupt initialization for a DECstation
-+    5000/200 (KN02, MIPS R3000) system.
++    5000 (MIPS R3000) system.
 =1 14 14
 +#include "decrtc.h"
 =1 37 10
 =1 177 3
++#if defined(KN02_AA)
++
 +//
 +// Define the I/O interrupt enable mask: the interrupt enable field of the
 +// system control and status register.
@@ -20,18 +22,63 @@
 +//
 +
 +ULONG HalpSystemControl;
-=1 56 7
-+// The interrupt lines of the KN02 are: int0 the I/O interrupts of the system
-+// control and status register (IRQL 3), int1 the realtime clock (IRQL 4),
-+// int3 the memory error interrupt (IRQL 6), and int5 the floating point
++
++#else
++
++//
++// Define the I/O interrupt enable mask: the system interrupt mask register
++// of the IO Control ASIC.
++//
++
++ULONG HalpBuiltinInterruptEnable;
+=1 177 3
+=1 57 6
++
++#if defined(KN02_BA)
++
++//
++// The interrupt lines of the KN02-BA are: int0 to int2 the option slots 0
++// to 2 of the TURBOchannel (IRQL 3), int3 the IO Control ASIC, with the
++// realtime clock, the timeout interrupt and the devices of the system slot
++// (IRQL 4), int4 the halt button (IRQL 7), and int5 the floating point
++// coprocessor (IRQL 8). The interrupt of an option slot is disabled in the
++// masks of IRQL 0 to 2 until it is enabled.
+=1 62 4
++UCHAR HalpIrqlMask[] = {3, 3, 4, 4, 7, 7, 7, 7,  // 0000 - 0111 high 4-bits
+=1 67 2
++                        3, 3, 3, 3, 3, 3, 3, 3}; // 1000 - 1111 low 4-bits
++
++UCHAR HalpIrqlTable[] = {0xe3,                   // IRQL 0
++                         0xe2,                   // IRQL 1
++                         0xe0,                   // IRQL 2
++                         0xe0,                   // IRQL 3
++                         0xc0,                   // IRQL 4
++                         0xc0,                   // IRQL 5
+=1 77 3
++
++#else
++
++//
++// The interrupt lines of the KN02 and the KN03 are: int0 the I/O interrupts
++// of the system control and status register of the KN02, or of the IO
++// Control ASIC of the KN03 (IRQL 3), int1 the realtime clock (IRQL 4), int3
++// the memory error interrupt (IRQL 6), and int5 the floating point
 +// coprocessor (IRQL 8). Int2 and int4 are not used.
 =1 62 18
-+
+=1 177 3
 =1 114 9
-+    This function initializes interrupts for a DECstation 5000/200 system.
++    This function initializes interrupts for a DECstation 5000 system.
 =1 124 16
 +    UCHAR DataByte;
-=1 141 28
++
++#if defined(KN02_AA)
++
++    ULONG DataLong;
+=1 177 3
+=1 142 26
++#if defined(KN02_AA)
++
++    //
 +    // Disable all I/O interrupts and enable the correction of memory errors.
 +    //
 +    // The memory and serial line settings of the system control and status
@@ -51,7 +98,19 @@
 =1 185 4
 +    HalpWriteSystemControl();
 +
++#else
++
 +    //
++    // Disable all I/O interrupts, clear the DMA events of the system
++    // interrupt register, and stop the SCSI DMA.
++    //
++    // The enables of the devices of the system slot in the system support
++    // register, which the console set up, are kept.
+=1 183 6
++    HalpWriteInterruptMask();
++    WRITE_REGISTER_ULONG(SYSTEM_INTERRUPT, 0);
++    HalpWriteSystemSupport(SSR_SCSI_DMA_ENABLE | SSR_SCSI_DMA_DIRECTION, 0);
+=1 177 4
 +    // Connect the stall interrupt routine to the interval clock interrupt.
 +    // The real clock interrupt routine is connected when the stall execution
 +    // routine has been calibrated.
@@ -60,9 +119,22 @@
 +    //      the realtime clock, which interrupts every 7.8125ms.
 +    //
 +
-+    PCR->InterruptRoutine[CLOCK_LEVEL] = HalpStallInterrupt;
++#if defined(CLOCK_VECTOR)
 +
 +    //
++    // The realtime clock of the KN02-BA interrupts through the IO Control
++    // ASIC. The dispatcher of the ASIC, at the level of the interval clock,
++    // calls the routine of the clock vector for the interrupt of the clock,
++    // and the routine of the timeout vector for the timeout interrupt.
++    //
++
++    PCR->InterruptRoutine[DEVICE_LEVEL] = (PKINTERRUPT_ROUTINE)HalpDmaDispatch;
++    PCR->InterruptRoutine[CLOCK_VECTOR] = HalpStallInterrupt;
++
++#else
++
++    PCR->InterruptRoutine[CLOCK_LEVEL] = HalpStallInterrupt;
+=1 177 4
 +    // Initialize the realtime clock to interrupt at the rate of the interval
 +    // clock, then acknowledge any interrupt that is pending.
 =3 158 3 -4
@@ -73,6 +145,28 @@
 +    ((PRTC_CONTROL_REGISTER_B)(&DataByte))->TimerInterruptEnable = 1;
 +    WRITE_REGISTER_UCHAR(&RTC_CONTROL->RtcControlRegisterB.Byte, DataByte);
 +    READ_REGISTER_UCHAR((PUCHAR)TIMER_ACKNOWLEDGE);
++
++#if defined(KN02_BA)
++
++    //
++    // Connect the timeout interrupt routine, clear the timeout interrupt,
++    // and enable the interrupts of the realtime clock and of timeouts in
++    // the IO Control ASIC.
++    //
++
++    PCR->InterruptRoutine[TIMEOUT_VECTOR] = HalpMemoryInterrupt;
++    WRITE_REGISTER_ULONG(TIMEOUT_ERROR, 0);
++    HalpBuiltinInterruptEnable |= (1 << CLOCK_CHANNEL) | (1 << TIMEOUT_CHANNEL);
++    HalpWriteInterruptMask();
++
++    //
++    // Reserve the levels of the dispatchers of the option slots and of the
++    // IO Control ASIC, which is the level of the interval clock.
++    //
++
++    PCR->ReservedVectors |= (1 << TURBOCHANNEL_LEVEL) | (1 << DEVICE_LEVEL);
++
++#else
 +
 +    //
 +    // Connect the memory error interrupt routine.
@@ -87,4 +181,4 @@
 +
 +    PCR->ReservedVectors |=
 +            (1 << DEVICE_LEVEL) | (1 << CLOCK_LEVEL) | (1 << MEMORY_LEVEL);
-=2 156 3
+=2 154 5

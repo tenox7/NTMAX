@@ -3,11 +3,12 @@
 =1 4 3
 +    dxinit.c
 =1 8 3
-+    This module starts the ARC firmware on the DECstation 5000/200.  The
-+    REX console has run the power-up self test and loaded the firmware, so
-+    FwSelftest initializes what the self test of a Jazz ROM initializes: the
-+    system parameter block, the boot status, the memory size and the PCR.
-+    Then it starts the boot manager.
++    This module starts the ARC firmware on the DECstation 5000.  The REX
++    console has run the power-up self test and loaded the firmware, so
++    FwSelftest selects the description of the system module the firmware
++    runs on (dxsystem.c) and initializes what the self test of a Jazz ROM
++    initializes: the system parameter block, the boot status, the memory
++    size and the PCR.  Then it starts the boot manager.
 +
 +    The module also holds the interface to the REX console callback vector
 +    (dectccbv.h), which the firmware uses to read and write the boot device,
@@ -44,6 +45,27 @@
 +//
 +
 +ULONG FwStack[FW_STACK_SIZE / sizeof(ULONG)];
++
++//
++// Define the descriptions of the system modules the firmware runs on, the
++// description of the module it runs on, the address in KSEG1 of the error
++// register of the module, which FwProbeRead clears, and the address of its
++// realtime clock.
++//
++
++extern FW_SYSTEM FwSystemKn02;
++extern FW_SYSTEM FwSystemKn02Ba;
++extern FW_SYSTEM FwSystemKn03;
++
++PFW_SYSTEM FwSystemTable[] = {
++    &FwSystemKn02,
++    &FwSystemKn02Ba,
++    &FwSystemKn03
++};
++
++PFW_SYSTEM FwSystem;
++ULONG FwErrorRegister;
++ULONG FwRtcPhysicalBase;
 +ULONG FwRexMemoryMap[REX_MEMORY_MAP_SIZE / sizeof(ULONG)];
 +ULONG MemorySize;
 +BOOLEAN KeyboardInitialized;
@@ -54,17 +76,43 @@
 =1 187 4
 =1 208 4
 =1 2263 5
-+    This routine is called by FwEntry.  It initializes the system parameter
-+    block, the master processor boot status, the memory size and the PCR,
-+    and calls the boot manager.
++    This routine is called by FwEntry.  It selects the description of the
++    system module, initializes the system parameter block, the master
++    processor boot status, the memory size and the PCR, and calls the boot
++    manager.
 =1 219 3
 +    Cause - Supplies the reset cause, zero.
 +
 +    Arg1 - Supplies the reset argument, zero.
 =3 176 8
 +    ULONG Bitmap;
++    ULONG Index;
 +    ULONG Pages;
-=1 244 2
+=1 244 1
++    ULONG SystemType;
++
++    //
++    // Select the description of the system module by the system type in
++    // the system identifier of the console.  On a module the firmware has
++    // no description of, print a message with the console printf service
++    // and return to the console prompt.
++    //
++
++    SystemType = (FwRexGetSystemId() >> REX_SYSID_SYSTEM_SHIFT) & REX_SYSID_FIELD_MASK;
++    for (Index = 0; Index < (sizeof(FwSystemTable) / sizeof(PFW_SYSTEM)); Index += 1) {
++        if (FwSystemTable[Index]->SystemType == SystemType) {
++            FwSystem = FwSystemTable[Index];
++            break;
+=1 286 3
++    if (FwSystem == NULL) {
++        (*RexPrintf)("\nThe ARC firmware does not run on system type %d: it runs on\n", SystemType);
++        (*RexPrintf)("the DECstation 5000/1xx, 5000/200 and 5000/240.\n");
++        FwRexHalt();
++    }
++
++    FwErrorRegister = KSEG1_BASE | FwSystem->ErrorRegister;
++    FwRtcPhysicalBase = FwSystem->RtcPhysicalBase;
++
 =1 305 1
 +    SerialOutput = TRUE;
 =1 307 1

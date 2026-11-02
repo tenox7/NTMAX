@@ -3,8 +3,8 @@
 =1 1 6
 +    dxsysint.c
 =1 8 4
-+    request interprocessor interrupt routines for a DECstation 5000/200
-+    (KN02, MIPS R3000) system.
++    request interprocessor interrupt routines for a DECstation 5000 (MIPS
++    R3000) system.
 +
 +    The I/O interrupts of the KN02 are the eight interrupt pending bits of
 +    the system control and status register, one for each slot of the
@@ -12,39 +12,116 @@
 +    network controller (6), and the serial lines of the system slot (7).
 +    Each has an enable bit in the same register. Their vectors start at
 +    DEVICE_VECTORS, and they interrupt at DEVICE_LEVEL.
++
++    The I/O interrupts of the KN02-BA and the KN03 are the bits of the
++    system interrupt register of the IO Control ASIC, each enabled by the
++    same bit of the system interrupt mask register: the devices of the
++    system slot, and on the KN03 the option slots. Their vectors start at
++    DEVICE_VECTORS, and they interrupt at DEVICE_LEVEL. The option slots of
++    the KN02-BA interrupt with int0 to int2 of the processor at
++    TURBOCHANNEL_LEVEL, and are enabled in the interrupt mask of the
++    processor of the levels below it.
 =1 14 14
 +
-=1 29 36
+=1 29 26
++#if defined(KN02_BA)
++
++    ULONG Index;
+=1 300 3
+=1 55 10
 +    // If the vector number is within the range of the I/O interrupts, then
 +    // disable the I/O interrupt.
 +    //
 +
++#if defined(KN02_AA)
++
 +    if ((Vector >= DEVICE_VECTORS) && (Vector <= MAXIMUM_IO_VECTOR)) {
 +        HalpBuiltinInterruptEnable &= ~(1 << (Vector - DEVICE_VECTORS));
 +        HalpWriteSystemControl();
-=1 73 3
++    }
++
++#else
++
++    if ((Vector >= DEVICE_VECTORS) && (Vector <= MAXIMUM_BUILTIN_VECTOR)) {
++        HalpBuiltinInterruptEnable &= ~(1 << (Vector - DEVICE_VECTORS));
++        HalpWriteInterruptMask();
++    }
++
++#if defined(KN02_BA)
++
++    //
++    // If the vector is the vector of an option slot, then disable its
++    // interrupt in the interrupt mask of the levels below the level of the
++    // option slots. The mask is loaded when the IRQL is lowered.
++    //
++
++    if ((Vector >= TURBOCHANNEL_VECTORS) && (Vector <= MAXIMUM_IO_VECTOR)) {
++        for (Index = 0; Index < TURBOCHANNEL_LEVEL; Index += 1) {
++            PCR->IrqlTable[Index] &=
++                        ~TURBOCHANNEL_INTERRUPT(Vector - TURBOCHANNEL_VECTORS);
++        }
++    }
+=1 300 3
++#endif
++
++    //
 +    // Release the device enable spin lock and lower IRQL to the previous level.
 =1 88 6
 +
-=1 95 40
+=1 95 30
++#if defined(KN02_BA)
++
++    ULONG Index;
+=1 300 3
+=1 55 10
 +    // If the vector number is within the range of the I/O interrupts, then
 +    // enable the I/O interrupt.
 +    //
 +    // N.B. The I/O interrupts are level sensitive.
 +    //
 +
++#if defined(KN02_AA)
++
 +    if ((Vector >= DEVICE_VECTORS) && (Vector <= MAXIMUM_IO_VECTOR)) {
 +        HalpBuiltinInterruptEnable |= (1 << (Vector - DEVICE_VECTORS));
 +        HalpWriteSystemControl();
-=1 73 3
++    }
++
++#else
++
++    if ((Vector >= DEVICE_VECTORS) && (Vector <= MAXIMUM_BUILTIN_VECTOR)) {
++        HalpBuiltinInterruptEnable |= (1 << (Vector - DEVICE_VECTORS));
++        HalpWriteInterruptMask();
++    }
++
++#if defined(KN02_BA)
++
++    //
++    // If the vector is the vector of an option slot, then enable its
++    // interrupt in the interrupt mask of the levels below the level of the
++    // option slots. The mask is loaded when the IRQL is lowered.
++    //
++
++    if ((Vector >= TURBOCHANNEL_VECTORS) && (Vector <= MAXIMUM_IO_VECTOR)) {
++        for (Index = 0; Index < TURBOCHANNEL_LEVEL; Index += 1) {
++            PCR->IrqlTable[Index] |=
++                        TURBOCHANNEL_INTERRUPT(Vector - TURBOCHANNEL_VECTORS);
++        }
++    }
+=1 300 3
++#endif
++
++    //
 +    // Release the device enable spin lock and lower IRQL to the previous level.
 =1 158 6
 +
 =1 165 56
 +    //
-+    // The DECstation 5000/200 has one I/O bus, the TURBOchannel. The bus
-+    // interrupt level of a TURBOchannel device is its slot number, and the
-+    // interrupt of a slot is the I/O interrupt of the same number.
++    // The DECstation 5000 has one I/O bus, the TURBOchannel. The bus
++    // interrupt level of a TURBOchannel device is its slot number. The
++    // interrupt of a slot of the KN02 is the I/O interrupt of the same
++    // number, the interrupt of an option slot of the KN02-BA and the KN03
++    // follows the interrupt of the slot before it.
 +    //
 +
 +    if ((InterfaceType != TurboChannel) || (BusNumber != 0) ||
@@ -52,16 +129,18 @@
 =1 222 8
 +    }
 +
-+    *Irql = DEVICE_LEVEL;
++    *Irql = TURBOCHANNEL_IRQL;
 +    *Affinity = 1;
-+    return(BusInterruptLevel + DEVICE_VECTORS);
++    return(BusInterruptLevel + TURBOCHANNEL_VECTORS);
 +}
 +
 =1 264 14
-+    N.B. The DECstation 5000/200 has one processor.
++    N.B. The DECstation 5000 has one processor.
 =1 277 14
 +    return;
 +}
++
++#if defined(KN02_AA)
 +
 +VOID
 +HalpWriteSystemControl (
@@ -84,3 +163,44 @@
 +    WRITE_REGISTER_ULONG((PULONG)&SYS_CONTROL->SysControlStatus.Write,
 +                         DataLong);
 =1 302 3
++
++#else
++
++VOID
++HalpWriteInterruptMask (
++    VOID
+=1 33 6
++    This function writes the system interrupt mask register of the IO
++    Control ASIC with the current I/O interrupt enable mask.
++
++    N.B. This function is called during initialization, or with the system
++         interrupt lock held at HIGH_LEVEL.
+=1 40 3
++    None.
+=1 46 9
++    WRITE_REGISTER_ULONG(SYSTEM_INTERRUPT_MASK, HalpBuiltinInterruptEnable);
++    return;
++}
++
++VOID
++HalpWriteSystemSupport (
++    IN ULONG Clear,
++    IN ULONG Set
+=1 33 6
++    This function clears and sets bits of the system support register of
++    the IO Control ASIC, which holds the enables of the devices of the
++    system slot and of their DMA. The register is read, changed and written
++    at the highest level with the system interrupt lock held.
+=1 40 3
++    Clear - Supplies the bits that are cleared.
++
++    Set - Supplies the bits that are set.
+=1 46 9
++    ULONG DataLong;
++    KIRQL OldIrql;
+=1 60 3
++    DataLong = IOCTL_READ(SystemSupportRegister);
++    IOCTL_WRITE(SystemSupportRegister, (DataLong & ~Clear) | Set);
+=1 90 4
++
++#endif

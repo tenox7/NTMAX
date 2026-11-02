@@ -13,7 +13,9 @@ Abstract:
     line (line 3).  The firmware describes the lines as controllers of the
     internal bus of the system module, the keyboard controller, the pointer
     controller and two serial controllers, which share the registers and
-    the interrupt of the multiplexer.
+    the interrupt of the multiplexer.  The firmware names the device of
+    the lines in the identifier of the keyboard and the pointer
+    controllers: DZ.
 
     A client driver connects to one line with an internal device control
     request: it gives the port its input and output services and gets the
@@ -24,11 +26,27 @@ Abstract:
     too, from its services or through KeSynchronizeExecution with the
     interrupt object of the port.
 
-    The kernel debugger owns line DEBUG_LINE (the d3port.c of the HAL), which
-    it polls at the highest level.  The port driver does not connect that
-    line and never changes its parameters or its transmitter; a character
-    of it that the receive silo holds when the debugger is not reading is
-    discarded, as are the characters of the lines no client has connected.
+    A client that connects with receive status (the serial driver) gets
+    each character with its parity, framing and overrun errors; a client
+    that connects without it gets only the characters that have no parity
+    or framing error.  The port sets the break of a line and, on the
+    communications and printer lines, the modem control signals (DTR and
+    RTS), and returns the modem status of those lines (CTS, DSR, CD and RI).
+
+    The break bits of the four lines are in the transmit buffer register,
+    so each character the port loads carries the break bits the clients
+    have set.  A character may only be loaded on the line the scan reports
+    ready: to change the break of a line the port enables its transmitter,
+    and if the line has nothing to send when it is ready, it loads a null
+    character with the new break bits.
+
+    The kernel debugger owns line DEBUG_LINE (the d3port.c of the HAL) when
+    it is enabled, and polls it at the highest level.  The port driver does
+    not connect that line then and never changes its parameters or its
+    transmitter; a character of it that the receive silo holds when the
+    debugger is not reading is discarded, as are the characters of the
+    lines no client has connected.  When the kernel debugger is not
+    enabled, a client can connect the line.
 
 Environment:
 
@@ -67,6 +85,12 @@ Revision History:
 #define DZPORT_ERROR_VALUE_BASE 4000
 
 //
+// Define the break bit of a line in the transmit buffer register.
+//
+
+#define DZ_BREAK_BIT(LineNumber) ((USHORT)(1 << ((LineNumber) + 8)))
+
+//
 // Define the state of a line.
 //
 
@@ -78,12 +102,15 @@ typedef struct _DZ_LINE {
     BOOLEAN Enabled;
     PVOID ClientContext;
     PDZPORT_INPUT_SERVICE InputService;
+    PDZPORT_INPUT_STATUS_SERVICE InputStatusService;
     PDZPORT_OUTPUT_SERVICE OutputService;
 } DZ_LINE, *PDZ_LINE;
 
 //
 // Define the device extension of the port.  The read and the write
-// registers of the multiplexer are at the same addresses.
+// registers of the multiplexer are at the same addresses.  The break
+// control has the break bits the clients have set, and the break written
+// the ones the last character loaded in the transmit buffer register had.
 //
 
 typedef struct _DZ_EXTENSION {
@@ -93,6 +120,8 @@ typedef struct _DZ_EXTENSION {
     PKINTERRUPT Interrupt;
     DZ_LINE Line[DZ_NUMBER_OF_LINES];
     ULONG ReceiveErrors;
+    USHORT BreakControl;
+    USHORT BreakWritten;
 } DZ_EXTENSION, *PDZ_EXTENSION;
 
 //
@@ -103,6 +132,7 @@ typedef struct _DZ_EXTENSION {
 typedef struct _DZ_REQUEST {
     PDZ_LINE Line;
     PDZPORT_CONNECT Connect;
+    PDZPORT_INPUT_STATUS_SERVICE InputStatusService;
     USHORT LineParameters;
 } DZ_REQUEST, *PDZ_REQUEST;
 
@@ -148,14 +178,14 @@ DZ_BAUD_RATE DzpBaudRates[] = {
 };
 
 //
-// Define the controllers of the internal bus that are lines of the
-// multiplexer.
+// Define the controllers of the internal bus whose identifier names the
+// device of the lines.  The serial controllers, the other lines of the
+// multiplexer, have the names of their ports as identifiers.
 //
 
 CONFIGURATION_TYPE DzpControllerTypes[] = {
     KeyboardController,
-    PointerController,
-    SerialController
+    PointerController
 };
 
 NTSTATUS
@@ -261,6 +291,28 @@ DzpSetLineParameters(
     IN BOOLEAN ParityEnable
     );
 
+VOID
+DzpSetModemControl(
+    IN PVOID PortContext,
+    IN ULONG ModemControl
+    );
+
+ULONG
+DzpQueryModemControl(
+    IN PVOID PortContext
+    );
+
+ULONG
+DzpQueryModemStatus(
+    IN PVOID PortContext
+    );
+
+VOID
+DzpSetBreak(
+    IN PVOID PortContext,
+    IN BOOLEAN Break
+    );
+
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(INIT,DriverEntry)
 #pragma alloc_text(INIT,DzpConfigurationCallout)
@@ -281,7 +333,10 @@ Routine Description:
     and its interrupt as the resources of the driver, creates the port
     device \Device\DzPort, maps the registers, connects the interrupt and
     enables the receive and transmit interrupts of the multiplexer.  The
-    lines stay as they are until a client connects one of them.
+    lines stay as they are until a client connects one of them.  A system
+    module that has no DZ (the 5000/1xx and the 5000/240 have SCCs,
+    sccport.c) has no controller with the identifier DZ, and the driver
+    does not load.
 
 Arguments:
 
@@ -317,8 +372,8 @@ Return Value:
     UNREFERENCED_PARAMETER(RegistryPath);
 
     //
-    // Find the multiplexer: the resources of the first of its lines that the
-    // configuration has.
+    // Find the multiplexer: the resources of the first of its lines whose
+    // controller has the identifier DZ.
     //
 
     RtlZeroMemory(&Configuration, sizeof(DZ_CONFIGURATION));
@@ -337,8 +392,6 @@ Return Value:
     }
 
     if (Configuration.Found == FALSE) {
-        DzpLogError(DriverObject, IO_ERR_CONFIGURATION_ERROR,
-            DZPORT_ERROR_VALUE_BASE + 1, STATUS_NO_SUCH_DEVICE);
         return STATUS_NO_SUCH_DEVICE;
     }
 
@@ -499,9 +552,9 @@ DzpConfigurationCallout(
 Routine Description:
 
     This routine is the callout of IoQueryDeviceDescription for a controller
-    that is a line of the multiplexer: it takes the registers and the
-    interrupt of the multiplexer from the configuration data of the
-    controller.
+    that is a line of the multiplexer: if the identifier of the controller
+    is DZ, it takes the registers and the interrupt of the multiplexer from
+    the configuration data of the controller.
 
 Arguments:
 
@@ -530,6 +583,9 @@ Return Value:
     PDZ_CONFIGURATION Configuration;
     PKEY_VALUE_FULL_INFORMATION Data;
     PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor;
+    UNICODE_STRING DzName;
+    PKEY_VALUE_FULL_INFORMATION Identifier;
+    UNICODE_STRING IdentifierName;
     ULONG Index;
     PCM_PARTIAL_RESOURCE_LIST List;
     BOOLEAN Interrupt;
@@ -545,8 +601,27 @@ Return Value:
 
     Configuration = (PDZ_CONFIGURATION)Context;
     Data = ControllerInformation[IoQueryDeviceConfigurationData];
+    Identifier = ControllerInformation[IoQueryDeviceIdentifier];
     if ((Configuration->Found != FALSE) || (Data == NULL) ||
-        (Data->DataLength == 0)) {
+        (Data->DataLength == 0) || (Identifier == NULL)) {
+        return STATUS_SUCCESS;
+    }
+
+    //
+    // The identifier is a string that ends with a null.
+    //
+
+    IdentifierName.Buffer = (PWSTR)((PUCHAR)Identifier + Identifier->DataOffset);
+    IdentifierName.Length = (USHORT)Identifier->DataLength;
+    IdentifierName.MaximumLength = IdentifierName.Length;
+    while ((IdentifierName.Length >= sizeof(WCHAR)) &&
+           (IdentifierName.Buffer[(IdentifierName.Length / sizeof(WCHAR)) - 1] ==
+                UNICODE_NULL)) {
+        IdentifierName.Length -= sizeof(WCHAR);
+    }
+
+    RtlInitUnicodeString(&DzName, L"DZ");
+    if (RtlEqualUnicodeString(&IdentifierName, &DzName, TRUE) == FALSE) {
         return STATUS_SUCCESS;
     }
 
@@ -701,6 +776,7 @@ Return Value:
     PDZPORT_ACCEPT Accept;
     PDZPORT_CONNECT Connect;
     PDZ_EXTENSION Extension;
+    BOOLEAN InputValid;
     PIO_STACK_LOCATION IrpSp;
     ULONG LineNumber;
     DZ_REQUEST Request;
@@ -722,23 +798,47 @@ Return Value:
         //
         // Connect a line: check the line and its parameters, set the
         // parameters and enable the receiver, and return the routines of
-        // the port.
+        // the port.  A connect with receive status gives the port an input
+        // status service in place of the input service.  A client whose
+        // accept message ends with the interrupt object (the size it had
+        // before the modem and break routines) gets the routines it has
+        // room for.
         //
 
         case IOCTL_MN_DZPORT_CONNECT:
+        case IOCTL_MN_DZPORT_CONNECT_STATUS:
             Connect = (PDZPORT_CONNECT)Irp->AssociatedIrp.SystemBuffer;
-            if ((IrpSp->Parameters.DeviceIoControl.InputBufferLength <
-                    sizeof(DZPORT_CONNECT)) ||
-                (IrpSp->Parameters.DeviceIoControl.OutputBufferLength <
-                    sizeof(DZPORT_ACCEPT))) {
-                Status = STATUS_BUFFER_TOO_SMALL;
-                break;
+            if (IrpSp->Parameters.DeviceIoControl.IoControlCode ==
+                    IOCTL_MN_DZPORT_CONNECT_STATUS) {
+                if ((IrpSp->Parameters.DeviceIoControl.InputBufferLength <
+                        sizeof(DZPORT_CONNECT_STATUS)) ||
+                    (IrpSp->Parameters.DeviceIoControl.OutputBufferLength <
+                        sizeof(DZPORT_ACCEPT))) {
+                    Status = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+
+                Request.InputStatusService =
+                    ((PDZPORT_CONNECT_STATUS)Connect)->InputStatusService;
+
+                InputValid = (BOOLEAN)(Request.InputStatusService != NULL);
+
+            } else {
+                if ((IrpSp->Parameters.DeviceIoControl.InputBufferLength <
+                        sizeof(DZPORT_CONNECT)) ||
+                    (IrpSp->Parameters.DeviceIoControl.OutputBufferLength <
+                        FIELD_OFFSET(DZPORT_ACCEPT, SetModemControl))) {
+                    Status = STATUS_BUFFER_TOO_SMALL;
+                    break;
+                }
+
+                Request.InputStatusService = NULL;
+                InputValid = (BOOLEAN)(Connect->InputService != NULL);
             }
 
             LineNumber = Connect->LineNumber;
             if ((LineNumber >= DZ_NUMBER_OF_LINES) ||
-                (LineNumber == DEBUG_LINE) ||
-                (Connect->InputService == NULL) ||
+                (InputValid == FALSE) ||
                 (Connect->OutputService == NULL) ||
                 (DzpLineParameters(LineNumber, Connect->BaudRate,
                                    Connect->CharacterLength,
@@ -747,6 +847,19 @@ Return Value:
                                    Connect->ParityEnable,
                                    &Request.LineParameters) == FALSE)) {
                 Status = STATUS_INVALID_PARAMETER;
+                break;
+            }
+
+            //
+            // The kernel debugger owns its line when it is enabled.
+            //
+            // N.B. The kernel exports KdDebuggerEnabled as a constant: the
+            //      external is the address of the variable of the kernel.
+            //
+
+            if ((LineNumber == DEBUG_LINE) &&
+                (*((PBOOLEAN)(*(PULONG)&KdDebuggerEnabled)) != FALSE)) {
+                Status = STATUS_DEVICE_BUSY;
                 break;
             }
 
@@ -771,12 +884,26 @@ Return Value:
             Accept->OutputByte = DzpOutputByte;
             Accept->SetLineParameters = DzpSetLineParameters;
             Accept->Interrupt = Extension->Interrupt;
-            Irp->IoStatus.Information = sizeof(DZPORT_ACCEPT);
+            if (IrpSp->Parameters.DeviceIoControl.OutputBufferLength >=
+                    sizeof(DZPORT_ACCEPT)) {
+                Accept->SetModemControl = DzpSetModemControl;
+                Accept->QueryModemControl = DzpQueryModemControl;
+                Accept->QueryModemStatus = DzpQueryModemStatus;
+                Accept->SetBreak = DzpSetBreak;
+                Irp->IoStatus.Information = sizeof(DZPORT_ACCEPT);
+
+            } else {
+                Irp->IoStatus.Information =
+                    FIELD_OFFSET(DZPORT_ACCEPT, SetModemControl);
+            }
+
             Status = STATUS_SUCCESS;
             break;
 
         //
-        // Disconnect a line: disable its receiver and transmitter.
+        // Disconnect a line: disable its receiver and transmitter.  The
+        // line of the kernel debugger is not connected while the debugger
+        // is enabled, so a disconnect of it has no effect then.
         //
 
         case IOCTL_MN_DZPORT_DISCONNECT:
@@ -788,8 +915,7 @@ Return Value:
 
             LineNumber =
                 ((PDZPORT_DISCONNECT)Irp->AssociatedIrp.SystemBuffer)->LineNumber;
-            if ((LineNumber >= DZ_NUMBER_OF_LINES) ||
-                (LineNumber == DEBUG_LINE)) {
+            if (LineNumber >= DZ_NUMBER_OF_LINES) {
                 Status = STATUS_INVALID_PARAMETER;
                 break;
             }
@@ -832,8 +958,9 @@ Routine Description:
     empties the receive silo, giving each character to the input service of
     the client of its line, and serves the transmitters that are ready: the
     output service of the client of the line sends the next character, and
-    a line that has nothing more to send has its transmitter disabled.  It
-    loops until the silo is empty and no transmitter is ready.
+    a line that has nothing more to send has its transmitter disabled, or
+    loads a null character if its break must change.  It loops until the
+    silo is empty and no transmitter is ready.
 
 Arguments:
 
@@ -851,6 +978,7 @@ Return Value:
 
     USHORT ControlStatus;
     PDZ_EXTENSION Extension;
+    ULONG InputStatus;
     PDZ_LINE Line;
     USHORT ReceiveBuffer;
     BOOLEAN Serviced;
@@ -863,7 +991,9 @@ Return Value:
 
         //
         // Take the next character from the receive silo.  A character with
-        // a parity or framing error is counted and discarded.
+        // a parity or framing error is counted, and the client of a line
+        // connected with receive status gets it with its errors; a client
+        // connected without receive status does not get it.
         //
 
         ReceiveBuffer =
@@ -872,13 +1002,34 @@ Return Value:
         if (((PDZ_RECEIVE_BUFFER)(&ReceiveBuffer))->DataValid != 0) {
             Serviced = TRUE;
             Line = &Extension->Line[((PDZ_RECEIVE_BUFFER)(&ReceiveBuffer))->ReceiveLine];
-            if ((((PDZ_RECEIVE_BUFFER)(&ReceiveBuffer))->ParityError != 0) ||
-                (((PDZ_RECEIVE_BUFFER)(&ReceiveBuffer))->FramingError != 0)) {
-                Extension->ReceiveErrors += 1;
+            InputStatus = 0;
+            if (((PDZ_RECEIVE_BUFFER)(&ReceiveBuffer))->ParityError != 0) {
+                InputStatus |= DZPORT_PARITY_ERROR;
+            }
 
-            } else if ((Line->Connected != FALSE) && (Line->Enabled != FALSE)) {
-                (Line->InputService)(Line->ClientContext,
-                    (UCHAR)((PDZ_RECEIVE_BUFFER)(&ReceiveBuffer))->ReceiveData);
+            if (((PDZ_RECEIVE_BUFFER)(&ReceiveBuffer))->FramingError != 0) {
+                InputStatus |= DZPORT_FRAMING_ERROR;
+            }
+
+            if (InputStatus != 0) {
+                Extension->ReceiveErrors += 1;
+            }
+
+            if (((PDZ_RECEIVE_BUFFER)(&ReceiveBuffer))->OverrunError != 0) {
+                InputStatus |= DZPORT_OVERRUN_ERROR;
+            }
+
+            if ((Line->Connected != FALSE) && (Line->Enabled != FALSE)) {
+                if (Line->InputStatusService != NULL) {
+                    (Line->InputStatusService)(Line->ClientContext,
+                        (UCHAR)((PDZ_RECEIVE_BUFFER)(&ReceiveBuffer))->ReceiveData,
+                        InputStatus);
+
+                } else if ((InputStatus &
+                            (DZPORT_PARITY_ERROR | DZPORT_FRAMING_ERROR)) == 0) {
+                    (Line->InputService)(Line->ClientContext,
+                        (UCHAR)((PDZ_RECEIVE_BUFFER)(&ReceiveBuffer))->ReceiveData);
+                }
             }
 
             continue;
@@ -900,7 +1051,13 @@ Return Value:
         Line = &Extension->Line[((PDZ_CONTROL_STATUS)(&ControlStatus))->TransmitLine];
         if ((Line->Connected == FALSE) ||
             ((Line->OutputService)(Line->ClientContext) == FALSE)) {
-            DzpDisableTransmit(Line);
+            if (((Extension->BreakControl ^ Extension->BreakWritten) &
+                 DZ_BREAK_BIT(Line->LineNumber)) != 0) {
+                DzpOutputByte(Line, 0);
+
+            } else {
+                DzpDisableTransmit(Line);
+            }
         }
     }
 
@@ -944,6 +1101,7 @@ Return Value:
 
     Line->ClientContext = Request->Connect->ClientContext;
     Line->InputService = Request->Connect->InputService;
+    Line->InputStatusService = Request->InputStatusService;
     Line->OutputService = Request->Connect->OutputService;
     Line->LineParameters = Request->LineParameters;
     Line->Connected = TRUE;
@@ -1103,8 +1261,10 @@ DzpDisableLine(
 
 Routine Description:
 
-    This routine disables the receiver and the transmitter of a line.  It
-    is called at the level of the interrupt of the port.
+    This routine disables the receiver and the transmitter of a line, and
+    ends the break of the line.  The transmitter stays enabled until a
+    character without the break bit of the line is loaded.  It is called
+    at the level of the interrupt of the port.
 
 Arguments:
 
@@ -1124,7 +1284,14 @@ Return Value:
     WRITE_REGISTER_USHORT(&Line->Extension->WriteRegisters->LineParameters.Short,
         Line->LineParameters);
 
-    DzpDisableTransmit(Line);
+    Line->Extension->BreakControl &= ~DZ_BREAK_BIT(Line->LineNumber);
+    if ((Line->Extension->BreakWritten & DZ_BREAK_BIT(Line->LineNumber)) != 0) {
+        DzpEnableTransmit(Line);
+
+    } else {
+        DzpDisableTransmit(Line);
+    }
+
     Line->Enabled = FALSE;
     return;
 }
@@ -1219,9 +1386,9 @@ DzpOutputByte(
 
 Routine Description:
 
-    This routine sends a character on a line.  It is called by the output
-    service of the client of the line, when the transmitter of the line is
-    ready.
+    This routine sends a character on a line, with the break bits of all
+    lines.  It is called by the output service of the client of the line,
+    when the transmitter of the line is ready.
 
 Arguments:
 
@@ -1242,8 +1409,9 @@ Return Value:
     Line = (PDZ_LINE)PortContext;
     WRITE_REGISTER_USHORT(
         &Line->Extension->WriteRegisters->TransmitBuffer.Short,
-        (USHORT)OutputByte);
+        (USHORT)(Line->Extension->BreakControl | OutputByte));
 
+    Line->Extension->BreakWritten = Line->Extension->BreakControl;
     return;
 }
 
@@ -1299,4 +1467,245 @@ Return Value:
         DataShort);
 
     return TRUE;
+}
+
+VOID
+DzpSetModemControl(
+    IN PVOID PortContext,
+    IN ULONG ModemControl
+    )
+
+/*++
+
+Routine Description:
+
+    This routine sets the modem control signals of the communications or
+    the printer line: data terminal ready and request to send.  The other
+    lines have no modem control.  It is called at the level of the
+    interrupt of the port.
+
+Arguments:
+
+    PortContext - Supplies the line.
+
+    ModemControl - Supplies the signals to assert (DZPORT_DTR, DZPORT_RTS);
+        the others are deasserted.
+
+Return Value:
+
+    None.
+
+--*/
+
+{
+
+    USHORT DataShort;
+    PDZ_LINE Line;
+
+    Line = (PDZ_LINE)PortContext;
+    DataShort = READ_REGISTER_USHORT(
+        &Line->Extension->ReadRegisters->TransmitControlRead.Short);
+    if (Line->LineNumber == DZPORT_COMMUNICATIONS_LINE) {
+        ((PDZ_TRANSMIT_CONTROL)(&DataShort))->DataTerminalReady2 =
+            ((ModemControl & DZPORT_DTR) != 0);
+        ((PDZ_TRANSMIT_CONTROL)(&DataShort))->RequestToSend2 =
+            ((ModemControl & DZPORT_RTS) != 0);
+
+    } else if (Line->LineNumber == DZPORT_PRINTER_LINE) {
+        ((PDZ_TRANSMIT_CONTROL)(&DataShort))->DataTerminalReady3 =
+            ((ModemControl & DZPORT_DTR) != 0);
+        ((PDZ_TRANSMIT_CONTROL)(&DataShort))->RequestToSend3 =
+            ((ModemControl & DZPORT_RTS) != 0);
+
+    } else {
+        return;
+    }
+
+    WRITE_REGISTER_USHORT(
+        &Line->Extension->WriteRegisters->TransmitControlWrite.Short,
+        DataShort);
+    return;
+}
+
+ULONG
+DzpQueryModemControl(
+    IN PVOID PortContext
+    )
+
+/*++
+
+Routine Description:
+
+    This routine returns the modem control signals of the communications or
+    the printer line.  It is called at the level of the interrupt of the
+    port.
+
+Arguments:
+
+    PortContext - Supplies the line.
+
+Return Value:
+
+    The signals that are asserted (DZPORT_DTR, DZPORT_RTS); zero for a line
+    that has no modem control.
+
+--*/
+
+{
+
+    USHORT DataShort;
+    PDZ_LINE Line;
+    ULONG ModemControl;
+
+    Line = (PDZ_LINE)PortContext;
+    DataShort = READ_REGISTER_USHORT(
+        &Line->Extension->ReadRegisters->TransmitControlRead.Short);
+    ModemControl = 0;
+    if (Line->LineNumber == DZPORT_COMMUNICATIONS_LINE) {
+        if (((PDZ_TRANSMIT_CONTROL)(&DataShort))->DataTerminalReady2 != 0) {
+            ModemControl |= DZPORT_DTR;
+        }
+
+        if (((PDZ_TRANSMIT_CONTROL)(&DataShort))->RequestToSend2 != 0) {
+            ModemControl |= DZPORT_RTS;
+        }
+
+    } else if (Line->LineNumber == DZPORT_PRINTER_LINE) {
+        if (((PDZ_TRANSMIT_CONTROL)(&DataShort))->DataTerminalReady3 != 0) {
+            ModemControl |= DZPORT_DTR;
+        }
+
+        if (((PDZ_TRANSMIT_CONTROL)(&DataShort))->RequestToSend3 != 0) {
+            ModemControl |= DZPORT_RTS;
+        }
+    }
+
+    return ModemControl;
+}
+
+ULONG
+DzpQueryModemStatus(
+    IN PVOID PortContext
+    )
+
+/*++
+
+Routine Description:
+
+    This routine returns the modem status of the communications or the
+    printer line.  The multiplexer interrupts on no change of the modem
+    status, so a client reads it when it needs it.  It is called at the
+    level of the interrupt of the port.
+
+Arguments:
+
+    PortContext - Supplies the line.
+
+Return Value:
+
+    The modem status signals that are asserted (DZPORT_CTS, DZPORT_DSR,
+    DZPORT_CD, DZPORT_RI); zero for a line that has no modem control.
+
+--*/
+
+{
+
+    USHORT DataShort;
+    PDZ_LINE Line;
+    ULONG ModemStatus;
+
+    Line = (PDZ_LINE)PortContext;
+    ModemStatus = 0;
+    if ((Line->LineNumber != DZPORT_COMMUNICATIONS_LINE) &&
+        (Line->LineNumber != DZPORT_PRINTER_LINE)) {
+        return ModemStatus;
+    }
+
+    DataShort = READ_REGISTER_USHORT(
+        &Line->Extension->ReadRegisters->ModemStatus.Short);
+    if (Line->LineNumber == DZPORT_COMMUNICATIONS_LINE) {
+        if (((PDZ_MODEM_STATUS)(&DataShort))->ClearToSend2 != 0) {
+            ModemStatus |= DZPORT_CTS;
+        }
+
+        if (((PDZ_MODEM_STATUS)(&DataShort))->DataSetReady2 != 0) {
+            ModemStatus |= DZPORT_DSR;
+        }
+
+        if (((PDZ_MODEM_STATUS)(&DataShort))->CarrierDetect2 != 0) {
+            ModemStatus |= DZPORT_CD;
+        }
+
+        if (((PDZ_MODEM_STATUS)(&DataShort))->RingIndicator2 != 0) {
+            ModemStatus |= DZPORT_RI;
+        }
+
+    } else {
+        if (((PDZ_MODEM_STATUS)(&DataShort))->ClearToSend3 != 0) {
+            ModemStatus |= DZPORT_CTS;
+        }
+
+        if (((PDZ_MODEM_STATUS)(&DataShort))->DataSetReady3 != 0) {
+            ModemStatus |= DZPORT_DSR;
+        }
+
+        if (((PDZ_MODEM_STATUS)(&DataShort))->CarrierDetect3 != 0) {
+            ModemStatus |= DZPORT_CD;
+        }
+
+        if (((PDZ_MODEM_STATUS)(&DataShort))->RingIndicator3 != 0) {
+            ModemStatus |= DZPORT_RI;
+        }
+    }
+
+    return ModemStatus;
+}
+
+VOID
+DzpSetBreak(
+    IN PVOID PortContext,
+    IN BOOLEAN Break
+    )
+
+/*++
+
+Routine Description:
+
+    This routine starts or ends the break of a line.  The break bits are
+    written with the next character loaded in the transmit buffer register,
+    so the transmitter of the line is enabled if its break changes: when
+    the line is ready, its client sends a character or the port loads a
+    null character.  It is called at the level of the interrupt of the
+    port.
+
+Arguments:
+
+    PortContext - Supplies the line.
+
+    Break - Supplies TRUE to start the break, FALSE to end it.
+
+Return Value:
+
+    None.
+
+--*/
+
+{
+
+    PDZ_LINE Line;
+
+    Line = (PDZ_LINE)PortContext;
+    if (Break != FALSE) {
+        Line->Extension->BreakControl |= DZ_BREAK_BIT(Line->LineNumber);
+
+    } else {
+        Line->Extension->BreakControl &= ~DZ_BREAK_BIT(Line->LineNumber);
+    }
+
+    if (((Line->Extension->BreakControl ^ Line->Extension->BreakWritten) &
+         DZ_BREAK_BIT(Line->LineNumber)) != 0) {
+        DzpEnableTransmit(Line);
+    }
+
+    return;
 }

@@ -26,6 +26,17 @@
 #			beside that makefile.inc
 #	rcpp		the preprocessor of the resource compiler, which the
 #			same makefile.inc runs on sol.rc; built as mc is
+#	uixport		the export list of a NET UI DLL from the symbols of its
+#			libraries (NET\UI\COMMON\SRC\DLL3\makefile.inc), which
+#			that makefile.inc reads from "link32 -dump -decorate
+#			-symbols": link32.cmd runs the dump of the linker of the
+#			machine (MSDEV), which shows the decorated names unasked
+#	binplace	the placer of the files that a makefile.inc puts in the
+#			binaries tree (SDKTOOLS\PERFMON\makefile.inc:
+#			perfc009.dat), from the BINPLACE.C of IMAGEHLP, with an
+#			import library of the IMAGEHLP.DEF beside it (the machine's
+#			imagehlp.dll has its two functions); build-lib.sh gives it
+#			T:\NTOS\3MAX\out\binaries as the tree
 #
 #  The programs go to T:\NTOS\3MAX\host, which build-lib.sh puts in the PATH.
 
@@ -33,16 +44,17 @@ set -e
 . "$(dirname "$0")/vm.sh"
 ntcopy PRIVATE/SDKTOOLS/GENSRV PRIVATE/SDKTOOLS/HEXTRACT PRIVATE/SDKTOOLS/HSPLIT PRIVATE/SDKTOOLS/WCSHDR \
 	PRIVATE/SDKTOOLS/LISTMUNG PRIVATE/SDKTOOLS/MAPMSG PRIVATE/SDKTOOLS/VCTOOLS/MC PUBLIC/SDK/INC \
-	PUBLIC/SDK/LIB/MIPS PRIVATE/WINDOWS/SHELL/GAMES/SOL PRIVATE/SDKTOOLS/RCPP
+	PUBLIC/SDK/LIB/MIPS PRIVATE/WINDOWS/SHELL/GAMES/SOL PRIVATE/SDKTOOLS/RCPP PRIVATE/SDKTOOLS/UIXPORT \
+	PRIVATE/SDKTOOLS/IMAGEHLP
 mkdir -p "$SHARE/host/rcpp" "$SHARE/build"
 {
 	cat <<-'EOF'
 	@echo off
 	set TOP=T:\NTOS\3MAX
 	set NT=%TOP%\NT
-	set PATH=C:\MSDEV\BIN;C:\WINNT\system32
-	set INCLUDE=C:\MSDEV\INCLUDE;%NT%\PUBLIC\SDK\INC
-	set LIB=C:\MSDEV\LIB
+	set PATH=%MSDevDir%\BIN;%SystemRoot%\system32
+	set INCLUDE=%MSDevDir%\INCLUDE;%NT%\PUBLIC\SDK\INC
+	set LIB=%MSDevDir%\LIB
 	cd /d %TOP%\host
 	cl -nologo -O2 -D_OS2_20_=0 -DNO_EXT_KEYS -Dnear= -Dfar= -Dregister= -DOS2 -DNPSZ=LPSTR -DCOMMAND=1 -DNODEB=1 -Dpascal= %NT%\PRIVATE\SDKTOOLS\GENSRV\gensrv.c -Fegensrv.exe > gensrv.log 2>&1
 	cl -nologo -O2 %NT%\PRIVATE\SDKTOOLS\HEXTRACT\hextract.c -Fehextract.exe > hextract.log 2>&1
@@ -51,7 +63,10 @@ mkdir -p "$SHARE/host/rcpp" "$SHARE/build"
 	cl -nologo -O2 -DMIPS=1 -D_MIPS_=1 -D_CRTAPI1=__cdecl %NT%\PRIVATE\SDKTOOLS\LISTMUNG\listmung.c -Felistmung.exe > listmung.log 2>&1
 	cl -nologo -O2 -D_CRTAPI1=__cdecl %NT%\PRIVATE\SDKTOOLS\MAPMSG\mapmsg.c -Femapmsg.exe > mapmsg.log 2>&1
 	cl -nologo -O2 %NT%\PRIVATE\WINDOWS\SHELL\GAMES\SOL\solidpp.c -Fesolidpp.exe > solidpp.log 2>&1
-	set PATH=%TOP%\C900\BIN;C:\MSDEV\BIN;C:\WINNT\system32
+	cl -nologo -O2 %NT%\PRIVATE\SDKTOOLS\UIXPORT\uixport.c -Feuixport.exe > uixport.log 2>&1
+	lib -nologo -machine:mips -def:%NT%\PRIVATE\SDKTOOLS\IMAGEHLP\imagehlp.def -out:imagehlp.lib > binplace.log 2>&1
+	cl -nologo -O2 -DMIPS=1 %NT%\PRIVATE\SDKTOOLS\IMAGEHLP\binplace.c imagehlp.lib -Febinplace.exe >> binplace.log 2>&1
+	set PATH=%TOP%\C900\BIN;%MSDevDir%\BIN;%SystemRoot%\system32
 	set INCLUDE=%NT%\PUBLIC\SDK\INC\CRT;%NT%\PUBLIC\SDK\INC
 	set LIB=%NT%\PUBLIC\SDK\LIB\MIPS
 	cd /d %NT%\PRIVATE\SDKTOOLS\VCTOOLS\MC
@@ -66,7 +81,12 @@ mkdir -p "$SHARE/host/rcpp" "$SHARE/build"
 	link -nologo -machine:mips -subsystem:console -entry:mainCRTStartup -out:rcpp.exe rcpp\*.obj rcpp\rcpp.res libc.lib kernel32.lib >> rcpp.log 2>&1
 	EOF
 } | sed 's/$/\r/' > "$SHARE/build/tools.cmd"
-tools="gensrv hextract hsplit wcshdr listmung mapmsg solidpp mc rcpp"
+# link32 -dump: the dump of the machine's linker (-decorate is not one of its
+# options)
+printf '%s\r\n' '@echo off' 'set A=' ':next' 'if "%1"=="" goto run' \
+	'if /i not "%1"=="-decorate" set A=%A% %1' 'shift' 'goto next' ':run' \
+	'%MSDevDir%\BIN\LINK.EXE %A%' > "$SHARE/host/link32.cmd"
+tools="gensrv hextract hsplit wcshdr listmung mapmsg solidpp uixport binplace mc rcpp"
 for t in $tools; do rm -f "$SHARE/host/$t.exe"; done
 vmrun 'T:\NTOS\3MAX\build\tools.cmd'
 for t in $tools; do

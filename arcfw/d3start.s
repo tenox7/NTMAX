@@ -7,9 +7,9 @@
 //
 // Abstract:
 //
-//    This module is the start of the ARC firmware for the DECstation
-//    5000/200 (KN02, MIPS R3000).  The REX console loads the firmware from
-//    the boot block of the boot device and starts it in KSEG1 with
+//    This module is the start of the ARC firmware for the DECstation 5000
+//    (MIPS R3000).  The REX console loads the firmware from the boot block
+//    of the boot device and starts it in KSEG1 with
 //
 //        a0 - the argument count of the console boot command,
 //        a1 - the argument vector of the console boot command,
@@ -41,10 +41,19 @@
 //
 // Routine Description:
 //
-//    This routine disables interrupts, sweeps the instruction cache, which
-//    may hold lines of the memory the console loaded the firmware into,
-//    continues in KSEG0, saves the console arguments, sets the firmware
-//    stack and calls FwEntry.  FwEntry does not return.
+//    This routine disables interrupts, checks that the processor is an
+//    R3000, sweeps the instruction cache, which may hold lines of the
+//    memory the console loaded the firmware into, continues in KSEG0, saves
+//    the console arguments, sets the firmware stack and calls FwEntry.
+//    FwEntry does not return.
+//
+//    The 5000/150 and the 5000/260 are the 5000/1xx and the 5000/240 with
+//    an R4000, for which the console reports the same system module.  The
+//    firmware and the system are built for the R3000, whose caches the
+//    sweep isolates: on an R4000 the stores of the sweep would write
+//    memory.  On any other processor the routine prints a message with the
+//    console printf service, still on the stack of the console, and returns
+//    to the console prompt.
 //
 // Arguments:
 //
@@ -69,7 +78,23 @@
         move    s1,a1                   //
         move    s2,a2                   //
         move    s3,a3                   //
-        la      t0,HalSweepIcache       // get address of sweep routine
+        mfc0    t0,prid                 // get processor identification
+        li      t1,PRID_R3000           // get R3000 implementation number
+        srl     t0,t0,PRID_IMPLEMENTATION_SHIFT // isolate implementation
+        and     t0,t0,0xff              //
+        beq     t0,t1,5f                // if eq, processor is an R3000
+        nop                             //
+        lw      t0,REX_PRINTF_OFFSET(s3) // get console printf service
+        la      a0,FwProcessorMessage   // set address of message
+        jal     t0                      // print message
+        nop                             //
+        lw      t0,REX_COMMAND_OFFSET(s3) // get console command service
+        li      a0,0x68                 // set halt command ('h')
+        jal     t0                      // return to the console prompt
+        nop                             //
+3:      b       3b                      // the console does not return
+        nop                             //
+5:      la      t0,HalSweepIcache       // get address of sweep routine
         li      t1,KSEG1_BASE           // run it uncached
         or      t0,t0,t1                //
         jal     t0                      // sweep the instruction cache
@@ -95,6 +120,11 @@
         .set    reorder
 
         .end    FwStart
+
+        .rdata
+FwProcessorMessage:
+        .ascii  "\nThe ARC firmware runs on a DECstation 5000 with an R3000 processor.\n\0"
+        .text
 
         SBTTL("Initialize PCR")
 //++

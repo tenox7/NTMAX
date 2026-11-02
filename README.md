@@ -16,10 +16,20 @@ the mouse.
   `winlogon.cmd` in a cmd console, then the logon) ends at the logon dialog
   and Program Manager.
 - The LK201 keyboard and the VSXXX mouse work, Ctrl+Alt+Del too.
-- File Manager, Notepad, Calculator, Clock, Solitaire and Minesweeper run.
-- Not yet: networking, the other applications.
-- Not part of the port: the Spooler (printing) and RAS. The hive has no
-  Spooler service.
+- SCSI CD-ROM drives (CDFS: drive D:) and tape drives (DAT, DLT) work, and
+  DZ lines 2 and 3 are COM1 and COM2.
+- The programs of Program Manager's groups run: File Manager, Control
+  Panel, PIF Editor and the command prompt; Notepad, Paintbrush,
+  Calculator, Cardfile, Clock, Terminal, Character Map, Media Player (AVI
+  video too), CD Player and Volume Control; the three games; Disk
+  Administrator, Performance Monitor and Backup. Help and the command-line
+  tools of `PRIVATE\UTILS` run too (not built yet: format, mode and more).
+- The 5000/200 has no sound hardware: Volume Control finds no device.
+- Not yet: networking; Event Viewer, User Manager and Registry Editor (their
+  NET UI DLLs do not build yet); ClipBook (it needs the NetDDE services),
+  Sound Recorder (OLE 2), Setup (the MIPS INF files), Mail and Schedule+.
+- Not part of the port: the Spooler (printing, Print Manager) and RAS. The
+  hive has no Spooler service.
 
 ## No Microsoft code
 
@@ -40,9 +50,10 @@ perl tools/ntdiff.pl update .. nt arcfw crt hal build   # every script
 perl tools/ntdiff.pl make .. FILE NTFILE...              # a new one (NTFILE from the top of the tree)
 ```
 
-The files that are new (the DZ, LK201 and VSXXX drivers, the firmware's
-`decfw.h`, `dxboot.c`, `dxnvram.c` and `d3start.s`, the scripts and tools)
-are plain files.
+The files that are new (the DZ, LK201 and VSXXX drivers, DZSERIAL's
+`DZLINE.C` and its one-line files that include those of `DD\SERIAL`, the
+firmware's `decfw.h`, `dxboot.c`, `dxnvram.c` and `d3start.s`, the scripts
+and tools) are plain files.
 
 ## Layout
 
@@ -62,6 +73,8 @@ NTMAX/
              PRIVATE\NTOS\VIDEO\PMAGBA   the PMAG-BA miniport
              PRIVATE\NTOS\MINIPORT\NCR53C94  the PMAZ-AA SCSI controller
              PRIVATE\NTOS\DD\DZPORT      the DZ serial line driver
+             PRIVATE\NTOS\DD\DZSERIAL    COM1 and COM2 (DZ lines 2 and 3): the
+                                         serial driver of DD\SERIAL over DZPORT
              PRIVATE\NTOS\DD\LK201       the keyboard port of KBDCLASS
              PRIVATE\NTOS\DD\VSXXX       the pointer port of MOUCLASS
              PRIVATE\LSA\CRYPT\ENGINE    the LSA's encryption engine
@@ -73,9 +86,10 @@ NTMAX/
   tools/   ntdiff.pl; mkdecboot.pl (the DEC boot block); pe2bin.pl (a PE image
            laid out flat); r3kcheck.pl (code an R3000 cannot run, load-delay
            mistakes); r3kimplib.pl, r3kmark.pl (R3000 import thunks, image
-           type); mkrom.py (rom/ from dumps of the ROM chips); dbgrun.c,
-           vmkill.c (programs for the MIPS NT machine); drive.py, vtscreen.py
-           (type at the serial console, show its screen)
+           type); makeinc.pl (the makefiles a MAKEFILE includes, copied to
+           the build machine with it); mkrom.py (rom/ from dumps of the ROM
+           chips); dbgrun.c, vmkill.c (programs for the MIPS NT machine);
+           drive.py, vtscreen.py (type at the serial console, show its screen)
   ctest/   tests of the compiler in R3000 mode
   hello/   the first boot test program
   rom/     the 5000/200's own ROMs, made by tools/mkrom.py (DEC's: not here)
@@ -87,10 +101,10 @@ NTMAX/
 - **The NT 3.5 source tree** (build 782): its `PRIVATE` and `PUBLIC`
   folders beside this folder (`../PRIVATE`, `../PUBLIC`).
 - **A MIPS machine with Windows NT 4.0** (an emulated one works) that runs an
-  rsh server, with Visual C++ 4.0 for MIPS in `C:\MSDEV` (its LINK, LIB,
-  NMAKE, and its compiler for the build tools) and this Mac's
-  `/Volumes/NTOS` as its `T:\NTOS` (`build/vm.sh`: `VM_HOST`, `VM_PORT`,
-  `SHARE`, `RSH`). The compiler of NT itself is the tree's own,
+  rsh server, with Visual C++ 4.0 for MIPS (its LINK, LIB, NMAKE, and its
+  compiler for the build tools; the build finds it in `%MSDevDir%`) and this
+  Mac's `/Volumes/NTOS` as its `T:\NTOS` (`build/vm.sh`: `VM_HOST`,
+  `VM_PORT`, `SHARE`, `RSH`). The compiler of NT itself is the tree's own,
   `PRIVATE\SDKTOOLS\C900`, with `/QMR3000`.
 - **Docker**: the image `3max-build` (`docker build -t 3max-build build`)
   for the disk image, and for the registry hives the NT programs RCPP,
@@ -137,7 +151,9 @@ that `build-image.sh` builds them from:
 | scsiport, scsidisk, fastfat, npfs, msfs | `PRIVATE/NTOS/DD/SCSIPORT`, `DD/SCSIDISK`, `FASTFAT`, `NPFS`, `MAILSLOT` |
 | ncr53c9x | `PRIVATE/NTOS/MINIPORT/NCR53C94` |
 | videoprt, pmagba | `PRIVATE/NTOS/VIDEO/PORT`, `VIDEO/PMAGBA` |
-| dzport, lk201, kbdclass, vsxxx, mouclass | `PRIVATE/NTOS/DD/DZPORT`, `LK201`, `KBDCLASS`, `VSXXX`, `MOUCLASS` |
+| dzport, dzserial, lk201, kbdclass, vsxxx, mouclass | `PRIVATE/NTOS/DD/DZPORT`, `DZSERIAL`, `LK201`, `KBDCLASS`, `VSXXX`, `MOUCLASS` |
+| scsicdrm, cdfs | `PRIVATE/NTOS/DD/SCSICDRM`, `PRIVATE/NTOS/CDFS` |
+| 4mmdat, dlttape (with the tape class library, `DD/SCSITAPE/CLASS`) | `PRIVATE/NTOS/DD/SCSITAPE/4MMDAT`, `SCSITAPE/DLTTAPE` |
 | ntdll, smss, csrss + csrsrv | `PRIVATE/NTOS/DLL/DAYTONA`, `PRIVATE/SM/SERVER`, `PRIVATE/CSR/SERVER` |
 | kernel32, basesrv, advapi32 | `PRIVATE/WINDOWS/BASE/CLIENT/DAYTONA`, `BASE/SERVER`, `BASE/ADVAPI` |
 | user32, gdi32, winsrv, framebuf, kbdus | `PRIVATE/WINDOWS/USER/CLIENT`, `GDI/CLIENT`, `WINSRV/DAYTONA`, `GDI/DISPLAYS/FRAMEBUF`, `USER/KBDLYOUT/US` |
@@ -152,6 +168,19 @@ that `build-image.sh` builds them from:
 | comctl32, winfile | `PRIVATE/WINDOWS/SHELL/MSCTLS`, `SHELL/WINFILE` |
 | notepad, calc, clock, sol, winmine | `PRIVATE/WINDOWS/SHELL/ACCESORY/NOTEPAD`, `ACCESORY/CALC`, `ACCESORY/CLOCK`, `SHELL/GAMES/SOL`, `PRIVATE/WINDOWS/EP/WINMINE` |
 | ini, ech, adduser, shutdown, sleep | `PRIVATE/SDKTOOLS/INI`, `ECH`, `ADDUSER`, `SHUTDOWN`, `SLEEP` |
+| cards, freecell, charmap, cardfile, pbrush, terminal | `PRIVATE/WINDOWS/EP/CARDDLL`, `EP/FREECELL`, `SHELL/ACCESORY/SPECHARS`, `ACCESORY/CARDFILE`, `ACCESORY/PAINTBRS`, `ACCESORY/TERMINAL` |
+| olecli32, olesvr32 | `PRIVATE/WINDOWS/OLE/CLIENT`, `OLE/SERVER` |
+| winhlp32, ftui32, fteng32, mvapi32 | `PRIVATE/WINDOWS/WINHELP/WINHELP`, `WINHELP/FTUI`, `WINHELP/FTENGINE`, `WINHELP/MVAPI` |
+| perfmon, pifedit | `PRIVATE/SDKTOOLS/PERFMON`, `PRIVATE/MVDM/VDMUTILS/PIFEDIT` |
+| winmm, mmdrv, mciwave, mciseq, mcicda, synth, mciole32 | `PRIVATE/WINDOWS/MEDIA/WINMM`, `MEDIA/MMDRV`, `MCIWAVE`, `MCISEQ`, `MCICDA`, `SYNTH`, `MCIOLE` |
+| msacm32.dll, msacm32.drv, imaadp32.acm, msadp32.acm, msgsm32.acm | `PRIVATE/WINDOWS/MEDIA/MSACM/MSACM`, `MSACM/MSACMMAP`, `IMAADPCM`, `MSADPCM`, `GSM610` |
+| sndvol32, cdplayer, mplay32 | `PRIVATE/WINDOWS/MEDIA/SNDVOL`, `MEDIA/CDPLAYER`, `MEDIA/MPLAYER2` |
+| msvfw32, msvidc32, msrle32, mciavi32 | `PRIVATE/WINDOWS/MEDIA/AVI/VIDEO`, `AVI/MSVIDC`, `AVI/MSRLE`, `AVI/MCIAVI32` |
+| ulib, ureg, ifsutil, ufat, uhpfs, untfs, cufat, cuhpfs, fmifs | `PRIVATE/UTILS/ULIB/SRC`, `UREG/SRC`, `IFSUTIL/SRC`, `UFAT/SRC`, `UHPFS/SRC`, `UNTFS/SRC`, `CUFAT/SRC`, `CUHPFS`, `FMIFS/SRC` |
+| windisk, ntbackup, clb | `PRIVATE/UTILS/FDISK`, `UTILS/NTBACKUP/SRC`, `PRIVATE/SDKTOOLS/WINTOOLS/CLB` |
+| attrib, chcp, chkdsk, comp, doskey, fc, find, findstr, help, label, format, mode, more, recover, replace, restore, sort, subst, tree, xcopy | `PRIVATE/UTILS/`NAME (`RESTORE/SRC`) |
+| netui0, netui1, netui2, acledit, ntlanman, ntlanui, mprui | `PRIVATE/NET/UI/COMMON/SRC/DLL3/DLL0`, `DLL3/DLL1`, `DLL3/DLL2`, `NET/UI/ACLEDIT/BIN`, `UI/SHELL/BIN`, `UI/SHELLUI/BIN`, `UI/MPR/MPR` |
+| eventvwr, usrmgr, musrmgr, regedt32 | `PRIVATE/NET/UI/ADMIN/EVENTVWR/EVENTVWR`, `ADMIN/USER/USER`, `ADMIN/USER/MINIUSER`, `PRIVATE/UTILS/REGEDIT/SRC` |
 
 Every object and image goes through `tools/r3kcheck.pl`: the compiler in
 R3000 mode still lets some MIPS II code through.
@@ -160,6 +189,7 @@ R3000 mode still lets some MIPS II code through.
 
 ```sh
 GXEMUL_OPTS=-X build/run.sh       # boot obj/3max-disk.img, the screen in a window
+CD=cd.iso GXEMUL_OPTS=-X build/run.sh  # the same with cd.iso in a CD-ROM drive (rz4: D:)
 T=10 build/run.sh                 # no input, stop after 10 seconds (tests)
 build/run.sh prom                 # the 5000/200's own ROM, at its ">>" prompt
 build/run.sh screen               # the same, with the frame buffer's ROM
@@ -179,7 +209,9 @@ Then the developer first run: boot 1 reads `\winnt\registry.ini` and
 restarts (a restart ends gxemul: start it again), boot 2 logs on and runs
 `winlogon.cmd` (a box says that the domain list cannot be made: OK, or it
 goes after two minutes), boot 3 shows the logon: log on as Administrator,
-with no password.
+with no password. The boots after that show the domain list box and then
+"The system could not log you on" (the automatic logon that `winlogon.cmd`
+set up): OK both, and log on.
 `make-disk.sh` sets the disk up for a new first run; `KEEP=1 make-disk.sh`
 writes only the programs.
 
@@ -201,3 +233,11 @@ the date once in NT.
   instructions that an R3000 does not have. A program that runs in gxemul is
   not proven correct for the R3000: `r3kcheck.pl` checks every object.
 - gxemul ends at a restart (the PROM's reboot call halts it).
+- CD Player stops at "Scanning for CDROM drives": gxemul's CD-ROM drive
+  answers READ SUB-CHANNEL with other data, NT's SCSI miniport then resets
+  the NCR 53C94, and gxemul's reset of the chip leaves its interrupt
+  asserted.
+- With the frame buffer, gxemul writes what NT sends on COM1 and COM2 to
+  its main console, and has no input for them.
+- gxemul's tape drive reads SIMH tape images (`.tap`) but cannot write
+  them: Backup cannot back up to tape.

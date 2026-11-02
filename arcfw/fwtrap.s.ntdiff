@@ -28,11 +28,11 @@
 +        SBTTL("Probe Read")
 =1 42 4
 +        This routine reads a longword where a read may take a bus error: the
-+        TURBOchannel of the DECstation 5000/200 answers a read from an empty
++        TURBOchannel of the DECstation 5000 answers a read from an empty
 +        slot with a bus error.  During the read the general exception
 +        vector goes to FwProbeHandler, which ends a data bus error at
-+        FwProbeFault.  After a bus error the error address register of the
-+        KN02 is cleared.
++        FwProbeFault.  After a bus error the error register of the system
++        module, whose address FwErrorRegister holds, is cleared.
 =1 49 3
 +        a0 - Supplies the address of the longword.
 +
@@ -55,8 +55,10 @@
 +
 +        ALTERNATE_ENTRY(FwProbeFault)
 +
-+        li      t2,KSEG1_BASE | KN02_ERROR_ADDRESS_PHYSICAL_BASE //
-+        sw      zero,0(t2)              // clear the error address register
++        la      t2,FwErrorRegister      // get address of the error register
++        lw      t2,0(t2)                //
++        nop                             //
++        sw      zero,0(t2)              // clear the error register
 +        sw      t1,0x1014(t0)           // restore the general exception handler
 +        j       ra                      // return
 +        move    v0,zero                 // set the read failed

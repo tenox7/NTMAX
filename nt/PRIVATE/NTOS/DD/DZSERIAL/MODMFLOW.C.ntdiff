@@ -1,0 +1,62 @@
+#ntdiff PRIVATE/NTOS/DD/SERIAL/MODMFLOW.C
+#crlf
+=1 1 27
++    The DZ serial driver of the DECstation sets the modem control and the
++    break and reads the modem status through the DZ port driver.
+=1 27 57
++    ModemControl = SerialReadModemControl(Extension);
+=1 85 8
++    SerialWriteModemControl(
++        Extension,
+=1 95 34
++    ModemControl = SerialReadModemControl(Extension);
+=1 130 8
++    SerialWriteModemControl(
++        Extension,
+=1 140 34
++    ModemControl = SerialReadModemControl(Extension);
+=1 175 8
++    SerialWriteModemControl(
++        Extension,
+=1 185 34
++    ModemControl = SerialReadModemControl(Extension);
+=1 220 8
++    SerialWriteModemControl(
++        Extension,
+=1 230 576
+=1 808 7
++    //
++    // The multiplexer changes the break of a line with a character
++    // that the port driver loads when the line is ready, so the
++    // transmitter is busy until then.
++    //
++
++    if (!(Extension->TXHolding & SERIAL_TX_BREAK)) {
++
++        SerialTransmitterBusy(Extension);
+=1 401 3
++    (Extension->Port.SetBreak)(
++        Extension->Port.PortContext,
+=1 662 3 -12
+=1 824 33
+=1 859 17
++        SerialTransmitterBusy(Extension);
++
++        (Extension->Port.SetBreak)(
++            Extension->Port.PortContext,
+=1 637 3 -8
+=1 885 7
++            (Extension->Port.EnableTransmit)(Extension->Port.PortContext);
+=1 894 125
++            (Extension->Port.EnableTransmit)(Extension->Port.PortContext);
+=1 1021 128
++        (Extension->Port.EnableTransmit)(Extension->Port.PortContext);
+=1 1151 68
++        SerialReadModemStatus(Extension);
+=1 1220 226
++                (Extension->Port.EnableTransmit)(Extension->Port.PortContext);
+=1 1448 34
++                    (Extension->Port.EnableTransmit)(
++                        Extension->Port.PortContext
+=1 1094 9 4
+=1 1492 299

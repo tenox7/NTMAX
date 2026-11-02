@@ -4,7 +4,7 @@
 =1 2 6
 +//    d3clock.s
 =1 9 4
-+//    interval clock interrupt of a DECstation 5000/200 (KN02, MIPS R3000).
++//    interval clock interrupt of a DECstation 5000 (MIPS R3000).
 +//
 +//    The interval clock is the periodic interrupt of the realtime clock, and
 +//    the profile interrupt is taken at a multiple of it: the R3000 has no

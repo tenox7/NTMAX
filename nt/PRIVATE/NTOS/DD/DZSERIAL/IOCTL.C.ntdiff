@@ -1,0 +1,34 @@
+#ntdiff PRIVATE/NTOS/DD/SERIAL/IOCTL.C
+#crlf
+=1 1 24
++    The DZ serial driver of the DECstation sets the baud rate and the line
++    control of the line through the DZ port driver.  The multiplexer has
++    sixteen fixed baud rates and no mark or space parity.
+=1 24 97
++    ULONG Appropriate = (ULONG)(((PSERIAL_IOCTL_SYNC)Context)->Data);
++
++    Extension->LineBaud = Appropriate;
++    SerialSetLineParameters(Extension);
+=1 127 30
++    SerialSetLineParameters(Extension);
+=1 161 264
++            // Will hold the baud rate of the multiplexer for
+=1 426 15
++            ULONG AppropriateBaud;
+=1 442 15
++            // to a routine which will find the rate of the multiplexer.
++            //
++
++            Status = SerialGetLineBaudFromBaud(
++                         BaudRate,
++                         &AppropriateBaud
+=1 464 14
++                S.Data = (PVOID)AppropriateBaud;
+=1 479 121
+=1 612 934
++            ModemControl = SerialGetModemControl(Extension);
+=1 1547 239
++    Properties->MaxBaud = SERIAL_BAUD_19200;
+=1 1787 29
++                                     SERIAL_PARITY_EVEN;
+=1 1819 4

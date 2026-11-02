@@ -1,0 +1,16 @@
+MIPS_SOURCES=serial.rc   \
+             dzline.c    \
+             error.c     \
+             flush.c     \
+             immediat.c  \
+             initunlo.c  \
+             ioctl.c     \
+             isr.c       \
+             modmflow.c  \
+             openclos.c  \
+             purge.c     \
+             qsfile.c    \
+             read.c      \
+             utils.c     \
+             waitmask.c  \
+             write.c

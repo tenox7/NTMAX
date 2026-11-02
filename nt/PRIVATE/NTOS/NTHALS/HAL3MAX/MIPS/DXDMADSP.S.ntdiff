@@ -4,9 +4,13 @@
 =1 2 6
 +//    dxdmadsp.s
 =1 9 4
-+//    for I/O interrupts on the DECstation 5000/200 (KN02).
++//    for I/O interrupts on the DECstation 5000: the I/O interrupts of the
++//    system control and status register of the KN02, or of the IO Control
++//    ASIC of the KN02-BA and the KN03, and the option slots of the KN02-BA.
 =1 14 14
 +#include "decdef.h"
++
++#if defined(KN02_AA)
 +
 +        SBTTL("I/O Device First Level Dispatch")
 =1 31 5
@@ -39,3 +43,110 @@
 +30:     j       ra                      // return
 +
 +        .end    HalpDmaDispatch
++
++#else
++
++        SBTTL("I/O Device First Level Dispatch")
+=1 31 5
++//    for an I/O device.
++//
++//    The I/O interrupts are the bits of the system interrupt register of
++//    the IO Control ASIC, each enabled by the same bit of the system
++//    interrupt mask register. The vector of a bit is the device vector of
++//    its number, and the highest numbered of the pending interrupts that
++//    are enabled is dispatched.
++//
++//    On the KN02-BA the dispatcher runs at the level of the interval clock:
++//    the timeout interrupt and the interrupt of the realtime clock are
++//    dispatched first, to the routines of their vectors, which are not
++//    interrupt objects.
+=1 37 13
++        lw      t0,SYS_INTPEND_REG      // get system interrupt register
++        lw      t1,SYS_INTMASK_REG      // get system interrupt mask register
++        and     t0,t0,t1                // isolate enabled pending interrupts
++        beq     zero,t0,30f             // if eq, no interrupt pending
++
++#if defined(KN02_BA)
++
++        and     t1,t0,1 << TIMEOUT_CHANNEL // test if timeout interrupt
++        bne     zero,t1,5f              // if ne, timeout interrupt pending
++        and     t1,t0,1 << CLOCK_CHANNEL // test if clock interrupt
++        beq     zero,t1,8f              // if eq, clock interrupt not pending
++        lw      t1,KiPcr + PcInterruptRoutine + (CLOCK_VECTOR * 4)(zero) //
++        j       t1                      // transfer control to clock routine
++
++5:      lw      t1,KiPcr + PcInterruptRoutine + (TIMEOUT_VECTOR * 4)(zero) //
++        j       t1                      // transfer control to timeout routine
+=1 58 3
++8:      li      t1,31 * 4               // set offset of highest vector
++        li      t2,1 << 31              // set highest interrupt bit
++10:     and     t3,t0,t2                // test if interrupt pending
++        bne     zero,t3,20f             // if ne, interrupt pending
++        subu    t1,t1,4                 // compute offset of next vector
++        srl     t2,t2,1                 // compute next interrupt bit
++        b       10b                     //
++
++20:     lw      a0,KiPcr + PcInterruptRoutine + (DEVICE_VECTORS * 4)(t1) //
+=1 52 11
++//
++// The interrupt is no longer pending.
++//
++
++30:     j       ra                      // return
++
++        .end    HalpDmaDispatch
+=1 58 3
++#if defined(KN02_BA)
++
++        SBTTL("TURBOchannel Option Slot Dispatch")
+=1 31 4
++//    This routine is entered as the result of an interrupt of an option
++//    slot of the TURBOchannel of the KN02-BA: int0 to int2 of the
++//    processor, the slots 0 to 2.
++//
++//    The highest numbered slot whose interrupt is pending and enabled in
++//    the interrupt mask of IRQL 0 is dispatched. The interrupt of a slot
++//    that is pending but not enabled is disabled in the interrupt mask of
++//    the trap frame: the processor status of a thread keeps the mask of the
++//    time its context was set, and the interrupt of a slot stays pending
++//    until a driver of the slot clears it.
+=1 37 11
++#define SLOT_INTERRUPTS (0x7 << 2)      // int0 to int2 in the interrupt mask
++
++        LEAF_ENTRY(HalpTurboChannelDispatch)
++
++        .set    noreorder
++        mfc0    t0,cause                // get exception cause register
++        lbu     t1,KiPcr + PcIrqlTable(zero) // get interrupt mask of IRQL 0
++        srl     t0,t0,CAUSE_INTPEND     // isolate interrupt pending bits
++        and     t0,t0,SLOT_INTERRUPTS   // isolate option slot interrupts
++        and     t2,t0,t1                // isolate enabled slot interrupts
++        .set    reorder
++
++        xor     t3,t0,t2                // isolate slot interrupts not enabled
++        beq     zero,t3,10f             // if eq, none pending
++        lw      t4,TrPsr(s8)            // get previous processor status
++        sll     t3,t3,PSR_INTMASK       // shift into interrupt mask position
++        nor     t3,t3,zero              // complement interrupt bits
++        and     t4,t4,t3                // disable interrupts in mask
++        sw      t4,TrPsr(s8)            // set previous processor status
++10:     beq     zero,t2,40f             // if eq, no enabled interrupt pending
++        li      t1,2 * 4                // set offset of highest vector
++        li      t3,1 << (2 + 2)         // set highest interrupt bit
++20:     and     t4,t2,t3                // test if interrupt pending
++        bne     zero,t4,30f             // if ne, interrupt pending
++        subu    t1,t1,4                 // compute offset of next vector
++        srl     t3,t3,1                 // compute next interrupt bit
++        b       20b                     //
++
++30:     lw      a0,KiPcr + PcInterruptRoutine + (TURBOCHANNEL_VECTORS * 4)(t1) //
+=1 52 11
++//
++// The interrupt is no longer pending.
++//
++
++40:     j       ra                      // return
++
++        .end    HalpTurboChannelDispatch
++
++#endif

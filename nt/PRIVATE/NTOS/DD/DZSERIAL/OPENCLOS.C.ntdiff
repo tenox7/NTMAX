@@ -1,0 +1,50 @@
+#ntdiff PRIVATE/NTOS/DD/SERIAL/OPENCLOS.C
+#crlf
+=1 1 23
++    The DZ serial driver of the DECstation enables and disables the line
++    through the DZ port driver, and polls the modem status of an open
++    port.
+=1 23 275
++    //
++    // The multiplexer does not interrupt on a change of the modem
++    // status.  It is read at every clock tick while the port is open.
++    //
++
++    if (NT_SUCCESS(localStatus)) {
++
++        SerialStartModemPoll(extension);
+=1 136 3
+=1 298 90
++    while ((SerialGetLineStatus(extension) &
+=1 389 22
++    SerialStopModemPoll(extension);
+=1 410 14
++        while (!(SerialGetLineStatus(extension) &
+=1 425 10
+=1 262 2
++            SerialTransmitXon,
+=1 381 4 4
+=1 441 3
++        while ((SerialGetLineStatus(extension) &
+=1 445 30
+=1 286 2
++        SerialClrDTR,
+=1 381 4
+=1 478 42
+=1 286 2
++        SerialClrRTS,
+=1 381 4
+=1 523 179
++    // Prepare for the opening by enabling the receiver of the line.
++    // The DZ port driver gives the characters of the line to the
++    // input service while the line is enabled.
++    //
++
++    (extension->Port.EnableLine)(extension->Port.PortContext);
+=1 715 36
++    // Prepare for the closing by disabling the receiver and the
++    // transmitter of the line.
++    //
++
++    (extension->Port.DisableLine)(extension->Port.PortContext);
+=1 777 202

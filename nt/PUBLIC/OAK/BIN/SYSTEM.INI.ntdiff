@@ -12,7 +12,12 @@
 +// miniport), without the PC peripherals.  Its keyboard is the LK201 on line
 +// 0 of the DZ serial line multiplexer of the system module and its mouse
 +// the VSXXX on line 1: the Lk201 keyboard port driver and the Vsxxx pointer
-+// port driver, clients of the Dzport port driver of the multiplexer.
++// port driver, clients of the Dzport port driver of the multiplexer.  The
++// 5000/1xx (KN02-BA) and the 5000/240 (KN03) have the same lines on the
++// channels of their two SCCs, whose Sccport port driver has the same
++// clients.  One hive serves the three system modules: the port driver of
++// the lines that a system module does not have finds no device and does
++// not load.
 +//
 +
 +#ifdef _HIVE_DECSTATION_
@@ -34,7 +39,18 @@
 +            LanmanWorkstation
 =1 1354 294
 +#if defined(DECSTATION)
++                  4mmdat
++                    EventMessageFile = REG_EXPAND_SZ %SystemRoot%\System32\IoLogMsg.dll;%SystemRoot%\System32\drivers\4mmdat.sys
+=1 1457 1
++                  dlttape
++                    EventMessageFile = REG_EXPAND_SZ %SystemRoot%\System32\IoLogMsg.dll;%SystemRoot%\System32\drivers\dlttape.sys
+=1 1457 1
 +                  dzport
+=1 1491 2
++                  dzserial
++                    EventMessageFile = REG_EXPAND_SZ %SystemRoot%\System32\IoLogMsg.dll;%SystemRoot%\System32\Drivers\Dzserial.sys
+=1 1457 1
++                  sccport
 =1 1491 2
 +#endif // defined(DECSTATION)
 =1 1648 48
@@ -60,11 +76,31 @@
 +#if !defined(DECSTATION)
 =1 2499 21
 +#endif // !defined(DECSTATION)
-=1 2520 165
+=1 2520 54
++
++#if defined(DECSTATION)
++            //
++            // The SCSI tape drives of the DECstation, as the tape options of
++            // Setup install them: the TLZ06 and TLZ07 DAT drives (4mmdat) and
++            // the TZ86 and TZ87 DLT drives (dlttape)
++            //
++            4mmdat
+=1 2550 3
+=1 1215 1
+=1 2535 2
++            Dlttape
+=1 2550 3
+=1 1215 1
+=1 2535 1
++#endif // defined(DECSTATION)
+=1 2574 111
 +#if defined(DECSTATION)
 +            Dzport
-=1 2674 8
-=1 2053 1
+=1 2643 3
+=1 2589 2
++            Sccport
+=1 2643 3
+=1 2542 2
 +#endif // defined(DECSTATION)
 =1 2684 5
 +#if !defined(DECSTATION)
@@ -99,4 +135,15 @@
 +#if !defined(DECSTATION)
 =1 3197 28
 +#endif // !defined(DECSTATION)
-=1 3225 376
++
++#if defined(DECSTATION)
++            Dzserial
++                DependOnService = REG_MULTI_SZ "Dzport"
+=1 3209 6
++#endif // defined(DECSTATION)
+=1 3225 47
++#if defined(DECSTATION)
+=1 2563 2
+=1 1227 1
++#endif // defined(DECSTATION)
+=1 3273 328

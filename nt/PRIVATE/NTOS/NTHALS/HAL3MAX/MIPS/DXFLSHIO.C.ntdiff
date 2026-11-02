@@ -3,8 +3,8 @@
 =1 1 6
 +    dxflshio.c
 =1 8 5
-+    the data cache for I/O transfers on a DECstation 5000/200 (KN02, MIPS
-+    R3000) system.
++    the data cache for I/O transfers on a DECstation 5000 (MIPS R3000)
++    system.
 =1 14 14
 =2 31 37
 =1 66 4

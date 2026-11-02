@@ -1,0 +1,184 @@
+#ntdiff PRIVATE/NTOS/DD/SERIAL/ISR.C
+#crlf
+=1 1 23
++    The DZ serial driver of the DECstation has the input and output
++    services of the DZ port driver in place of the interrupt service
++    routines of the 8250.
+=1 23 12
++VOID
++SerialInputService(
++    IN PVOID ClientContext,
++    IN UCHAR InputByte,
++    IN ULONG InputStatus
+=1 39 6
++    This is the input service of the port, which the DZ port driver calls
++    with each character that the line of the port receives, at the level
++    of the interrupt of the port.  It does what the interrupt service
++    routine of the 8250 does for a receive line status interrupt and a
++    received data available interrupt: the character and its receive
++    status are put where SerialReadReceiveBuffer and SerialReadLineStatus
++    read them, as the 8250 holds them in its receive buffer and line
++    status registers.
+=1 51 3
++    ClientContext - This is really a pointer to the device extension for
++    this device.
++
++    InputByte - The character.
++
++    InputStatus - The receive errors of the character (dzport.h).
+=1 1053 9
++    PSERIAL_DEVICE_EXTENSION Extension = ClientContext;
++    UCHAR ReceivedChar;
++
++    if (!Extension->DeviceIsOpened) {
++
++        //
++        // The port is closed: what it receives is dropped.
+=1 1082 6 -4
++    //
++    // The multiplexer does not detect a break: a character of zero
++    // with a framing error is one.
++    //
++
++    Extension->ReceiveData = InputByte;
++    Extension->LineStatus |= SERIAL_LSR_DR;
++
++    if (InputStatus & DZPORT_OVERRUN_ERROR) {
++
++        Extension->LineStatus |= SERIAL_LSR_OE;
+=1 1030 3
++    if (InputStatus & DZPORT_PARITY_ERROR) {
++
++        Extension->LineStatus |= SERIAL_LSR_PE;
+=1 1030 3
++    if (InputStatus & DZPORT_FRAMING_ERROR) {
++
++        if (InputByte) {
++
++            Extension->LineStatus |= SERIAL_LSR_FE;
+=1 1182 3
++            Extension->LineStatus |= SERIAL_LSR_BI;
+=1 1085 6
++    // A receive error is a receive line status interrupt of the 8250,
++    // which comes before the received data.  The line status code may
++    // take the character from the receive buffer.
++    //
++
++    if (Extension->LineStatus & ~SERIAL_LSR_DR) {
++
+=1 467 2 -12
++    }
++
++    if (Extension->LineStatus & SERIAL_LSR_DR) {
++
++        ReceivedChar = SerialReadReceiveBuffer(Extension);
++
+=1 490 139 -16
+=1 630 2
+=1 1088 3
++    // The interrupt service routine of the 8250 checks the holding
++    // register when it is done, so that transmission restarts after an
++    // xon character.  The port driver calls the output service when
++    // the line is ready: the transmitter of the line is enabled.
++    //
++
++    if (Extension->HoldingEmpty &&
++        !Extension->TXHolding &&
+=1 1022 3 -8
++        (Extension->Port.EnableTransmit)(Extension->Port.PortContext);
+=1 1407 5
++BOOLEAN
++SerialOutputService(
++    IN PVOID ClientContext
+=1 39 6
++    This is the output service of the port, which the DZ port driver
++    calls each time the transmitter of the line of the port is ready, at
++    the level of the interrupt of the port.  It does what the interrupt
++    service routine of the 8250 does for a transmit holding register empty
++    interrupt: unless transmission is held up, it sends the next xon, xoff,
++    immediate or write character with the output routine of the port.
+=1 51 3
++    ClientContext - This is really a pointer to the device extension for
++    this device.
+=1 59 3
++    TRUE if a character was sent, FALSE if the line has nothing to send
++    (the port driver then disables the transmitter of the line).
+=1 64 5
++    PSERIAL_DEVICE_EXTENSION Extension = ClientContext;
++
+=1 653 2 -16
++    if (!Extension->DeviceIsOpened) {
++
++        //
++        // The port is closed.  The only character it sends is the
++        // xon character that the close code sends after an automatic
++        // xoff (SerialTransmitXon).
++        //
++
++        if (Extension->SendXonChar) {
++
++            (Extension->Port.OutputByte)(
++                Extension->Port.PortContext,
+=1 724 3 -20
+=1 743 2 -16
+=1 759 1 -16
++            SerialTransmitterBusy(Extension);
++            return TRUE;
+=1 170 3
++        SerialTransmitterIdle(Extension);
++        return FALSE;
+=1 1030 3
+=1 655 67 -16
++                (Extension->Port.OutputByte)(
++                    Extension->Port.PortContext,
+=1 724 11 -16
++                (Extension->Port.OutputByte)(
++                    Extension->Port.PortContext,
+=1 737 38 -16
++                (Extension->Port.OutputByte)(
++                    Extension->Port.PortContext,
+=1 777 11 -16
++                (Extension->Port.OutputByte)(
++                    Extension->Port.PortContext,
+=1 790 66 -16
++                (Extension->Port.OutputByte)(
++                    Extension->Port.PortContext,
+=1 858 11 -16
++                (Extension->Port.OutputByte)(
++                    Extension->Port.PortContext,
+=1 871 17 -16
++            //
++            // The line takes one character at a time.
++            //
++
++            amountToWrite = 1;
++
+=1 711 11 -16
++                (Extension->Port.OutputByte)(
++                    Extension->Port.PortContext,
+=1 915 3 -20
+=1 727 8 -16
++                (Extension->Port.OutputByte)(
++                    Extension->Port.PortContext,
+=1 915 3 -20
+=1 953 39 -16
++    if (Extension->HoldingEmpty) {
++
++        //
++        // Nothing was sent.
++        //
++
++        SerialTransmitterIdle(Extension);
++        return FALSE;
+=1 1030 3
++    SerialTransmitterBusy(Extension);
++    return TRUE;
+=1 1034 403
++    UCHAR LineStatus = SerialReadLineStatus(Extension);
+=1 1438 46
++                    SerialReadReceiveBuffer(Extension)
+=1 1485 24
++                    SerialReadReceiveBuffer(
++                        Extension
+=1 1511 126
+=1 1670 5

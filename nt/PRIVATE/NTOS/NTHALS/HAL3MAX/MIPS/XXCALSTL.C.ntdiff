@@ -1,11 +1,22 @@
 #ntdiff PRIVATE/NTOS/NTHALS/HALFXS/MIPS/XXCALSTL.C PRIVATE/NTOS/NTHALS/HALACR/MIPS/XXCALSTL.C
 #crlf
 =1 1 13
-+    the clock and profile interrupts for a DECstation 5000/200 (KN02, MIPS
-+    R3000) system. The interval clock is the periodic interrupt of the
-+    realtime clock, and the profile interrupt is taken at a multiple of it.
-=1 15 148
-=2 166 85
++    the clock and profile interrupts for a DECstation 5000 (MIPS R3000)
++    system. The interval clock is the periodic interrupt of the realtime
++    clock, and the profile interrupt is taken at a multiple of it.
+=1 15 145
++    // Connect the real clock interrupt routine. The realtime clock of the
++    // KN02-BA interrupts through the IO Control ASIC, whose dispatcher calls
++    // the routine of the clock vector.
++    //
++
++#if defined(CLOCK_VECTOR)
++
++    PCR->InterruptRoutine[CLOCK_VECTOR] = HalpClockInterrupt;
+=1 254 3
+=2 166 2
+=1 144 3
+=1 166 82
 +    // Acknowledge the interval timer interrupt: reading control register C
 +    // of the realtime clock clears its interrupt request.
 +    //

@@ -1,0 +1,100 @@
+#ntdiff PRIVATE/NTOS/INC/DZPORT.H
+#crlf
+=1 1 23
++    Receive status, break, modem control and modem status added for the
++    serial driver of the communications and printer lines.
++
++    The port driver of the SCCs of the 5000/1xx and the 5000/240
++    (sccport.c) has the same interface and the same line numbers.
+=1 23 12
++#define IOCTL_MN_DZPORT_CONNECT_STATUS 8   // connect line with receive status
++
++//
++// Define DZ line numbers.
++//
++// The communications and printer lines have modem control. The kernel
++// debugger uses the communications line while it is enabled, and the line
++// cannot be connected then.
++//
++
++#define DZPORT_KEYBOARD_LINE 0             // keyboard line
++#define DZPORT_MOUSE_LINE 1                // mouse line
++#define DZPORT_COMMUNICATIONS_LINE 2       // communications line
++#define DZPORT_PRINTER_LINE 3              // printer line
++
++//
++// Define receive status flags.
++//
++// The receive status of a character is given to the input status service
++// of a line connected with receive status. A line connected without it
++// receives only the characters that have no parity or framing error.
++//
++// An overrun error flags the first character received after the ones that
++// were lost. A framing error with a character of zero is a break.
++//
++
++#define DZPORT_PARITY_ERROR 0x1            // parity error
++#define DZPORT_FRAMING_ERROR 0x2           // framing error
++#define DZPORT_OVERRUN_ERROR 0x4           // characters lost before character
++
++//
++// Define modem control flags.
++//
++
++#define DZPORT_DTR 0x1                     // data terminal ready
++#define DZPORT_RTS 0x2                     // request to send
++
++//
++// Define modem status flags.
++//
++
++#define DZPORT_CTS 0x1                     // clear to send
++#define DZPORT_DSR 0x2                     // data set ready
++#define DZPORT_CD 0x4                      // carrier detect
++#define DZPORT_RI 0x8                      // ring indicator
+=1 35 13
++VOID
++(*PDZPORT_INPUT_STATUS_SERVICE) (
+=1 43 1
++    IN UCHAR InputByte,
++    IN ULONG InputStatus
+=1 45 48
++typedef
++VOID
++(*PDZPORT_SET_BREAK) (
++    IN PVOID PortContext,
++    IN BOOLEAN Break
+=1 51 3
++// The following routines act on the communications and printer lines.
++// They have no effect on the other lines, which have no modem control,
++// and the query routines return zero for them.
+=1 38 4
++(*PDZPORT_SET_MODEM_CONTROL) (
++    IN PVOID PortContext,
++    IN ULONG ModemControl
+=1 45 3
++ULONG
++(*PDZPORT_QUERY_MODEM_CONTROL) (
+=1 60 4
++ULONG
++(*PDZPORT_QUERY_MODEM_STATUS) (
+=1 60 3
+=1 93 12
++    PDZPORT_SET_MODEM_CONTROL SetModemControl;
++    PDZPORT_QUERY_MODEM_CONTROL QueryModemControl;
++    PDZPORT_QUERY_MODEM_STATUS QueryModemStatus;
++    PDZPORT_SET_BREAK SetBreak;
+=1 105 14
++//
++// A line connected with receive status gives every character it receives
++// to the input status service, and the input service of the connect
++// message is not used.
++//
++
++typedef struct _DZPORT_CONNECT_STATUS {
++    DZPORT_CONNECT Connect;
++    PDZPORT_INPUT_STATUS_SERVICE InputStatusService;
++} DZPORT_CONNECT_STATUS, *PDZPORT_CONNECT_STATUS;
+=1 118 6
++
+#noeol

@@ -82,7 +82,7 @@ done >> "$SHARE/build/crt.list"
 	set NT=%TOP%\NT
 	set CRT=%NT%\PRIVATE\CRT32NT
 	set O=%TOP%\out\crt
-	set PATH=%TOP%\C900\BIN;C:\WINNT\system32
+	set PATH=%TOP%\C900\BIN;%SystemRoot%\system32
 	set INCLUDE=
 	set DEFS=-DMIPS=1 -D_MIPS_=1 -DMIPSEL -DNO_EXT_KEYS -DCONDITION_HANDLING=1 -DWIN32_LEAN_AND_MEAN=1 -DNT_UP=1 -DNT_INST=0 -DWIN32=100 -D_NT1X_=100 -DR3000 -D_M_MRX000=3000 /QMR3000 -DDBG=0 -DDEVL=1 -D_WIN32_=1 -D_NTSUBSET_=1 -D_NTSYSTEM_=1 -D_INTL
 	set CFLAGS=-nologo -c /Zel /Zp8 /Gy /W3 -Ox -Gt0 -D__stdcall= -D__cdecl= -D_LANGUAGE_C -DLANGUAGE_C -DNDEBUG -FI%TOP%\build\r3000.h
@@ -107,7 +107,7 @@ done >> "$SHARE/build/crt.list"
 		esac
 	done < "$SHARE/build/crt.list"
 	printf '%s\n' 'cd /d %O%'
-	printf '%s\n' 'C:\MSDEV\BIN\LIB.EXE -nologo -machine:mips -out:libcnt.lib *.obj > lib.log 2>&1'
+	printf '%s\n' '%MSDevDir%\BIN\LIB.EXE -nologo -machine:mips -out:libcnt.lib *.obj > lib.log 2>&1'
 } | sed 's/$/\r/' > "$cmd"
 
 echo "build-crt: $(wc -l < "$SHARE/build/crt.list" | tr -d ' ') sources"
@@ -139,7 +139,7 @@ NTENV=CRTLIBTYPE=NT "$here/build/build-lib.sh" PRIVATE/FP32NT/TRAN
 mkdir -p "$SHARE/out/libcntpr"
 rm -f "$SHARE/out/libcntpr/"*
 printf '%s\r\n' '@echo off' 'cd /d T:\NTOS\3MAX\out\libcntpr' \
-	'C:\MSDEV\BIN\LIB.EXE -nologo -machine:mips -out:libcntpr.lib ..\crt\libcnt.lib ..\trannt\trannt.lib > lib.log 2>&1' \
+	'%MSDevDir%\BIN\LIB.EXE -nologo -machine:mips -out:libcntpr.lib ..\crt\libcnt.lib ..\trannt\trannt.lib > lib.log 2>&1' \
 	> "$SHARE/build/libcntpr.cmd"
 vmrun 'T:\NTOS\3MAX\build\libcntpr.cmd'
 i=0

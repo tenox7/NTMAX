@@ -65,7 +65,7 @@ done
 	@echo off
 	set TOP=T:\NTOS\3MAX
 	set NT=%TOP%\NT
-	set PATH=%TOP%\host;%TOP%\C900\BIN;C:\MSDEV\BIN;C:\WINNT\system32
+	set PATH=%TOP%\host;%TOP%\C900\BIN;%MSDevDir%\BIN;%SystemRoot%\system32
 	set INCLUDE=
 	set LIB=
 	EOF
@@ -73,7 +73,7 @@ done
 		w=$(printf "%s\n" "$d" | tr / '\\')
 		# (failed.txt names the directory until its nmake succeeds)
 		printf '%s\n' "cd /d %NT%\\$w" "echo $w> %TOP%\\out\\midl0\\failed.txt" \
-			"%TOP%\\host\\dbgrun.exe -a C:\\MSDEV\\BIN\\NMAKE.EXE -nologo -f makefil0 MIPS=1 386=0 ALPHA=0 PPC=0 NTMAKEENV=%NT%\\PUBLIC\\OAK\\BIN BASEDIR=%NT% > %TOP%\\out\\midl0\\$(basename "$d").log 2>&1" \
+			"%TOP%\\host\\dbgrun.exe -a %MSDevDir%\\BIN\\NMAKE.EXE -nologo -f makefil0 MIPS=1 386=0 ALPHA=0 PPC=0 NTMAKEENV=%NT%\\PUBLIC\\OAK\\BIN BASEDIR=%NT% > %TOP%\\out\\midl0\\$(basename "$d").log 2>&1" \
 			"if errorlevel 1 goto end" "del %TOP%\\out\\midl0\\failed.txt"
 	done
 	printf '%s\n' ':end'

@@ -5,7 +5,7 @@ set TOP=T:\NTOS\3MAX
 set NT=%TOP%\NT
 set O=%TOP%\out\%1
 set CPU=%2 %3
-set PATH=%TOP%\C900\BIN;C:\WINNT\system32
+set PATH=%TOP%\C900\BIN;%SystemRoot%\system32
 set INCLUDE=%NT%\PUBLIC\SDK\INC;%NT%\PUBLIC\SDK\INC\CRT
 set LIB=
 set DEFS=-DMIPS=1 -D_MIPS_=1 -DMIPSEL -DNO_EXT_KEYS -DCONDITION_HANDLING=1 -DWIN32_LEAN_AND_MEAN=1 -DNT_UP=1 -DNT_INST=0 -DWIN32=100 -D_NT1X_=100 -DDBG=0 -DDEVL=1
@@ -32,4 +32,4 @@ cd /d %NT%\PRIVATE\NTOS\EX\UP
 for %%f in (x3intrlk x4intrlk) do cl %AFLAGS% %NTINC% %DEFS% -D_NTSYSTEM_ %CPU% -Fo%O%\%%f.obj ..\mips\%%f.s > %O%\%%f.log 2>&1
 
 cd /d %O%
-for %%f in (*.obj) do C:\MSDEV\BIN\DUMPBIN.EXE /DISASM /HEADERS %%f > %%f.dis 2>&1
+for %%f in (*.obj) do %MSDevDir%\BIN\DUMPBIN.EXE /DISASM /HEADERS %%f > %%f.dis 2>&1

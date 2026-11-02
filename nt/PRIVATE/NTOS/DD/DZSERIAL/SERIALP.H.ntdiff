@@ -1,0 +1,61 @@
+#ntdiff PRIVATE/NTOS/DD/SERIAL/SERIALP.H
+#crlf
+=1 1 17
++
++    The DZ serial driver of the DECstation has the services and the line
++    routines of dzline.c in place of the interrupt service routines.
++
+=1 18 342
++VOID
++SerialInputService(
++    IN PVOID ClientContext,
++    IN UCHAR InputByte,
++    IN ULONG InputStatus
+=1 101 3
++SerialOutputService(
++    IN PVOID ClientContext
+=1 33 3
++SerialGetLineBaudFromBaud(
++    IN LONG DesiredBaud,
++    OUT PULONG LineBaud
+=1 377 49
+=1 432 4
+=1 448 6
++NTSTATUS
++SerialConnectLine(
+=1 179 1
++    IN ULONG LineNumber
+=1 44 3
++SerialDisconnectLine(
+=1 43 4
++SerialSetLineParameters(
+=1 412 4
++SerialReadLineStatus(
+=1 412 4
++SerialGetLineStatus(
+=1 412 4
++SerialReadReceiveBuffer(
+=1 412 4
++SerialReadModemStatus(
+=1 412 4
++SerialReadModemControl(
+=1 43 4
++SerialWriteModemControl(
+=1 179 1
++    IN UCHAR ModemControl
+=1 352 3
++SerialGetModemControl(
+=1 43 4
++SerialTransmitterBusy(
+=1 43 4
++SerialTransmitterIdle(
+=1 283 4
++SerialTransmitXon(
+=1 105 4
++SerialStartModemPoll(
+=1 43 4
++SerialStopModemPoll(
+=1 43 4
++SerialModemPoll(
+=1 48 6
+=1 454 56

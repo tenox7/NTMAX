@@ -1,0 +1,8 @@
+#ntdiff PRIVATE/NTOS/DD/SERIAL/SERIAL.RC
+#crlf
+=1 1 6
++#define VER_FILEDESCRIPTION_STR     "DECstation DZ Serial Device Driver"
++#define VER_INTERNALNAME_STR        "dzserial.sys"
++#define VER_ORIGINALFILENAME_STR    "dzserial.sys"
+=1 10 3
++#include "..\serial\serlog.rc"

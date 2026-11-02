@@ -6,7 +6,7 @@
 +//    x3cache.s
 =1 11 3
 +//    This module implements the cache routines of the HAL for the MIPS
-+//    R3000 of the DECstation 5000/200. The R3000 has a write-through data
++//    R3000 of the DECstation 5000. The R3000 has a write-through data
 +//    cache and an instruction cache, both direct mapped with one word lines
 +//    and indexed by the physical address. A line is invalidated by a
 +//    partial word store with the data cache isolated; with the caches

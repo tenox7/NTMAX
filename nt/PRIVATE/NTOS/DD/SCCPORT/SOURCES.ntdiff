@@ -1,0 +1,12 @@
+#ntdiff PRIVATE/NTOS/DD/SERMOUSE/SOURCES
+#crlf
++!IF 0
+=1 4 12
++    This is the port driver of the serial communications controllers (SCC)
++    of the DECstation 5000/1xx (KN02-BA) and 5000/240 (KN03).
+=1 18 6
++TARGETNAME=sccport
+=1 25 5
++C_DEFINES=-DDECSTATION
++
++SOURCES=

@@ -26,6 +26,14 @@
 #			messages of the system's events), NTOS\SEAUDIT\
 #			MSAUDITE\msaudite.rc and MSOBJS\msobjs.rc (the
 #			security audit messages), each with its msg00001.bin
+#	MEDIA\AVI\makefil0
+#			the headers of the AVI libraries in AVI\INC (msvideo.h,
+#			drawdib.h, compman.h ...: copies of those of their
+#			directories), the English resources of VIDEO and
+#			MCIAVI32 and DRAWDIB\lockbm.c, the targets of its rule
+#			all but the capture header (AVICAP: not built) and the
+#			codecs it places (avifile.h and aviiface.h, of AVIFILE,
+#			are included by COMPMAN and MCIAVI32)
 #	generr		RTL\error.h, the NT status to DOS error table that
 #			error.c includes, built (C900, crtdll.lib of the tree)
 #			and run as RTL\USER\makefile.inc does
@@ -42,7 +50,8 @@ done
 ntcopy PUBLIC/OAK/BIN PUBLIC/SDK/INC PRIVATE/NTOS/INC PRIVATE/NTOS/NLS PRIVATE/NTOS/INIT \
 	PRIVATE/NTOS/DD PRIVATE/NTOS/RTL PRIVATE/NLS PRIVATE/NTOS/DLL \
 	PUBLIC/OAK/INC PRIVATE/WINDOWS/INC PRIVATE/WINDOWS/NLSMSG \
-	PRIVATE/EVENTLOG/NETEVENT PRIVATE/NTOS/SEAUDIT/MSAUDITE PRIVATE/NTOS/SEAUDIT/MSOBJS
+	PRIVATE/EVENTLOG/NETEVENT PRIVATE/NTOS/SEAUDIT/MSAUDITE PRIVATE/NTOS/SEAUDIT/MSOBJS \
+	PRIVATE/WINDOWS/MEDIA/AVI
 cp "$nt35/PRIVATE/NTOS/MAKEFIL0" "$SHARE/NT/PRIVATE/NTOS/"	# (a file: ntcopy copies directories)
 cp "$nt35/PRIVATE/WINDOWS/MAKEFIL0" "$SHARE/NT/PRIVATE/WINDOWS/"
 mkdir -p "$SHARE/NT/PRIVATE/WINDOWS/MEDIA/WINMM"	# (media\winmm\mmsystem.h)
@@ -54,9 +63,9 @@ rm -f "$out/"* "$SHARE/NT/PRIVATE/NTOS/RTL/error.h"
 	@echo off
 	set TOP=T:\NTOS\3MAX
 	set NT=%TOP%\NT
-	set PATH=%TOP%\host;C:\MSDEV\BIN;C:\WINNT\system32
+	set PATH=%TOP%\host;%MSDevDir%\BIN;%SystemRoot%\system32
 	set INCLUDE=
-	set LIB=C:\MSDEV\LIB
+	set LIB=%MSDevDir%\LIB
 	set NTMAKEENV=%NT%\PUBLIC\OAK\BIN
 	set _NTDRIVE=T:
 	set _NTROOT=\NTOS\3MAX\NT
@@ -68,12 +77,14 @@ rm -f "$out/"* "$SHARE/NT/PRIVATE/NTOS/RTL/error.h"
 	nmake -nologo -f makefil0 > %O%\makefil0.log 2>&1
 	cd /d %NT%\PRIVATE\WINDOWS
 	nmake -nologo -f makefil0 > %O%\winmakefil0.log 2>&1
+	cd /d %NT%\PRIVATE\WINDOWS\MEDIA\AVI
+	nmake -nologo -f makefil0 inc\msvideo.h inc\ivideo32.h inc\msviddrv.h inc\mciavi.h inc\profile.h inc\drawdib.h inc\compman.h inc\compddk.h inc\icm.rc inc\dith775.h inc\aviiface.h inc\avifile.h inc\mciwnd.h inc\preview.h mciavi32\mciavi.rc mciavi32\mciavi.rcv mciavi32\cnfgdlg.dlg video\msvideo.rc video\msvideo.rcv drawdib\lockbm.c > %O%\avimakefil0.log 2>&1
 	cd /d %NT%\PRIVATE
 	mc -v -r ntos\dll\ -h %NT%\PUBLIC\SDK\INC\ -x %NT%\PUBLIC\SDK\INC\ nls\ntstatus.mc > %O%\ntstatus.log 2>&1
 	mc -v -r eventlog\netevent\ -h %NT%\PUBLIC\SDK\INC\ -x %NT%\PUBLIC\SDK\INC\ nls\netevent.mc > %O%\netevent.log 2>&1
 	mc -v -r ntos\seaudit\msaudite\ -h %NT%\PUBLIC\SDK\INC\ ntos\seaudit\msaudite\msaudite.mc > %O%\msaudite.log 2>&1
 	mc -v -r ntos\seaudit\msobjs\ -h %NT%\PUBLIC\SDK\INC\ ntos\seaudit\msobjs\msobjs.mc > %O%\msobjs.log 2>&1
-	set PATH=%TOP%\C900\BIN;C:\MSDEV\BIN;C:\WINNT\system32
+	set PATH=%TOP%\C900\BIN;%MSDevDir%\BIN;%SystemRoot%\system32
 	set INCLUDE=%NT%\PRIVATE\NTOS\RTL;%NT%\PRIVATE\NTOS\INC;%NT%\PRIVATE\INC;%NT%\PUBLIC\SDK\INC\CRT;%NT%\PUBLIC\SDK\INC
 	set LIB=%NT%\PUBLIC\SDK\LIB\MIPS
 	cd /d %O%
@@ -85,6 +96,7 @@ rm -f "$out/"* "$SHARE/NT/PRIVATE/NTOS/RTL/error.h"
 vmrun 'T:\NTOS\3MAX\build\gen.cmd'
 tr -d '\r' < "$out/makefil0.log" | grep -i 'error\|warning\|stop' || true
 tr -d '\r' < "$out/winmakefil0.log" | grep -i 'error\|warning\|stop' || true
+tr -d '\r' < "$out/avimakefil0.log" | grep -i 'error\|warning\|stop' || true
 for l in ntstatus netevent msaudite msobjs; do
 	tr -d '\r' < "$out/$l.log" | grep -i 'error\|warning' || true
 done
@@ -101,10 +113,11 @@ for f in PRIVATE/NTOS/INC/bugcodes.h PRIVATE/NTOS/INIT/bugcodes.rc PRIVATE/NTOS/
 	PRIVATE/NTOS/SEAUDIT/MSOBJS/msobjs.rc PRIVATE/NTOS/SEAUDIT/MSOBJS/msg00001.bin \
 	PRIVATE/NTOS/RTL/error.h PRIVATE/WINDOWS/INC/winbasep.h PRIVATE/WINDOWS/INC/winuserp.h \
 	PRIVATE/WINDOWS/INC/wingdip.h PRIVATE/WINDOWS/INC/winnlsp.h PRIVATE/WINDOWS/INC/windefp.h \
-	PRIVATE/WINDOWS/INC/conapi.h; do
+	PRIVATE/WINDOWS/INC/conapi.h PRIVATE/WINDOWS/MEDIA/AVI/INC/msvideo.h \
+	PRIVATE/WINDOWS/MEDIA/AVI/DRAWDIB/lockbm.c; do
 	for i in 1 2 3 4 5 6 7 8 9 10; do [ ! -f "$SHARE/NT/$f" ] || break; sleep 1; done
 	[ -f "$SHARE/NT/$f" ] || miss="$miss $f"
 done
 [ -z "$miss" ] || { echo "build-gen: not made:$miss"; exit 1; }
 printf '%s\n' 'build-gen: NTOS\makefil0 and WINDOWS\makefil0 headers, the message files (ntstatus, netevent,' \
-	'msaudite, msobjs), RTL\error.h'
+	'msaudite, msobjs), the AVI headers, RTL\error.h'

@@ -1,0 +1,76 @@
+#ntdiff PRIVATE/NTOS/DD/SERIAL/SERIAL.H
+#crlf
+=1 1 17
++
++    The DZ serial driver of the DECstation keeps the line of the DZ port
++    driver in the configuration data and the device extension; every
++    other field of the device extension is where the serial driver has it.
++
+=1 18 445
++
++    //
++    // The line of the DZ multiplexer.
++    //
++    ULONG LineNumber;
+=1 463 834
++
++    //
++    // The rest of the extension is for the line of the DZ
++    // multiplexer.  The fields above are those of the serial
++    // driver, at the same places, for the sources of the serial
++    // driver that the DZ serial driver shares.
+=1 1160 3
++    // The routines and the interrupt object of the DZ port driver
++    // for the line of this port, from the connect request, the
++    // port device and the file object that the driver holds while
++    // it has the line connected, and the number of the line.
++    //
++    DZPORT_ACCEPT Port;
++    PDEVICE_OBJECT PortDeviceObject;
++    PFILE_OBJECT PortFileObject;
++    ULONG LineNumber;
++
++    //
++    // The baud rate of the multiplexer that the line runs at: the
++    // one within one percent of the current baud.
++    //
++    ULONG LineBaud;
++
++    //
++    // The multiplexer has no line status register.  This is the
++    // line status of the 8250 for the character in ReceiveData,
++    // the last one the port driver gave the input service: the
++    // data is ready until the character is read, and the receive
++    // errors stay until the line status is read.
++    //
++    UCHAR LineStatus;
++    UCHAR ReceiveData;
++
++    //
++    // The multiplexer has no delta bits in its modem status.  This
++    // is the modem status that was read last, from which the delta
++    // bits of the 8250 are made.
++    //
++    UCHAR LastModemStatus;
++
++    //
++    // The multiplexer does not tell when the transmitter is empty.
++    // It is counted empty CharTicks clock ticks after the line was
++    // ready and had nothing more to send: TransmitterIdle is set
++    // then, and TransmitterEmptyTick has the tick count at which
++    // the transmitter is empty.
++    //
++    BOOLEAN TransmitterEmpty;
++    BOOLEAN TransmitterIdle;
++    ULONG TransmitterEmptyTick;
++    ULONG CharTicks;
++
++    //
++    // The multiplexer does not interrupt on a change of the modem
++    // status.  While the port is open the timer reads the modem
++    // status at every clock tick and the dpc handles a change.
++    //
++    BOOLEAN ModemPollActive;
++    KTIMER ModemPollTimer;
++    KDPC ModemPollDpc;
+=1 1297 352

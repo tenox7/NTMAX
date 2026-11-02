@@ -36,7 +36,7 @@ done
 	set O=%TOP%\out\osloader
 	set L=%TOP%\out
 	cd /d %O%
-	C:\MSDEV\BIN\LINK.EXE -nologo -machine:mips -debug:notmapped -debugtype:coff -rom -fixed -map:osloader.map -align:0x200 -base:0x80600000,0x80660000 -entry:BlOsLoader -nodefaultlib -force:multiple -out:osloader.exe %L%\bldr\bldr.lib %L%\bldr\osloader.res %L%\boot\boot.lib %L%\ke\ke.lib %L%\bldrrtl\bldrrtl.lib %L%\libcntpr\libcntpr.lib %L%\bconfig\bconfig.lib > link.log 2>&1
+	%MSDevDir%\BIN\LINK.EXE -nologo -machine:mips -debug:notmapped -debugtype:coff -rom -fixed -map:osloader.map -align:0x200 -base:0x80600000,0x80660000 -entry:BlOsLoader -nodefaultlib -force:multiple -out:osloader.exe %L%\bldr\bldr.lib %L%\bldr\osloader.res %L%\boot\boot.lib %L%\ke\ke.lib %L%\bldrrtl\bldrrtl.lib %L%\libcntpr\libcntpr.lib %L%\bconfig\bconfig.lib > link.log 2>&1
 	EOF
 } | sed 's/$/\r/' > "$cmd"
 

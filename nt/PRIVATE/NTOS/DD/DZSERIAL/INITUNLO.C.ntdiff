@@ -1,0 +1,324 @@
+#ntdiff PRIVATE/NTOS/DD/SERIAL/INITUNLO.C
+#crlf
+=1 1 23
++    The DZ serial driver of the DECstation takes its ports from the
++    firmware data alone: the communications and printer lines of the DZ
++    multiplexer, which it connects to the DZ port driver.  The port
++    driver has the registers and the interrupt of the multiplexer.
+=1 23 26
+=1 50 3
+=1 66 4
+=1 73 3
+=1 99 25
+=1 152 47
+=1 216 2
+=1 221 1
+=1 223 3
+=1 228 1
+=1 230 1
+=1 232 1
+=1 234 4
+=1 239 17
++    attempt to initialize all serial devices, connecting their
++    lines to the DZ port driver.  If the above goes reasonably
++    well it will fill in the dispatch points, reset the serial
++    devices and then return to the system.
+=1 260 46
++    RTL_QUERY_REGISTRY_TABLE paramTable[3];
+=1 307 3
+=1 314 46
+=1 378 27
+=1 455 25
+=1 483 11
++        PSERIAL_DEVICE_EXTENSION extension;
+=1 494 9
++        //
++        // Each port has a line of its own.  The lines share the
++        // interrupt object of the DZ port driver, which the
++        // initialization takes from the port driver: there is no
++        // interrupt to connect.
++        //
++
++        if (NT_SUCCESS(SerialInitializeController(
+=1 998 2 7
++                           &extension
++                           ))) {
++
++            *countSoFar += 1;
+=1 625 6
++    // Well if we initialized any ports then we should
+=1 632 12
+=1 665 2
++        // modem lines, and disable the line so that it receives
++        // nothing until the device is opened.
+=1 669 7
++        KeSynchronizeExecution( //Disables the line.
+=1 677 51
+=1 45 4
+=1 1732 10
++    sets up defaults, connects the line of the port to the DZ
++    port driver, etc.
+=1 1743 9
+=1 1756 37
++    // The error that is logged when the line could not be
++    // connected.
++    //
++    NTSTATUS connectError;
++    ULONG connectErrorValue;
+=1 1803 6
+=1 1843 145
+=1 1994 68
++    KeInitializeTimer(&extension->ModemPollTimer);
+=1 2062 84
++    KeInitializeDpc(
++        &extension->ModemPollDpc,
++        SerialModemPoll,
+=1 2071 3
+=1 2184 11
++    // The registers of the port are those of the DZ multiplexer,
++    // which the DZ port driver has.  Their address is kept for
++    // the error log.
++    //
++
+=1 2239 4
+=1 2311 7
+=1 2484 26
++    extension->LineBaud = 1200;
+=1 2510 25
++    // Connect the line of the port to the DZ port driver, with the
++    // default line control and baud.  The port driver gives us the
++    // routines of the line and the interrupt object that we
++    // synchronize with.  It refuses the line of the kernel debugger
++    // while the debugger is enabled, and a line that another driver
++    // has.
++    //
++
++    status = SerialConnectLine(
++                 extension,
++                 ConfigData->LineNumber
+=1 555 4 -8
++        if (status == STATUS_DEVICE_BUSY) {
++
+=1 2276 2
++                ("SERIAL: Kernel debugger is using line %d\n"
+=1 1815 1 4
++                 ConfigData->LineNumber,&ConfigData->SymbolicLinkName)
++                );
++            connectError = SERIAL_KERNEL_DEBUGGER_ACTIVE;
++            connectErrorValue = 3;
++
++        } else if (status == STATUS_DEVICE_ALREADY_ATTACHED) {
++
+=1 2276 2
++                ("SERIAL: Another driver has line %d for %wZ\n",
++                 ConfigData->LineNumber,&ConfigData->NtNameForPort)
++                );
++            connectError = SERIAL_RESOURCE_CONFLICT;
++            connectErrorValue = 9;
++
++        } else if (status == STATUS_INSUFFICIENT_RESOURCES) {
++
++            connectError = SERIAL_INSUFFICIENT_RESOURCES;
++            connectErrorValue = 63;
+=1 616 4
++            // The DZ port driver is not there, or it did not
++            // take the line.
++            //
++
++            connectError = IO_ERR_CONFIGURATION_ERROR;
++            connectErrorValue = 64;
+=1 389 3
+=1 2151 8
++            connectErrorValue,
++            status,
++            connectError,
+=1 2362 7
++        // The names were not given to the extension yet.
++        //
+=1 1835 4
+=1 2173 5
+=1 2535 4
++    extension->SupportedBauds = 0;
+=1 2540 3
++        ULONG junk;
++
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2547 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2557 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2567 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2577 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2587 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2597 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2607 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2617 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2627 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2637 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2647 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2657 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2667 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2677 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2687 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2697 7
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2706 7
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2715 8
++        if (!NT_ERROR(SerialGetLineBaudFromBaud(
+=1 2725 76
+=1 2807 12
+=1 3113 27
++
++    //
++    // Make sure that we aren't in a break state.
++    //
++
++    (extension->Port.SetBreak)(
++        extension->Port.PortContext,
+=1 3267 3
++    //
++    // Drop the received character and its line status, and
++    // take the modem status as it is now, so that it has no
++    // delta bits.
++    //
++
++    extension->LineStatus = 0;
++    SerialReadModemStatus(extension);
+=1 3252 19
++        ULONG appropriateBaud;
++        SERIAL_IOCTL_SYNC s;
++
++        SerialGetLineBaudFromBaud(
+=1 3276 1
++            &appropriateBaud
+=1 3278 2
++        s.Data = (PVOID)appropriateBaud;
+=1 3281 4
+=1 3313 1
++    // so we set the HoldingEmpty indicator, and the transmitter is
++    // empty.
+=1 3315 3
++    extension->TransmitterEmpty = TRUE;
++    extension->TransmitterIdle = FALSE;
+=1 3318 4
+=1 3503 41
++        // Each port has a line of its own, so each device is
++        // deleted by itself.
+=1 841 4
++            ("SERIAL: About to delete\n"
+=1 3553 3 -4
++        IoGetConfigurationInformation()->SerialCount -= 1;
+=1 2807 1 -4
++        IoDeleteDevice(currentDevice);
++
+=1 613 4 -8
+=1 3572 38
++        // Disconnect the line first so that the DZ port driver
++        // doesn't call the services of the line with memory we've
+=1 3612 3
++        if (Extension->PortFileObject) {
+=1 536 3
++                ("SERIAL: Extension has line %d %x\n",
++                 Extension->LineNumber,Extension)
++                );
++            SerialDisconnectLine(Extension);
+=1 3622 9
++        KeCancelTimer(&Extension->ModemPollTimer);
+=1 3631 13
++        KeRemoveQueueDpc(&Extension->ModemPollDpc);
+=1 3644 35
+=1 3701 72
+=1 3776 29
++    The serial controllers of the internal bus are the communications
++    and printer lines of the DZ multiplexer.  The key of the controller
++    is its line, counted from the communications line.
+=1 3804 69
++    //
++    // The component information of the controller, and the key in
++    // it.
++    //
++    PKEY_VALUE_FULL_INFORMATION componentInformation;
++    ULONG controllerKey;
+=1 3872 15
++    //
++    // Only the lines of the multiplexer that have modem control
++    // are serial ports.
++    //
++
++    componentInformation =
++        ControllerInformation[IoQueryDeviceComponentInformation];
++
++    if ((!componentInformation) ||
++        (componentInformation->DataLength <
++         sizeof(CM_COMPONENT_INFORMATION))) {
+=1 3882 5
++    controllerKey =
++        ((PCM_COMPONENT_INFORMATION)
++         (((PUCHAR)componentInformation) +
++          componentInformation->DataOffset))->Key;
++
++    if (controllerKey >
++        (DZPORT_PRINTER_LINE - DZPORT_COMMUNICATIONS_LINE)) {
+=1 1869 3
++            ("SERIAL: Firmware serial controller %d is not a line\n"
++             "------  of the DZ multiplexer with modem control\n",
++             controllerKey)
++            );
+=1 3883 81
++    // The line of the multiplexer.
++    //
++
++    controller->LineNumber = DZPORT_COMMUNICATIONS_LINE + controllerKey;
+=1 3971 17
++
+=1 3995 16
++                // The registers are those of the whole
++                // multiplexer.
++                //
++
++                controller->SpanOfController = partial->u.Port.Length;
+=1 4016 24
+=1 4051 379
+=1 4433 10
++    The serial ports are the communications and printer lines
++    of the DZ multiplexer, which the firmware reports as the
++    serial controllers of the internal bus.  It queries the
++    firmware data for them and places them in the passed in
++    list.  There are no "user" specified comm ports: the
++    multiplexer has no other lines with modem control.
+=1 6116 5
++    RegistryPath - Not used.
+=1 4472 6
+=1 767 6
+=1 4485 2
++    INTERFACE_TYPE interfaceType = Internal;
+=1 4660 2 -4
++    UNREFERENCED_PARAMETER(RegistryPath);
+=1 4622 9
+=1 4634 15
++    // Query the hardware registry for the firmware defined
++    // serial ports of the internal bus.
+=1 3896 3
+=1 4663 10 -4
++    //
++    // Each of them is a port to initialize.
+=1 6003 5
+=1 6009 3
+=1 6760 2 4
++            head
+=1 1508 5 -8
+=1 6840 658

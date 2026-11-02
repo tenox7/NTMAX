@@ -3,16 +3,21 @@
 =1 2 7
 +    dxserial.c
 =1 10 3
-+    This module implements the serial boot driver for the DECstation
-+    5000/200.  The serial lines are lines of the DZ (DC7085) multiplexer:
-+    serial(0) is line 2, the communications port, and serial(1) is line 3,
-+    the console port.  The firmware uses serial(1) as its console.
++    This module implements the serial boot driver for the DECstation 5000.
++    The serial lines of the 5000/200 are lines of the DZ (DC7085)
++    multiplexer, the lines of the 5000/1xx and the 5000/240 channels of
++    their two SCCs (Z85C30, decscc.h): serial(0) is line 2, the
++    communications port, and serial(1) is line 3, the console port.  The
++    firmware uses serial(1) as its console.
 +
 +    The DZ has one receiver silo for its four lines.  Each character read
 +    from the silo carries its line number, and the driver keeps the
 +    characters received on each line in a buffer of the line until they
-+    are read.
++    are read.  The receiver of an SCC channel holds three characters: the
++    driver empties the receivers of the serial ports into the buffers of
++    their lines in the same way.
 =1 14 15
++#include "decscc.h"
 =1 30 70
 +#define SP_BASE(Fid) ULONG SP; \
 +                     SP = BlFileTable[Fid].u.SerialContext.PortBase
@@ -32,6 +37,18 @@
 +} SERIAL_RECEIVE_BUFFER, *PSERIAL_RECEIVE_BUFFER;
 +
 +SERIAL_RECEIVE_BUFFER SerialReceiveBuffer[4];
++
++//
++// Define the channel of an SCC a line is, and the time from an access of an
++// SCC to its next access: six cycles of its clock and 200ns, rounded up.
++//
++
++#define SCC_LINE_CHANNEL(Line) \
++    ((PSCC_CHANNEL)(KSEG1_BASE | \
++                    (FwSystem->SerialPhysicalBase[SCC_LINE_SCC(Line)] + \
++                     SCC_LINE_OFFSET(Line))))
++
++#define SCC_RECOVERY_TIME 2
 +
 +//
 +// Define the position of the cursor on the console terminal.  The console
@@ -55,12 +72,84 @@
 +BOOLEAN SerialConsoleControl;
 +ULONG SerialConsoleCount;
 +ULONG SerialConsoleParameter[CONSOLE_MAX_PARAMETER];
-=1 102 77
-+    SP    -  Base address of the serial port: the DZ line.
+=1 102 8
++
++VOID
++SerialPoll(
+=3 90 3
++UCHAR
++SerialReadScc (
++    IN PSCC_CHANNEL Channel,
++    IN ULONG Register
+=1 115 6
++    This routine reads a read register of an SCC channel: a write of the
++    number of the register to the control register selects it, except for
++    RR0, which is selected after each access.
+=1 123 3
++    Channel - Supplies the address of the registers of the channel.
++
++    Register - Supplies the number of the read register.
+=1 127 3
++    The value of the register.
+=1 131 4
++    UCHAR Value;
++
++    if (Register != SCC_RR0) {
++        WRITE_REGISTER_ULONG(&Channel->Control, Register << SCC_BYTE_SHIFT);
++        FwStallExecution(SCC_RECOVERY_TIME);
++    }
++
++    Value = (UCHAR)(READ_REGISTER_ULONG(&Channel->Control) >> SCC_BYTE_SHIFT);
++    FwStallExecution(SCC_RECOVERY_TIME);
++    return Value;
++}
++
++VOID
++SerialWriteScc (
++    IN PSCC_CHANNEL Channel,
++    IN ULONG Register,
++    IN UCHAR Value
+=1 115 6
++    This routine writes a write register of an SCC channel: a write of the
++    number of the register to the control register selects it, except for
++    WR0, which is selected after each access.
+=1 123 3
++    Channel - Supplies the address of the registers of the channel.
++
++    Register - Supplies the number of the write register.
++
++    Value - Supplies the value to write.
+=1 542 8
++    if (Register != SCC_WR0) {
++        WRITE_REGISTER_ULONG(&Channel->Control, Register << SCC_BYTE_SHIFT);
++        FwStallExecution(SCC_RECOVERY_TIME);
++    }
++
++    WRITE_REGISTER_ULONG(&Channel->Control, (ULONG)Value << SCC_BYTE_SHIFT);
++    FwStallExecution(SCC_RECOVERY_TIME);
+=3 3092 3
+=1 111 68
++    SP    -  Base address of the serial port: the line.
 =1 180 8
++    PSCC_CHANNEL Channel;
 +    USHORT DataShort;
 +    USHORT Enable;
 +
++    //
++    // On an SCC, wait until the transmitter of the channel can take a
++    // character, and empty the receivers meanwhile: they hold only three
++    // characters.
++    //
++
++    if (FwSystem->SerialType == FwSerialScc) {
++        Channel = SCC_LINE_CHANNEL(SP);
++        while ((SerialReadScc(Channel, SCC_RR0) & SCC_RR0_TRANSMIT_EMPTY) == 0) {
++            SerialPoll();
++        }
++
++        WRITE_REGISTER_ULONG(&Channel->Data, (ULONG)(UCHAR)Char << SCC_BYTE_SHIFT);
++        FwStallExecution(SCC_RECOVERY_TIME);
+=1 245 3 4
 +    //
 +    // Enable the transmitter of the line.  The DZ scans the enabled lines
 +    // and reports a line that can take a character in the control status
@@ -85,14 +174,41 @@
 +VOID
 +SerialPoll(
 =3 2365 6
-+    This routine empties the receiver silo of the DZ into the receive
-+    buffers of the lines.  A character received while the buffer of its
-+    line is full is lost.
++    This routine empties the receiver silo of the DZ, or the receivers of
++    the SCC channels of the serial ports, into the receive buffers of the
++    lines.  A character received while the buffer of its line is full is
++    lost, as is a character with a parity or framing error on an SCC.
 =3 2375 11
++    UCHAR Character;
++    PSCC_CHANNEL Channel;
 +    USHORT DataShort;
++    ULONG Line;
 +    PSERIAL_RECEIVE_BUFFER Receive;
 +    ULONG Next;
++    UCHAR Status;
 +
++    if (FwSystem->SerialType == FwSerialScc) {
++        for (Line = FIRST_SERIAL_LINE; Line < (FIRST_SERIAL_LINE + 2); Line += 1) {
++            Channel = SCC_LINE_CHANNEL(Line);
++            Receive = &SerialReceiveBuffer[Line];
++            while ((SerialReadScc(Channel, SCC_RR0) & SCC_RR0_RECEIVE_AVAILABLE) != 0) {
++                Status = SerialReadScc(Channel, SCC_RR1);
++                Character = (UCHAR)(READ_REGISTER_ULONG(&Channel->Data) >> SCC_BYTE_SHIFT);
++                FwStallExecution(SCC_RECOVERY_TIME);
++                if ((Status & (SCC_RR1_PARITY_ERROR |
++                               SCC_RR1_OVERRUN_ERROR |
++                               SCC_RR1_FRAMING_ERROR)) != 0) {
++                    SerialWriteScc(Channel, SCC_WR0, SCC_WR0_ERROR_RESET);
++                    if ((Status & (SCC_RR1_PARITY_ERROR | SCC_RR1_FRAMING_ERROR)) != 0) {
+=3 1386 3
++
++                Next = (Receive->Tail + 1) % SERIAL_BUFFER_SIZE;
++                if (Next != Receive->Head) {
++                    Receive->Data[Receive->Tail] = Character;
++                    Receive->Tail = Next;
+=3 1387 3 -4
++
+=3 2353 3 4
 +    for (;;) {
 +        DataShort = READ_REGISTER_USHORT(&DZ_READ->ReceiveBuffer.Short);
 +        if (((PDZ_RECEIVE_BUFFER)(&DataShort))->DataValid == 0) {
@@ -283,10 +399,40 @@
 =1 364 1
 +    BlFileTable[*FileId].u.SerialContext.PortBase = FIRST_SERIAL_LINE+Port;
 =1 366 21
-+    SP -  Supplies the base of the serial port: the DZ line.
++    SP -  Supplies the base of the serial port: the line.
 =1 388 7
++    PSCC_CHANNEL Channel;
 +    USHORT DataShort;
+=4 842 3
++    // On an SCC, let the transmitter send the last character the console
++    // gave it, for up to two character times, then set the channel to 9600
++    // baud, eight bits, one stop bit and no parity, with the clocks of the
++    // receiver and the transmitter from the baud rate generator, and
++    // enable its receiver and its transmitter with data terminal ready
++    // and request to send.  The other channel of the SCC and the interrupt
++    // control of the SCC are left as the console has set them.
++    //
 +
++    if (FwSystem->SerialType == FwSerialScc) {
++        Channel = SCC_LINE_CHANNEL(SP);
++        for (Index = 0; Index < 200; Index += 1) {
++            if ((SerialReadScc(Channel, SCC_RR1) & SCC_RR1_ALL_SENT) != 0) {
+=3 1554 3 -4
++            FwStallExecution(10);
++        }
++
++        SerialWriteScc(Channel, SCC_WR4, SCC_WR4_CLOCK_X16 | SCC_WR4_ONE_STOP_BIT);
++        SerialWriteScc(Channel, SCC_WR3, SCC_WR3_RECEIVE_8_BITS);
++        SerialWriteScc(Channel, SCC_WR5, SCC_WR5_DTR | SCC_WR5_TRANSMIT_8_BITS | SCC_WR5_RTS);
++        SerialWriteScc(Channel, SCC_WR11, SCC_WR11_CLOCKS_BRG);
++        SerialWriteScc(Channel, SCC_WR14, SCC_WR14_BRG_PCLK);
++        SerialWriteScc(Channel, SCC_WR12, (UCHAR)SCC_TIME_CONSTANT(9600));
++        SerialWriteScc(Channel, SCC_WR13, (UCHAR)(SCC_TIME_CONSTANT(9600) >> 8));
++        SerialWriteScc(Channel, SCC_WR14, SCC_WR14_BRG_PCLK | SCC_WR14_BRG_ENABLE);
++        SerialWriteScc(Channel, SCC_WR3, SCC_WR3_RECEIVE_8_BITS | SCC_WR3_RECEIVE_ENABLE);
++        SerialWriteScc(Channel, SCC_WR5, SCC_WR5_DTR | SCC_WR5_TRANSMIT_8_BITS |
++                                         SCC_WR5_RTS | SCC_WR5_TRANSMIT_ENABLE);
+=3 2353 3 4
 +    //
 +    // Set the line to 9600 baud, eight bits, one stop bit, no parity and
 +    // enable its receiver.  The console has set up the multiplexer and the

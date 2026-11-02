@@ -2,8 +2,8 @@
 +/*++
 =1 5 7
 +    This header file defines the private interfaces, defines and structures
-+    of the Hardware Architecture Layer (HAL) of the DECstation 5000/200
-+    (KN02, MIPS R3000).
++    of the Hardware Architecture Layer (HAL) routines that the ARC firmware
++    of the DECstation 5000 (MIPS R3000) links.
 =1 32 6
 +#if defined(NT_UP)
 +
@@ -13,4 +13,16 @@
 +#include "decdef.h"
 +#include "hal.h"
 +
++//
++// The firmware runs on each system module of the DECstation 5000: the
++// realtime clock is at the address of the module it runs on, which the
++// firmware keeps in FwRtcPhysicalBase (decfw.h).
++//
++
++#if !defined(RTC_PHYSICAL_BASE)
++
++extern ULONG FwRtcPhysicalBase;
++
++#define RTC_PHYSICAL_BASE FwRtcPhysicalBase
+=2 113 3
 +#endif // _HALP_

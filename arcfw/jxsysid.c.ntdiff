@@ -2,6 +2,6 @@
 +#if defined(JAZZ) || defined(DECSTATION)
 =1 2 96
 +#if defined(DECSTATION)
-+    CHAR SystemIdString[] = "DEC KN02";
++    PCHAR SystemIdString = FwSystem->VendorId;
 +#elif defined(DUO)
 =1 99 46

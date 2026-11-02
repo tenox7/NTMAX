@@ -6,7 +6,10 @@
 #  with the boot library and its runtime (build-lib.sh PRIVATE/NTOS/BOOT/LIB
 #  and PRIVATE/NTOS/RTL/BOOT: the file systems, as the Jazz firmware links
 #  the loader's) and libcntpr.lib (build-crt.sh), check every object with
-#  r3kcheck.pl, and lay it out for the boot block:
+#  r3kcheck.pl, and lay it out for the boot block.  The firmware runs on
+#  the 5000/200 (KN02), the 5000/1xx (KN02-BA) and the 5000/240 (KN03): it
+#  is compiled without a system module define, and dxsystem.c, which
+#  describes a module from decdef.h, once for each module (SYSTEMS):
 #
 #	obj/arcfw.exe		the linked firmware (and arcfw.map)
 #	obj/arcfw.bin		the image as it sits in memory from 0x80030000
@@ -27,6 +30,10 @@ FW_C="dxboot dxdisk dxinit dxnvram dxserial fwentry fwio fwload fwprint fwtime f
 FW_S="d3start d3cache fwtrap xxirql"
 HAL_C="d3time"
 
+# The system modules: the object of dxsystem.c and the define of each.
+SYSTEMS="dxkn02:KN02_AA dxkn02ba:KN02_BA dxkn03:KN03_AA"
+SYSTEM_OBJ=$(for m in $SYSTEMS; do printf '%s ' "${m%%:*}"; done)
+
 ntcopy PRIVATE/NTOS/FW/MIPS PRIVATE/NTOS/FW/DUOBASE/MIPS PRIVATE/NTOS/BOOT/INC PRIVATE/NTOS/BOOT/LIB \
 	PRIVATE/NTOS/FASTFAT PRIVATE/NTOS/INC PRIVATE/INC \
 	PUBLIC/SDK/INC PUBLIC/OAK/INC
@@ -42,9 +49,9 @@ rsync -a --inplace --delete --exclude='*.ntdiff' "$here/hal/" "$SHARE/hal/"
 	set TOP=T:\NTOS\3MAX
 	set NT=%TOP%\NT
 	set O=%TOP%\out\arcfw
-	set PATH=%TOP%\C900\BIN;C:\WINNT\system32
+	set PATH=%TOP%\C900\BIN;%SystemRoot%\system32
 	set INCLUDE=
-	set DEFS=-DMIPS=1 -D_MIPS_=1 -DMIPSEL -DNO_EXT_KEYS -DCONDITION_HANDLING=1 -DWIN32_LEAN_AND_MEAN=1 -DNT_UP=1 -DNT_INST=0 -DWIN32=100 -D_NT1X_=100 -DR3000 -D_M_MRX000=3000 /QMR3000 -DDBG=0 -DDEVL=1 -D_NTSYSTEM_ -DDECSTATION -DKN02_AA
+	set DEFS=-DMIPS=1 -D_MIPS_=1 -DMIPSEL -DNO_EXT_KEYS -DCONDITION_HANDLING=1 -DWIN32_LEAN_AND_MEAN=1 -DNT_UP=1 -DNT_INST=0 -DWIN32=100 -D_NT1X_=100 -DR3000 -D_M_MRX000=3000 /QMR3000 -DDBG=0 -DDEVL=1 -D_NTSYSTEM_ -DDECSTATION
 	set CFLAGS=-nologo -c /Zel /Zp8 /Gy /W3 -Ox -Gt0 -D__stdcall= -D__cdecl= -D_LANGUAGE_C -DLANGUAGE_C
 	set AFLAGS=-nologo -c /Zel /Zp8 /Gy /W3 -Gt0 -Ge -O -D_LANGUAGE_ASSEMBLY
 	set INC=-I. -I%TOP%\arcfw -I%TOP%\hal -I%NT%\PRIVATE\NTOS\FW\MIPS -I%NT%\PRIVATE\NTOS\BOOT\INC -I%NT%\PRIVATE\NTOS\BOOT\LIB -I%NT%\PRIVATE\NTOS\FW\DUOBASE\MIPS -I%NT%\PRIVATE\NTOS\FASTFAT -I%NT%\PRIVATE\NTOS\INC -I%NT%\PRIVATE\INC -I%NT%\GEN -I%NT%\PUBLIC\SDK\INC -I%NT%\PUBLIC\SDK\INC\CRT -I%NT%\PUBLIC\OAK\INC
@@ -54,6 +61,9 @@ rsync -a --inplace --delete --exclude='*.ntdiff' "$here/hal/" "$SHARE/hal/"
 	printf '%s\n' 'cd /d %TOP%\arcfw'
 	for f in $FW_C; do
 		printf '%s\n' "cl %CFLAGS% %INC% %DEFS% -Fo%O%\\$f.obj $f.c > %O%\\$f.log 2>&1"
+	done
+	for m in $SYSTEMS; do
+		printf '%s\n' "cl %CFLAGS% %INC% %DEFS% -D${m#*:} -Fo%O%\\${m%%:*}.obj dxsystem.c > %O%\\${m%%:*}.log 2>&1"
 	done
 	for f in $FW_S; do
 		printf '%s\n' "cl %AFLAGS% %INC% %DEFS% -Fo%O%\\$f.obj $f.s > %O%\\$f.log 2>&1"
@@ -68,9 +78,9 @@ rsync -a --inplace --delete --exclude='*.ntdiff' "$here/hal/" "$SHARE/hal/"
 	# definition, link 3.10 does it with -force:multiple (as NT's PowerPC
 	# builds link).
 	printf '%s\n' 'cd /d %O%'
-	printf '%s' 'C:\MSDEV\BIN\LINK.EXE -nologo -machine:mips -fixed -align:0x200 -base:0x80030000 -force:multiple'
+	printf '%s' '%MSDevDir%\BIN\LINK.EXE -nologo -machine:mips -fixed -align:0x200 -base:0x80030000 -force:multiple'
 	printf '%s' ' -entry:FwStart -subsystem:native -nodefaultlib -debug:none -map:arcfw.map -out:arcfw.exe'
-	for f in $FW_S $FW_C $HAL_C; do printf ' %s.obj' $f; done
+	for f in $FW_S $FW_C $SYSTEM_OBJ $HAL_C; do printf ' %s.obj' $f; done
 	printf '%s' ' %TOP%\out\boot\boot.lib %TOP%\out\bldrrtl\bldrrtl.lib'
 	printf '%s\n' ' %TOP%\out\libcntpr\libcntpr.lib > link.log 2>&1'
 } | sed 's/$/\r/' > "$cmd"
@@ -84,7 +94,7 @@ vmrun 'T:\NTOS\3MAX\build\arcfw.cmd'
 
 # Report the sources that did not compile, the link, and check the objects.
 fail=0
-for f in $FW_C $FW_S $HAL_C; do
+for f in $FW_C $SYSTEM_OBJ $FW_S $HAL_C; do
 	if [ ! -f "$SHARE/out/arcfw/$f.obj" ]; then
 		echo "--- $f failed:"; tr -d '\r' < "$SHARE/out/arcfw/$f.log" | grep -v '^$' | head -30
 		fail=$((fail + 1))

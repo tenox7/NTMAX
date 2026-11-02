@@ -7,7 +7,8 @@
 #
 #  The image of the TARGETTYPE: DRIVER, MINIPORT and EXPORT_DRIVER make a
 #  driver (obj/drivers/TARGETNAME.sys), DYNLINK a DLL
-#  (obj/system32/TARGETNAME.dll, or the extension TARGETEXT names), PROGRAM
+#  (obj/system32/TARGETNAME.dll, or the extension TARGETEXT names, or the
+#  name of its copy that NTTARGETFILES names: TARGETNAME.acm), PROGRAM
 #  a program (obj/system32/TARGETNAME.exe); LIBRARY and UMAPPL_NOLIB make
 #  none.  Then each program of UMAPPL (obj/system32/PROGRAM.exe, or the
 #  extension of UMAPPLEXT).  build-lib.sh compiles DIR: the objects and .res
@@ -64,7 +65,9 @@
 #  kernel's (build-kernel.sh); a library of a directory of the tree
 #  (DIR\obj\*\X.lib) is the one that build-lib.sh put in the obj\mips of
 #  that directory, as two directories can make a library of one name (the
-#  client and the server of WINREG); an object or a .res file (DIR\obj\*\NAME.obj,
+#  client and the server of WINREG), or of a DLL of TARGETPATH obj its
+#  import library, which this script puts there as build.exe does (the
+#  cards.lib of FREECELL); an object or a .res file (DIR\obj\*\NAME.obj,
 #  of this directory or another) is the one build-lib.sh made for its
 #  directory.  The images are checked with r3kcheck.pl and marked as R3000
 #  images (r3kmark.pl): the linker writes R4000, and an R3000 kernel maps
@@ -104,9 +107,9 @@ else
 fi
 ntcopytop PUBLIC/SDK/LIB	# (coffbase.txt)
 
-vars=$(ntsources "$DIR" TARGETNAME TARGETTYPE TARGETEXT TARGETLIBS LINKLIBS DLLDEF DLLENTRY DLLBASE \
+vars=$(ntsources "$DIR" TARGETNAME TARGETTYPE TARGETEXT NTTARGETFILES TARGETLIBS LINKLIBS DLLDEF DLLENTRY DLLBASE \
 	MIPS_DLLLIBOBJECTS UMTYPE USE_CRTDLL USE_LIBCMT NTPROFILEINPUT DRIVER_ALIGNMENT NTDEBUGTYPE GPSIZE \
-	UMAPPL UMAPPLEXT UMLIBS UMRES UMOBJS UMENTRY UMBASE COFFBASE LNKFLAGS CRTLIBS EXEPROFILEINPUT)
+	UMAPPL UMAPPLEXT UMLIBS UMRES UMOBJS UMENTRY UMBASE COFFBASE LNKFLAGS CRTLIBS EXEPROFILEINPUT TARGETPATH)
 var() { printf '%s\n' "$vars" | sed -n "s/^$1=//p" | sed 's/^ *//; s/ *$//'; }
 NAME=$(var TARGETNAME)
 TYPE=$(var TARGETTYPE)
@@ -118,6 +121,12 @@ LIBRARY|UMAPPL_NOLIB) EXT= ;;
 *)	echo "build-image: $DIR: TARGETTYPE $TYPE is not an image this script links" >&2; exit 1 ;;
 esac
 UMAPPL=$(var UMAPPL | tr '*' ' ')
+# (build.exe makes a DLL with MAKEDLL=1, which SOURCES can test: the codecs of
+# MSACM name their .acm copy, NTTARGETFILES, only then)
+case $TYPE in
+DYNLINK|EXPORT_DRIVER|HAL) ntt=$(NTENV="$NTENV MAKEDLL=1" ntsources "$DIR" NTTARGETFILES | sed -n 's/^NTTARGETFILES=//p') ;;
+*)	ntt=$(var NTTARGETFILES) ;;
+esac
 [ -n "$EXT" ] || [ -n "$UMAPPL" ] || { echo "build-image: $DIR: a $TYPE without UMAPPL has no image" >&2; exit 1; }
 [ "$IMPLIB" != 1 ] || [ $TYPE = DYNLINK ] || [ $TYPE = EXPORT_DRIVER ] ||
 	{ echo "build-image: $DIR: a $TYPE has no import library" >&2; exit 1; }
@@ -137,7 +146,9 @@ lib() {
 		[ -z "$d" ] || [ -z "$f" ] ||
 			{ printf '%s\n' "%NT%\\$(printf "%s\n" "$d" | tr / '\\')\\obj\\mips\\$f"; return; } ;;
 	esac
-	for d in "img/$n" "$n" ntoskrnl; do
+	# (img/NAME.EXT: the import library of a DLL of another extension,
+	# winspool.drv; a DLL of the name, msacm32.dll, comes first)
+	for d in "img/$n" $(ls "$SHARE/out/img" 2>/dev/null | grep -i "^$n\.[a-z0-9]*$" | sed 's,^,img/,') "$n" ntoskrnl; do
 		[ ! -f "$SHARE/out/$d/$n.lib" ] || { printf '%s\n' "%L%\\$(printf "%s\n" "$d" | tr / '\\')\\$n.lib"; return; }
 	done
 	echo "build-image: $DIR: no library $n (build-image.sh, build-lib.sh, build-kernel.sh or build-crt.sh)" >&2; exit 1
@@ -161,6 +172,15 @@ obj() {
 	d=$(printf "%s/%s\n" "$DIR" "$d" | awk -F/ '{ n = 0; for (i = 1; i <= NF; i++) {
 		if ($i == "..") n--; else if ($i != "." && $i != "") w[++n] = $i }
 		for (i = 1; i <= n; i++) printf "%s%s", (i > 1 ? "/" : ""), w[i] }')
+	# (a .res of another directory: the one build-lib.sh copied to its
+	# obj\mips, as two directories can make .res files of one name, the
+	# XLATE and BIN of ACLEDIT)
+	if [ "$d" != "$DIR" ]; then
+		case $o in *.[rR][eE][sS])
+			m=$(ls "$SHARE/NT/$d/obj/mips" 2>/dev/null | grep -ix "$(basename "$o")" | head -1)
+			[ -z "$m" ] || { printf '%s\n' "%NT%\\$(printf "%s\n" "$d" | tr / '\\')\\obj\\mips\\$m"; return; } ;;
+		esac
+	fi
 	if [ "$d" = "$DIR" ]; then
 		t=$NAME
 	else
@@ -220,7 +240,7 @@ cmdhead() {
 	@echo off
 	set TOP=T:\NTOS\3MAX
 	set NT=%TOP%\NT
-	set PATH=%TOP%\C900\BIN;C:\MSDEV\BIN;C:\WINNT\system32
+	set PATH=%TOP%\C900\BIN;%MSDevDir%\BIN;%SystemRoot%\system32
 	set INCLUDE=
 	set L=%TOP%\out
 	EOF
@@ -237,6 +257,9 @@ cmdhead() {
 # ntdll.lib that lcompat.c imports it with has its thunk of that name.
 linkimg() {
 	img=${1%.*}
+	# (an image of another extension than its type's has a directory of
+	# its file name: msacm32.drv beside msacm32.dll)
+	case $1 in *.[dD][lL][lL]|*.[eE][xX][eE]|*.[sS][yY][sS]) ;; *) img=$1 ;; esac
 	io=$SHARE/out/img/$img
 	force=' -force:multiple'
 	# The options and the inputs go in a response file, one to a line, as
@@ -251,31 +274,52 @@ linkimg() {
 	{
 		cmdhead "$img"
 		printf '%s\n' "rem $img-link.cmd -- made by build-image.sh: link $1 for the R3000" \
-			"C:\\MSDEV\\BIN\\LINK.EXE @%TOP%\\build\\$img-link.rsp > %O%\\link.log 2>&1"
+			"%MSDevDir%\\BIN\\LINK.EXE @%TOP%\\build\\$img-link.rsp > %O%\\link.log 2>&1"
 	} | sed 's/$/\r/' > "$SHARE/build/$img-link.cmd"
 	vmrun "T:\\NTOS\\3MAX\\build\\$img-link.cmd"
 	n=0
 	while [ ! -f "$io/link.log" ] && [ $n -lt 20 ]; do sleep 1; n=$((n + 1)); done
 	tr -d '\r' < "$io/link.log" | grep -v '^$' | grep -v 'LNK4087\|LNK4088' |
 		grep -v 'LNK4006: mem\(cpy\|move\|set\) already defined' | sed "s/^/link $1: /" || true
+	# (the share's client can show the image and its map some seconds
+	# after link.log: CARDFILE)
+	for f in "$1" "$img.map"; do
+		n=0
+		while [ ! -f "$io/$f" ] && [ $n -lt 20 ]; do sleep 1; n=$((n + 1)); done
+	done
 	[ -f "$io/$1" ] || { echo "build-image: no $1"; exit 1; }
 	mkdir -p "$here/obj/$2"
 	cp "$io/$1" "$io/$img.map" "$here/obj/$2/"
-	docker run --rm -v "$here":/work/3MAX -w /work/3MAX --entrypoint sh 3max-build \
+	# (an image that fails the check keeps the R4000 mark, and NT's loader
+	# maps such an image into a process without calling its entry point)
+	if ! docker run --rm -v "$here":/work/3MAX -w /work/3MAX --entrypoint sh 3max-build \
 		-c "perl tools/r3kcheck.pl obj/$2/$1 && perl tools/r3kmark.pl obj/$2/$1" \
-		> "$here/obj/$2/$img-r3k.txt" 2>&1 || true
+		> "$here/obj/$2/$img-r3k.txt" 2>&1; then
+		cat "$here/obj/$2/$img-r3k.txt"
+		echo "build-image: $1 fails the R3000 check"
+		exit 1
+	fi
 	grep -F "$1:" "$here/obj/$2/$img-r3k.txt" || cat "$here/obj/$2/$img-r3k.txt"
 	ls -l "$here/obj/$2/$1"
 }
 
-# The image of TARGETTYPE.
+# The image of TARGETTYPE, in out\img\NAME (out\img\NAME.EXT for one of
+# another extension, as linkimg links it)
 if [ -n "$EXT" ]; then
-	out=$SHARE/out/img/$NAME
+	IMG=$NAME
+	case $EXT in dll|exe|sys) ;; *) IMG=$NAME.$EXT ;; esac
+	out=$SHARE/out/img/$IMG
 	mkdir -p "$out"
+	# (the import library stays while the image is made again, for the
+	# steps of build-all.sh that run at once and link with it: a new one is
+	# made in new, and replaces it when the exports changed)
+	rm -rf "$out/new"
 	if [ "$IMPLIB" = 1 ]; then
-		rm -f "$out/$NAME.lib" "$out/$NAME.exp" "$out/def.log" "$out/lib.log"
+		rm -f "$out/def.log" "$out/lib.log" "$out/defp.log" "$out/libp.log"
 	else
-		rm -f "$out/"*
+		for f in "$out/"*; do
+			case ${f##*/} in "$NAME.lib"|"$NAME.key") ;; *) rm -rf "$f" ;; esac
+		done
 	fi
 
 	# TARGETLIB of makefile.def, then the libraries in the order of the rule.
@@ -304,6 +348,8 @@ if [ -n "$EXT" ]; then
 	done
 	res=
 	for r in "$SHARE/out/$NAME/"*.res; do
+		# (not one that TARGETLIBS names: WINHELP's winhelp.res)
+		case "$libs " in *" %L%\\$NAME\\$(basename "$r") "*) continue ;; esac
 		[ "$IMPLIB" != 1 ] && [ -f "$r" ] && res="$res %L%\\$NAME\\$(basename "$r")"
 	done
 	order=
@@ -336,58 +382,95 @@ if [ -n "$EXT" ]; then
 			[ -n "$src" ] || { echo "build-image: $DIR: no export list $b.src or $b.def" >&2; exit 1; }
 		fi
 		pdef=$(printf "%s\n" "${src:-$def}" | tr '\\' /)
+		# (the export list as the share has it, for the key below)
+		hdef=$SHARE/NT/$DIR/$(printf "%s\n" "$def" | tr '\\' /)
+		[ -z "$src" ] || hdef=$out/new/$b.def
 		priv=
 		! LC_ALL=C command grep -aqw PRIVATE "$SHARE/NT/$DIR/$pdef" 2>/dev/null || priv=${NAME}p
 		{
-			cmdhead "$NAME"
-			printf '%s\n' "rem $NAME.cmd -- made by build-image.sh: the import library of $NAME.$EXT"
+			cmdhead "$IMG"
+			printf '%s\n' "rem $IMG.cmd -- made by build-image.sh: the import library of $NAME.$EXT"
 			if [ -n "$src" ]; then
-				printf '%s\n' "cl -nologo -EP -DMIPS=1 -D_MIPS_ -DR3000 -Tc$src > %O%\\$b.def 2> %O%\\def.log"
-				def="%O%\\$b.def"
+				printf '%s\n' "cl -nologo -EP -DMIPS=1 -D_MIPS_ -DR3000 -Tc$src > %O%\\new\\$b.def 2> %O%\\def.log"
+				def="%O%\\new\\$b.def"
 			fi
 			if [ -z "$extra" ]; then
-				printf '%s\n' "C:\\MSDEV\\BIN\\LIB.EXE -nologo -machine:mips -def:$def -out:%O%\\$NAME.lib > %O%\\lib.log 2>&1"
+				printf '%s\n' "%MSDevDir%\\BIN\\LIB.EXE -nologo -machine:mips -def:$def -out:%O%\\new\\$NAME.lib > %O%\\lib.log 2>&1"
 			else
 				# makefile.def: the DLLLIBOBJECTS go in the import library
-				printf '%s\n' "C:\\MSDEV\\BIN\\LIB.EXE -nologo -machine:mips -def:$def -out:%O%\\tmp.lib > %O%\\lib.log 2>&1" \
-					"ren %O%\\tmp.exp $NAME.exp" \
-					"C:\\MSDEV\\BIN\\LIB.EXE -nologo -machine:mips -out:%O%\\$NAME.lib %O%\\tmp.lib$extra >> %O%\\lib.log 2>&1" \
-					"del %O%\\tmp.lib"
+				printf '%s\n' "%MSDevDir%\\BIN\\LIB.EXE -nologo -machine:mips -def:$def -out:%O%\\new\\tmp.lib > %O%\\lib.log 2>&1" \
+					"ren %O%\\new\\tmp.exp $NAME.exp" \
+					"%MSDevDir%\\BIN\\LIB.EXE -nologo -machine:mips -out:%O%\\new\\$NAME.lib %O%\\new\\tmp.lib$extra >> %O%\\lib.log 2>&1" \
+					"del %O%\\new\\tmp.lib"
 			fi
 			if [ -n "$priv" ]; then
 				# the private import library: all the exports
-				printf '%s\n' "cl -nologo -EP -DPRIVATE= -DMIPS=1 -D_MIPS_ -DR3000 -Tc$def > %O%\\$priv.def 2> %O%\\defp.log" \
-					"C:\\MSDEV\\BIN\\LIB.EXE -nologo -machine:mips -def:%O%\\$priv.def -out:%O%\\$priv.lib > %O%\\libp.log 2>&1"
+				printf '%s\n' "cl -nologo -EP -DPRIVATE= -DMIPS=1 -D_MIPS_ -DR3000 -Tc$def > %O%\\new\\$priv.def 2> %O%\\defp.log" \
+					"%MSDevDir%\\BIN\\LIB.EXE -nologo -machine:mips -def:%O%\\new\\$priv.def -out:%O%\\new\\$priv.lib > %O%\\libp.log 2>&1"
 			fi
-		} | sed 's/$/\r/' > "$SHARE/build/$NAME.cmd"
-		vmrun "T:\\NTOS\\3MAX\\build\\$NAME.cmd"
+		} | sed 's/$/\r/' > "$SHARE/build/$IMG.cmd"
+		mkdir -p "$out/new"
+		vmrun "T:\\NTOS\\3MAX\\build\\$IMG.cmd"
+		nw=$out/new
 		i=0
-		while [ ! -f "$out/$NAME.lib" ] && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
+		while [ ! -f "$nw/$NAME.lib" ] && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
 		for f in def lib; do
 			[ ! -f "$out/$f.log" ] || tr -d '\r' < "$out/$f.log" | grep -v '^$' | sed "s/^/$f: /" || true
 		done
-		[ -f "$out/$NAME.lib" ] || { echo "build-image: no $NAME.lib"; exit 1; }
-		# (Docker gets a copy, see build-lib.sh)
-		rm -rf "$here/obj/implib/$NAME"; mkdir -p "$here/obj/implib/$NAME"
-		cp "$out/$NAME.lib" "$here/obj/implib/$NAME/"
-		docker run --rm -v "$here":/work/3MAX -w "/work/3MAX/obj/implib/$NAME" --entrypoint sh 3max-build \
-			-c "perl /work/3MAX/tools/r3kimplib.pl $NAME.lib r3k.lib"
-		cp "$here/obj/implib/$NAME/r3k.lib" "$out/$NAME.lib"
-		exp="%O%\\$NAME.exp"
+		[ -f "$nw/$NAME.lib" ] || { echo "build-image: no $NAME.lib"; exit 1; }
 		if [ -n "$priv" ]; then
 			i=0
-			while [ ! -f "$out/$priv.lib" ] && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
+			while [ ! -f "$nw/$priv.lib" ] && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
 			for f in defp libp; do
 				[ ! -f "$out/$f.log" ] || tr -d '\r' < "$out/$f.log" | grep -v '^$' | sed "s/^/$f: /" || true
 			done
-			[ -f "$out/$priv.lib" ] || { echo "build-image: no $priv.lib"; exit 1; }
-			# (as an image of that name: lib finds it in img/NAMEp)
-			cp "$out/$priv.lib" "$here/obj/implib/$NAME/"
+			[ -f "$nw/$priv.lib" ] || { echo "build-image: no $priv.lib"; exit 1; }
+		fi
+		exp="%O%\\new\\$NAME.exp"
+		# The import libraries are replaced when what they are made from
+		# changed (their key: the export list, the DLLLIBOBJECTS and
+		# r3kimplib.pl), each whole, as the steps that run at once link
+		# with them.
+		key=$( {
+			cat "$hdef"
+			for o in $extra; do
+				cat "$(printf "%s\n" "$o" | sed -e "s,^%L%,$SHARE/out," -e "s,^%NT%,$SHARE/NT," | tr '\\' /)"
+			done
+			echo "$priv"
+			cat "$here/tools/r3kimplib.pl"
+		} | shasum | cut -d' ' -f1)
+		rep=
+		if [ -f "$out/$NAME.lib" ] && [ "$(cat "$out/$NAME.key" 2>/dev/null)" = "$key" ] &&
+		    { [ -z "$priv" ] || [ -f "$SHARE/out/img/$priv/$priv.lib" ]; }; then
+			echo "build-image: $NAME.lib${priv:+ and $priv.lib}: the exports are the same, kept"
+		else
+			rep=1
+			rm -f "$out/$NAME.key"
+			# (Docker gets a copy, see build-lib.sh)
+			rm -rf "$here/obj/implib/$NAME"; mkdir -p "$here/obj/implib/$NAME"
+			cp "$nw/$NAME.lib" "$here/obj/implib/$NAME/"
+			[ -z "$priv" ] || cp "$nw/$priv.lib" "$here/obj/implib/$NAME/"
 			docker run --rm -v "$here":/work/3MAX -w "/work/3MAX/obj/implib/$NAME" --entrypoint sh 3max-build \
-				-c "perl /work/3MAX/tools/r3kimplib.pl $priv.lib r3kp.lib"
-			mkdir -p "$SHARE/out/img/$priv"
-			cp "$here/obj/implib/$NAME/r3kp.lib" "$SHARE/out/img/$priv/$priv.lib"
-			rm -f "$out/$priv.lib"
+				-c "perl /work/3MAX/tools/r3kimplib.pl $NAME.lib r3k.lib${priv:+ && perl /work/3MAX/tools/r3kimplib.pl $priv.lib r3kp.lib}"
+			cp "$here/obj/implib/$NAME/r3k.lib" "$out/$NAME.lib.$$"
+			mv -f "$out/$NAME.lib.$$" "$out/$NAME.lib"
+			if [ -n "$priv" ]; then
+				# (as an image of that name: lib finds it in img/NAMEp)
+				mkdir -p "$SHARE/out/img/$priv"
+				cp "$here/obj/implib/$NAME/r3kp.lib" "$SHARE/out/img/$priv/$priv.lib.$$"
+				mv -f "$SHARE/out/img/$priv/$priv.lib.$$" "$SHARE/out/img/$priv/$priv.lib"
+			fi
+			echo "$key" > "$out/$NAME.key"
+		fi
+		# (and in the obj\mips of a DLL of TARGETPATH obj, where build.exe
+		# puts it: the importers name it there, ..\carddll\obj\*\cards.lib)
+		if [ "$(var TARGETPATH | tr A-Z a-z)" = obj ]; then
+			od=$SHARE/NT/$DIR/obj/mips
+			mkdir -p "$od"
+			if [ -n "$rep" ] || ! cmp -s "$out/$NAME.lib" "$od/$NAME.lib"; then
+				cp "$out/$NAME.lib" "$od/$NAME.lib.$$"
+				mv -f "$od/$NAME.lib.$$" "$od/$NAME.lib"
+			fi
 		fi
 		[ "$IMPLIB" != 1 ] || { echo "build-image: $NAME.lib${priv:+ and $priv.lib} (the import libraries)"; exit 0; }
 	fi
@@ -407,6 +490,17 @@ if [ -n "$EXT" ]; then
 		linkimg "$NAME.$EXT" drivers "$order -align:${align:-0x20} -subsystem:native -debug:notmapped -base:0x10000 -entry:DriverEntry" \
 			"$exp %L%\\$NAME\\*.obj$res$libs" ;;
 	esac
+
+	# An image that makefile.inc copies to another name for binplace
+	# (NTTARGETFILES obj\*\NAME.acm: the codecs of MSACM, by its .dll.acm
+	# rule) goes by that name
+	for t in $ntt; do
+		t=$(basename "$(printf "%s\n" "$t" | tr '\\' /)" | tr A-Z a-z)
+		case $t in "$(printf "%s\n" "$NAME" | tr A-Z a-z)".*) ;; *) continue ;; esac
+		[ "${t##*.}" != lib ] && [ "${t##*.}" != "$EXT" ] || continue
+		mv "$here/obj/system32/$NAME.$EXT" "$here/obj/system32/$t"
+		echo "build-image: obj/system32/$t, the copy of $NAME.$EXT that makefile.inc makes"
+	done
 fi
 
 # The programs of UMAPPL: the object of each is the one build-lib.sh
@@ -414,8 +508,14 @@ fi
 ext=$(var UMAPPLEXT); ext=${ext:-.exe}
 for u in $UMAPPL; do
 	u=$(printf "%s\n" "$u" | tr A-Z a-z)
+	# (a PROGRAM that UMAPPL names too is one image, obj\*\NAME.exe, which
+	# the rule of the program makes: CARDFILE)
+	[ $TYPE != PROGRAM ] || [ "$u$ext" != "$(printf "%s\n" "$NAME.$EXT" | tr A-Z a-z)" ] || continue
+	# (the directory linkimg links it in: out\img\NAME.com for a .com)
+	ui=$u
+	case $ext in .[dD][lL][lL]|.[eE][xX][eE]|.[sS][yY][sS]) ;; *) ui=$u$ext ;; esac
 	if [ "$u" != "$NAME" ] || [ -z "$EXT" ]; then
-		mkdir -p "$SHARE/out/img/$u"; rm -f "$SHARE/out/img/$u/"*
+		mkdir -p "$SHARE/out/img/$ui"; rm -f "$SHARE/out/img/$ui/"*
 	fi
 	po="%L%\\$NAME\\$u.obj"
 	[ ! -f "$SHARE/out/$NAME/um/$u.obj" ] || po="%L%\\$NAME\\um\\$u.obj"

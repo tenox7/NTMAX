@@ -40,7 +40,9 @@
 #  another suffix, by the inference rules) is compiled too, unless SOURCES
 #  has it, into the um directory there: it is not in the library.  Every
 #  object is checked with tools/r3kcheck.pl.  A library of TARGETPATH obj
-#  also goes to DIR\obj\mips, where build.exe puts it, and a library that
+#  also goes to DIR\obj\mips, where build.exe puts it (not the one of a
+#  DLL: build.exe puts the import library there, which build-image.sh
+#  makes), and a library that
 #  NTTARGETFILES names (obj\*\NAME.lib) is made there after it by the rule
 #  of makefile.inc, of the libraries of obj\mips directories (LSA\CRYPT\DLL:
 #  sys003.lib, of its crypt.lib and the engine.lib of ..\ENGINE), and goes
@@ -53,8 +55,17 @@ DIR=${1%/}
 [ -f "$nt35/$DIR/SOURCES" ] || [ -f "$here/nt/$DIR/SOURCES" ] || { echo "build-lib: no $DIR/SOURCES" >&2; exit 1; }
 WDIR=$(printf "%s\n" "$DIR" | tr / '\\')
 mkdir -p "$SHARE/build"
-cp "$here/build/r3000.h" "$SHARE/build/"
-sed 's/$/\r/' "$here/build/mkinc.mak" > "$SHARE/build/mkinc.mak"
+# (each replaced only when it changed, and whole: the steps of build-all.sh
+# that run at once read them)
+cp "$here/build/r3000.h" "$SHARE/build/r3000.h.$$"
+sed 's/$/\r/' "$here/build/mkinc.mak" > "$SHARE/build/mkinc.mak.$$"
+for f in r3000.h mkinc.mak; do
+	if cmp -s "$SHARE/build/$f.$$" "$SHARE/build/$f"; then
+		rm -f "$SHARE/build/$f.$$"
+	else
+		mv -f "$SHARE/build/$f.$$" "$SHARE/build/$f"
+	fi
+done
 
 # Read the SOURCES file with nmake.  The MIPS directories go to the share
 # first: their SOURCES files are read here, before the directories of the
@@ -68,8 +79,31 @@ for i in mips ../mips; do
 	d=$(ntpath "$i")
 	[ -z "$d" ] || ntcopy "$d"
 done
+# The makefiles that the MAKEFILE includes before makefile.def, which set
+# macros the SOURCES file starts from (NET\UI: the rules.mk of the
+# directories above, and the uiglobal.mk of COMMON\SRC with C_DEFINES): the
+# files of their directories.
+for d in $(perl "$here/tools/makeinc.pl" "$nt35" "$here/nt" "$DIR"); do
+	ntcopytop "$d"
+done
+# The files of the tree that the rules of makefile.inc take by their
+# $(BASEDIR) paths (PERFMON: the perfc009.dat of SDKTOOLS\CNTRTEXT\PERFINI,
+# which it copies for binplace): the files of their directories.
+for m in "$here/nt/$DIR" "$nt35/$DIR"; do
+	f=$(ls "$m" 2>/dev/null | grep -ix makefile.inc | head -1)
+	[ -n "$f" ] || continue
+	for p in $(tr -d '\r' < "$m/$f" | LC_ALL=C grep -o -i '\$(BASEDIR)\\[A-Za-z0-9_.\\*]*' | sort -u); do
+		p=\\nt\\${p#*\\}
+		case $p in *\**|*\\) continue ;; esac
+		case ${p##*\\} in *.*) ;; *) continue ;; esac
+		d=$(ntpath "${p%\\*}")
+		[ -z "$d" ] || ntcopytop "$d"
+	done
+	break
+done
+ntcopytop PUBLIC/SDK/LIB	# (placefil.txt, the place file of binplace)
 vars=$(ntsources "$DIR" TARGETNAME TARGETTYPE SOURCES MIPS_SOURCES INCLUDES C_DEFINES NET_C_DEFINES USE_CRTDLL USE_LIBCMT \
-	NTTARGETFILE0 GPSIZE UMAPPL TARGETPATH NTTARGETFILES)
+	NTTARGETFILE0 GPSIZE UMAPPL TARGETPATH NTTARGETFILES TARGETLIBS LINKLIBS UMRES)
 var() { printf '%s\n' "$vars" | sed -n "s/^$1=//p" | sed 's/^ *//; s/ *$//'; }
 NAME=$(var TARGETNAME)
 [ -n "$NAME" ] || { echo "build-lib: $DIR: no TARGETNAME"; printf '%s\n' "$vars"; exit 1; }
@@ -81,9 +115,26 @@ OF=$(printf "%s\n" "$ON" | tr / _)
 SRCS="$(var SOURCES) $(var MIPS_SOURCES)"
 # The library of the objects of SOURCES (makefile.def's TARGET): none for
 # UMAPPL_NOLIB or without sources (only the UMAPPL programs compile, and the
-# objects of SOURCES are the program's UMOBJS or UMLIBS).
+# objects of SOURCES are the program's UMOBJS or UMLIBS), nor for a LIBRARY
+# of .rc sources only, which has no objects (the librarian of makefile.def
+# fails on the .res files, and its rule ignores that: the XLATE directories
+# of NET UI make only their .res).
 MKLIB=1
 [ "$(var TARGETTYPE)" != UMAPPL_NOLIB ] && [ -n "$(printf '%s' "$SRCS" | tr -d ' ')" ] || MKLIB=
+[ "$(var TARGETTYPE)" != LIBRARY ] ||
+	[ -n "$(printf '%s\n' $SRCS | grep -v -i '\.rc$')" ] || MKLIB=
+# A .res file of this directory's obj that TARGETLIBS, LINKLIBS or UMRES
+# names and SOURCES does not make (WINHELP: obj\*\winhelp.res, of its
+# NTTARGETFILE0 winhelp.rc) is made by the .rc.res rule of makefile.def,
+# from the .rc of its name: it compiles as a .rc of SOURCES does.
+for r in $(var TARGETLIBS | sed 's/\*/mips/g') $(var LINKLIBS | sed 's/\*/mips/g') $(var UMRES | sed 's/\*/mips/g'); do
+	case $r in [oO][bB][jJ]\\mips\\*.[rR][eE][sS]) ;; *) continue ;; esac
+	b=$(basename "$(printf "%s\n" "$r" | tr '\\' /)" | sed 's/\.[^.]*$//' | tr A-Z a-z)
+	for s in $SRCS; do
+		[ "$(basename "$(printf "%s\n" "${s%.*}" | tr '\\' /)" | tr A-Z a-z)" != "$b" ] || continue 2
+	done
+	SRCS="$SRCS $b.rc"
+done
 GPSIZE=$(var GPSIZE); GPSIZE=${GPSIZE:-0}	# (makefile.def: 0 unless SOURCES sets it)
 # The defines of the component, ENV_DEFINES of MIPSMK.INC: LIBC_DEFINES of
 # makefile.def, then C_DEFINES and NET_C_DEFINES (-DUNICODE, in most of NET).
@@ -187,13 +238,15 @@ cmd=$SHARE/build/$OF.cmd
 	cat <<-'EOF'
 	set TOP=T:\NTOS\3MAX
 	set NT=%TOP%\NT
-	set PATH=%TOP%\C900\BIN;C:\MSDEV\BIN;%TOP%\host;C:\WINNT\system32
+	set PATH=%TOP%\C900\BIN;%MSDevDir%\BIN;%TOP%\host;%SystemRoot%\system32
 	set INCLUDE=
 	set CPU=/QMR3000
 	set DEFS=-DMIPS=1 -D_MIPS_=1 -DMIPSEL -DNO_EXT_KEYS -DCONDITION_HANDLING=1 -DWIN32_LEAN_AND_MEAN=1 -DNT_UP=1 -DNT_INST=0 -DWIN32=100 -D_NT1X_=100 -DR3000 -D_M_MRX000=3000 -DDBG=0 -DDEVL=1
 	set CFLAGS=-nologo -c /Zel /Zp8 /Gy /W3 -Ox -Gt%GPSIZE% -D__stdcall= -D__cdecl= -D_LANGUAGE_C -DLANGUAGE_C -FI%TOP%\build\r3000.h
 	set AFLAGS=-nologo -c /Zel /Zp8 /Gy /W3 -Gt%GPSIZE% -Ge -O -D_LANGUAGE_ASSEMBLY
-	set MKINC=C:\MSDEV\BIN\NMAKE.EXE -nologo -f %TOP%\build\mkinc.mak MIPS=1 MIPS_R3000=1 ALPHA=0 PPC=0 386=0 i386=0 TARGET_DIRECTORY=mips ASM_SUFFIX=s ASM_INCLUDE_SUFFIX=h TARGET_BRACES=-B TARGET_CPP=cl "TARGET_DEFINES=-DMIPS -D_MIPS_" BASEDIR=%NT% _NTROOT=%NT%
+	set _NTMIPSTREE=%TOP%\out\binaries
+	set BINPLACE_PLACEFILE=%NT%\PUBLIC\SDK\LIB\placefil.txt
+	set MKINC=%MSDevDir%\BIN\NMAKE.EXE -nologo -f %TOP%\build\mkinc.mak MIPS=1 MIPS_R3000=1 ALPHA=0 PPC=0 386=0 i386=0 TARGET_DIRECTORY=mips ASM_SUFFIX=s ASM_INCLUDE_SUFFIX=h TARGET_BRACES=-B TARGET_CPP=cl "TARGET_DEFINES=-DMIPS -D_MIPS_" BASEDIR=%NT% _NTROOT=%NT%
 	EOF
 	printf '%s\n' "set INC=$INC -I%NT%\\PUBLIC\\OAK\\INC -I%NT%\\PUBLIC\\SDK\\INC -I%NT%\\PUBLIC\\SDK\\INC\\CRT"
 	# (MIPSMK.INC: CDEFINES, and MIPS_CDEFINES the same; makefile.def:
@@ -226,9 +279,18 @@ cmd=$SHARE/build/$OF.cmd
 		*)	printf '%s\n' "cl %CFLAGS% %INC% %CPU% %DEFS% $CDEF -Fo%O%\\um\\$o.obj $s > %O%\\um\\$o.log 2>&1" ;;
 		esac
 	done
+	# (the .res files also go to DIR\obj\mips, where build.exe makes them:
+	# the images of other directories take them from there, as two
+	# directories can make .res files of one name: ACLEDIT\XLATE, for the
+	# DLL of ACLEDIT\BIN, and the library of ACLEDIT\ACLEDIT are acledit)
+	case " $SRCS " in *.[rR][cC]\ *)
+		printf '%s\n' "if exist %O%\\*.res copy %O%\\*.res %NT%\\$WDIR\\obj\\mips > nul" ;;
+	esac
 	if [ -n "$MKLIB" ]; then
-		printf '%s\n' 'cd /d %O%' "C:\\MSDEV\\BIN\\LIB.EXE -nologo -machine:mips -out:$NAME.lib *.obj > lib.log 2>&1"
-		[ "$(var TARGETPATH)" != obj ] || printf '%s\n' "copy $NAME.lib %NT%\\$WDIR\\obj\\mips > nul"
+		printf '%s\n' 'cd /d %O%' "%MSDevDir%\\BIN\\LIB.EXE -nologo -machine:mips -out:$NAME.lib *.obj > lib.log 2>&1"
+		case $(var TARGETTYPE) in DYNLINK|EXPORT_DRIVER) ;; *)
+			[ "$(var TARGETPATH)" != obj ] || printf '%s\n' "copy $NAME.lib %NT%\\$WDIR\\obj\\mips > nul" ;;
+		esac
 	fi
 	for t in $LIBTARGETS; do
 		n=$(basename "$(printf "%s\n" "$t" | tr '\\' /)" .lib)
@@ -267,10 +329,16 @@ i=0
 if [ -n "$MKLIB" ]; then
 	while [ ! -f "$out/$NAME.lib" ] && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
 else
-	# (no library: wait for the objects of the programs instead)
+	# (no library: wait for the objects of the programs and the sources
+	# instead)
 	for s in $UMSRCS; do
 		b=$(basename "$(printf "%s\n" "$s" | tr '\\' /)"); o=$(printf "%s\n" "${b%.*}" | tr A-Z a-z)
 		while [ ! -f "$out/um/$o.obj" ] && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
+	done
+	for s in $SRCS; do
+		b=$(basename "$(printf "%s\n" "$s" | tr '\\' /)"); o=$(printf "%s\n" "${b%.*}" | tr A-Z a-z)
+		case $s in *.[rR][cC]) x=res ;; *) x=obj ;; esac
+		while [ ! -f "$out/$o.$x" ] && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
 	done
 fi
 fail=0

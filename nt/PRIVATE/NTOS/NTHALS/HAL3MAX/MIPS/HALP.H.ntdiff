@@ -1,7 +1,9 @@
 #ntdiff PRIVATE/NTOS/NTHALS/HALFXS/MIPS/HALP.H PRIVATE/NTOS/NTHALS/HAL0JENS/ALPHA/JXHALP.H
 #crlf
 =1 1 13
-+    This is the version of the DECstation 5000/200 (KN02, MIPS R3000).
++    This is the version of the DECstation 5000 (MIPS R3000). It is compiled
++    for one system module, with its define: the 5000/200 (KN02_AA), the
++    5000/1xx (KN02_BA) or the 5000/240 (KN03_AA).
 =1 13 21
 +//
 +// The DECstation profiles with the interval clock: decdef.h defines the
@@ -20,30 +22,35 @@
 +//
 +// Define the adapter object structure.
 +//
-+// The KN02 has no system DMA controller. The SCSI controller of the system
-+// module moves the data of a transfer to and from a buffer on the module,
-+// which the processor copies to and from memory: the pages of the buffer
-+// are the map registers of the SCSI channel, and the master adapter object
-+// allocates them. A bus master of a TURBOchannel slot addresses memory with
-+// physical addresses and needs no map registers.
++// The DECstation has no system DMA controller with map registers. The map
++// registers of the SCSI channel are the pages of a buffer that the
++// processor copies the data of a transfer to and from: on the KN02 the
++// buffer of the SCSI controller of the system module, on the KN02-BA and
++// the KN03 a buffer in memory that the SCSI DMA of the IO Control ASIC
++// moves the data to and from. The master adapter object allocates them. A
++// bus master of a TURBOchannel slot addresses memory with physical
++// addresses and needs no map registers.
 =2 52 10
 =2 63 2
 =2 66 3
 =2 76 1
 =2 80 3
 +// Define the largest transfer of a TURBOchannel bus master, in pages, and
-+// the highest physical address the TURBOchannel addresses (a KN02 has at
-+// most 480mb of memory).
++// the highest physical address the TURBOchannel addresses (a system module
++// has at most 480mb of memory).
 +//
 +
 +#define DMA_REQUEST_LIMIT 256
 +#define MAXIMUM_TURBOCHANNEL_ADDRESS 0x1fffffff
 +
++#if defined(KN02_AA)
++
 +//
 +// Define the DMA address register and the buffer of the SCSI controller.
 +// The 53C94 moves the data of a transfer to and from the buffer at the
 +// address of the DMA address register, whose direction bit is set for a
-+// transfer from the buffer to the SCSI bus.
++// transfer from the buffer to the SCSI bus. The pages of the buffer are the
++// map registers of the SCSI channel.
 +//
 +
 +#define SCSI_DMA_ADDRESS ((volatile PULONG)(KSEG1_BASE | (SCSI_PHYSICAL_BASE + 0x40000)))
@@ -51,15 +58,19 @@
 +#define SCSI_BUFFER_SIZE 0x20000
 +#define SCSI_DMA_WRITE 0x80000000
 +
++#define SCSI_MAP_REGISTERS (SCSI_BUFFER_SIZE >> PAGE_SHIFT)
++
 +//
 +// Define the number of the TURBOchannel slots. The option slots are 0 to 2,
 +// the builtin SCSI and network controllers are slots 5 and 6, and the
-+// system devices are slot 7.
++// system devices are slot 7. Each slot has an I/O interrupt of the system
++// control and status register: the vector of a slot is the device vector of
++// its number, and the slots interrupt at DEVICE_LEVEL.
 +//
 +
 +#define TURBOCHANNEL_SLOTS 8
-+#define TURBOCHANNEL_SLOT_SIZE 0x400000
-+#define TURBOCHANNEL_PHYSICAL_BASE 0x1e000000
++#define TURBOCHANNEL_VECTORS DEVICE_VECTORS
++#define TURBOCHANNEL_IRQL DEVICE_LEVEL
 +
 +//
 +// Define the highest vector of the eight I/O interrupts of the system
@@ -68,11 +79,93 @@
 +
 +#define MAXIMUM_IO_VECTOR (DEVICE_VECTORS + TURBOCHANNEL_SLOTS - 1)
 +
++#else
++
++//
++// Define the SCSI DMA of the IO Control ASIC. The ASIC moves the data of a
++// transfer between the SCSI controller and memory a page at a time: the
++// transfer starts at the address of the DMA pointer, and at the end of the
++// page the ASIC loads the DMA pointer from the next DMA pointer. A transfer
++// to memory that ends in the middle of a doubleword leaves the halfwords
++// of the doubleword in the SCSI data registers, their number in the SCSI
++// control register, and the DMA pointer at the doubleword.
++//
++// The map registers of the SCSI channel are the pages of a buffer of
++// contiguous memory below 512mb, which the processor addresses through
++// KSEG1. The data of a transfer is copied to and from the start of the
++// pages that are allocated for it, so that the DMA starts at a doubleword,
++// and the DMA pointer and the next DMA pointer cover a transfer of two
++// pages. The SCSI channel has three map registers, the pages a transfer of
++// two pages spans: the class drivers split a transfer to one page less
++// than the map registers of the channel.
++//
++
++#define SCSI_MAP_REGISTERS 3
++#define SCSI_TRANSFER_PAGES 2
++#define SCSI_CONTROL_HALFWORDS 0x3
++
++//
++// Define the number of the TURBOchannel option slots. The devices of the
++// system module are in the system slot, behind the IO Control ASIC, whose
++// system interrupt register has an interrupt for each of them.
++//
++
++#define TURBOCHANNEL_SLOTS 3
++
++#if defined(KN02_BA)
++
++//
++// The option slots interrupt with int0 to int2 at TURBOCHANNEL_LEVEL, and
++// their vectors follow the vectors of the system interrupt register.
++//
++
++#define TURBOCHANNEL_IRQL TURBOCHANNEL_LEVEL
++#define MAXIMUM_IO_VECTOR (TURBOCHANNEL_VECTORS + TURBOCHANNEL_SLOTS - 1)
++
++//
++// Define the bit of the interrupt of an option slot in the interrupt mask
++// of the processor (int0 is bit 2).
++//
++
++#define TURBOCHANNEL_INTERRUPT(Slot) (1 << (2 + (Slot)))
++
++//
++// Define the memory error registers. The address error register captures
++// the address of a failed memory or I/O access, the memory error register
++// the bytes with a parity error and the kind of the error. A write to the
++// timeout register clears the timeout interrupt, a write to the memory
++// error register the memory error.
++//
++
++#define ADDRESS_ERROR ((volatile PULONG)(KSEG1_BASE | ADDRESS_ERROR_PHYSICAL_BASE))
++#define MEMORY_ERROR ((volatile PULONG)(KSEG1_BASE | MEMORY_ERROR_PHYSICAL_BASE))
++#define TIMEOUT_ERROR ((volatile PULONG)(KSEG1_BASE | TIMEOUT_PHYSICAL_BASE))
++
++#else
++
++//
++// The option slots interrupt through the system interrupt register, at
++// DEVICE_LEVEL, and the highest vector is the vector of its last bit.
++//
++
++#define TURBOCHANNEL_IRQL DEVICE_LEVEL
++#define MAXIMUM_IO_VECTOR (DEVICE_VECTORS + MAXIMUM_NUMBER_OF_INTERRUPTS - 1)
+=1 29 3
++//
++// Define the address of the system interrupt register and the system
++// interrupt mask register of the IO Control ASIC.
++//
++
++#define SYSTEM_INTERRUPT ((volatile PULONG)SYS_INTPEND_REG)
++#define SYSTEM_INTERRUPT_MASK ((volatile PULONG)SYS_INTMASK_REG)
+=1 29 3
 +//
 +// Define the R3000 cache line size. A line of either cache holds one word.
 +//
 +
 +#define R3000_CACHE_LINE_SIZE 4
++
++#if !defined(KN02_BA)
 +
 +//
 +// Define the memory error registers. The error address register captures
@@ -80,11 +173,12 @@
 +// transaction (an ECC error or a timeout), the check syndrome register the
 +// ECC check bits and syndrome of the high and low words of memory, and
 +// whether the error of a word is a single bit error. A write to the error
-+// address register clears it and the memory error interrupt.
++// address register clears it and the memory error interrupt. The memory
++// controller of the KN03 has the registers of the KN02.
 +//
 +
-+#define ERROR_ADDRESS ((volatile PULONG)(KSEG1_BASE | 0x1fd80000))
-+#define CHECK_SYNDROME ((volatile PULONG)(KSEG1_BASE | 0x1fd00000))
++#define ERROR_ADDRESS ((volatile PULONG)(KSEG1_BASE | ERROR_ADDRESS_PHYSICAL_BASE))
++#define CHECK_SYNDROME ((volatile PULONG)(KSEG1_BASE | CHECK_SYNDROME_PHYSICAL_BASE))
 +
 +#define ERROR_ADDRESS_VALID 0x80000000
 +#define ERROR_ADDRESS_ECC 0x10000000
@@ -100,7 +194,7 @@
 +//
 +
 +#define MEMORY_LEVEL 6
-+
+=1 29 3
 +//
 +// Define the interval clock increment. The periodic interrupt of the
 +// realtime clock has one rate.
@@ -121,14 +215,49 @@
 =1 107 15
 +HalpMemoryInterrupt (
 =1 67 4
-=1 156 5
+=1 156 4
++#if defined(KN02_AA)
++
++VOID
 +HalpWriteSystemControl (
-=1 167 8
+=1 67 3
++#else
++
++VOID
++HalpWriteInterruptMask (
+=1 67 4
++HalpWriteSystemSupport (
++    IN ULONG Clear,
++    IN ULONG Set
+=1 151 4
++#if defined(KN02_BA)
++
++VOID
++HalpTurboChannelDispatch (
+=1 67 3
++#endif
+=1 169 4
++// The builtin interrupt enables are the interrupt enable field of the
++// system control and status register on the KN02, the system interrupt
++// mask register of the IO Control ASIC on the KN02-BA and the KN03.
+=1 172 3
++
++#if defined(KN02_AA)
++
 +extern UCHAR HalpBuiltinInterruptEnable;
++
++#else
++
++extern ULONG HalpBuiltinInterruptEnable;
+=1 29 3
 =1 176 2
 +extern LARGE_INTEGER HalpPerformanceCounter;
 =1 182 1
 +extern BOOLEAN HalpProfilingActive;
 =1 183 1
++
++#if defined(KN02_AA)
++
 +extern ULONG HalpSystemControl;
+=1 29 3
 =1 184 3

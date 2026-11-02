@@ -1,36 +1,49 @@
 #!/bin/sh
 #
-#  build-kernel.sh -- link the NT kernel, NTOSKRNL.EXE, and the HAL of the
-#  DECstation 5000/200, HAL.DLL, for the R3000 on the MIPS NT machine
-#  (vm.sh) the way makefile.def links them, from the libraries build-lib.sh
-#  and build-crt.sh made:
+#  build-kernel.sh -- link the NT kernel, NTOSKRNL.EXE, and the HALs of the
+#  DECstation 5000, for the R3000 on the MIPS NT machine (vm.sh) the way
+#  makefile.def links them, from the libraries build-lib.sh and build-crt.sh
+#  made:
 #
 #	the kernel		NTOS\INIT\UP (NTTEST=ntoskrnl): init.lib and
 #				ntoskrnl.res, with the libraries of the other
 #				kernel components (cache config dbgk ex FsRtl
 #				io kd ke lpc mm ntosrtl ob ps raw se vdm),
 #				lsakrnlp.lib and libcntpr.lib
-#	the HAL			NTOS\NTHALS\HAL3MAX (TARGETTYPE=HAL): its
-#				objects and hal.res
+#	the HALs		NTOS\NTHALS\HAL3MAX, HAL3MIN and HAL3MAXP
+#				(TARGETTYPE=HAL): the objects and hal.res of
+#				each, HAL.DLL of the 5000/200 (KN02),
+#				HAL3MIN.DLL of the 5000/1xx (KN02-BA) and
+#				HAL3MAXP.DLL of the 5000/240 (KN03); the
+#				firmware names the HAL of the other system
+#				modules in the OSLOADOPTIONS (HAL=)
 #
 #  As makefile.def and the makefile.inc files do, the export lists come
 #  first (ntoskrnl.src + mipsdef.src and hal.src through the preprocessor),
 #  then the import libraries and export files (lib -def), then the images:
-#  the kernel imports from hal.lib and the HAL from ntoskrnl.lib.  The
-#  thunks of the import libraries are made R3000 code (r3kimplib.pl) before
-#  the images are linked.  The images are checked with r3kcheck.pl.
-#  Output: obj/ntoskrnl.exe, obj/hal.dll and their maps (make-disk.sh puts
-#  them in \winnt\system32).  Logs: T:\NTOS\3MAX\out\ntoskrnl\*.log.
+#  the kernel imports from hal.lib and the HALs from ntoskrnl.lib.  The
+#  HALs export the same routines (hal.src has nothing of a system module),
+#  so one export list makes the export file of each, and the kernel binds
+#  to any of them as hal.dll.  The thunks of the import libraries are made
+#  R3000 code (r3kimplib.pl) before the images are linked.  The images are
+#  checked with r3kcheck.pl.  Output: obj/ntoskrnl.exe, obj/hal.dll,
+#  obj/hal3min.dll, obj/hal3maxp.dll and their maps (make-disk.sh puts the
+#  kernel in \winnt\system32, the HALs beside the OS loader).  Logs:
+#  T:\NTOS\3MAX\out\ntoskrnl\*.log.
 
 set -e
 . "$(dirname "$0")/vm.sh"
 out=$SHARE/out/ntoskrnl
 KLIBS="cache config dbgk ex FsRtl init io kd ke lpc mm ntosrtl ob ps raw se vdm"
+HALS="hal3max hal3min hal3maxp"
 
-for l in init/ntoskrnl.res lsakrnlp/lsakrnlp.lib libcntpr/libcntpr.lib hal3max/hal.res; do
+for l in init/ntoskrnl.res lsakrnlp/lsakrnlp.lib libcntpr/libcntpr.lib; do
 	[ -f "$SHARE/out/$l" ] || { echo "build-kernel: no out/$l (build-lib.sh, build-crt.sh)" >&2; exit 1; }
 done
-for l in $KLIBS hal3max; do
+for l in $HALS; do
+	[ -f "$SHARE/out/$l/hal.res" ] || { echo "build-kernel: no out/$l/hal.res (build-lib.sh)" >&2; exit 1; }
+done
+for l in $KLIBS $HALS; do
 	[ -f "$SHARE/out/$l/$l.lib" ] || { echo "build-kernel: no out/$l/$l.lib (build-lib.sh)" >&2; exit 1; }
 done
 
@@ -45,7 +58,7 @@ ntcopytop PRIVATE/NTOS/NTHALS
 	rem ntoskrnl.cmd -- made by build-kernel.sh: the import libraries of NTOSKRNL.EXE and HAL.DLL
 	set TOP=T:\NTOS\3MAX
 	set NT=%TOP%\NT
-	set PATH=%TOP%\C900\BIN;C:\MSDEV\BIN;C:\WINNT\system32
+	set PATH=%TOP%\C900\BIN;%MSDevDir%\BIN;%SystemRoot%\system32
 	set INCLUDE=
 	set O=%TOP%\out\ntoskrnl
 	set L=%TOP%\out
@@ -55,10 +68,14 @@ ntcopytop PRIVATE/NTOS/NTHALS
 	cd /d %NT%\PRIVATE\NTOS\NTHALS\HAL3MAX
 	cl -nologo -EP -DMIPS=1 -DDECSTATION -DKN02_AA -Tchal.src > %O%\hal.def 2>> %O%\def.log
 	cd /d %O%
-	C:\MSDEV\BIN\LIB.EXE -nologo -machine:mips -def:hal.def -out:hal3max.lib %L%\hal3max\*.obj > lib.log 2>&1
+	%MSDevDir%\BIN\LIB.EXE -nologo -machine:mips -def:hal.def -out:hal3max.lib %L%\hal3max\*.obj > lib.log 2>&1
 	copy hal3max.lib hal.lib > nul
-	C:\MSDEV\BIN\LIB.EXE -nologo -machine:mips -def:ntoskrnl.def -out:ntoskrnl.lib >> lib.log 2>&1
+	%MSDevDir%\BIN\LIB.EXE -nologo -machine:mips -def:ntoskrnl.def -out:ntoskrnl.lib >> lib.log 2>&1
 	EOF
+	for l in $HALS; do
+		[ "$l" = hal3max ] ||
+			printf '%s\n' "%MSDevDir%\\BIN\\LIB.EXE -nologo -machine:mips -def:hal.def -out:$l.lib %L%\\$l\\*.obj >> lib.log 2>&1"
+	done
 } | sed 's/$/\r/' > "$SHARE/build/ntoskrnl.cmd"
 
 # ntoslink.cmd: the images, with the linker options of makefile.def:
@@ -79,11 +96,13 @@ for l in $KLIBS; do klibs="$klibs %L%\\$l\\$l.lib"; done
 	set TOP=T:\NTOS\3MAX
 	set O=%TOP%\out\ntoskrnl
 	set L=%TOP%\out
-	set LNK=C:\MSDEV\BIN\LINK.EXE -nologo -MERGE:.CRT=.data -MERGE:_PAGE=PAGE -MERGE:_TEXT=.text -SECTION:INIT,d -OPT:REF -PDB:NONE -RELEASE -INCREMENTAL:NO -NODEFAULTLIB -IGNORE:4037,4065 -debug:notmapped -debugtype:coff -machine:mips -subsystem:native -miscrdata -force:multiple
+	set LNK=%MSDevDir%\BIN\LINK.EXE -nologo -MERGE:.CRT=.data -MERGE:_PAGE=PAGE -MERGE:_TEXT=.text -SECTION:INIT,d -OPT:REF -PDB:NONE -RELEASE -INCREMENTAL:NO -NODEFAULTLIB -IGNORE:4037,4065 -debug:notmapped -debugtype:coff -machine:mips -subsystem:native -miscrdata -force:multiple
 	cd /d %O%
 	EOF
 	printf '%s\n' "%LNK% -out:ntoskrnl.exe -map:ntoskrnl.map -gpsize:32 -base:0x10000 -entry:KiSystemStartup %L%\\init\\ntoskrnl.res$klibs hal.lib ntoskrnl.exp %L%\\lsakrnlp\\lsakrnlp.lib %L%\\libcntpr\\libcntpr.lib > link.log 2>&1"
-	printf '%s\n' "%LNK% -out:hal3max.dll -map:hal3max.map -base:0x80400000 -dll -entry:HalInitSystem hal3max.exp %L%\\hal3max\\*.obj %L%\\hal3max\\hal.res ntoskrnl.lib %L%\\libcntpr\\libcntpr.lib > linkhal.log 2>&1"
+	for l in $HALS; do
+		printf '%s\n' "%LNK% -out:$l.dll -map:$l.map -base:0x80400000 -dll -entry:HalInitSystem $l.exp %L%\\$l\\*.obj %L%\\$l\\hal.res ntoskrnl.lib %L%\\libcntpr\\libcntpr.lib > link$l.log 2>&1"
+	done
 	printf '%s\n' 'copy hal3max.dll hal.dll > nul'
 } | sed 's/$/\r/' > "$SHARE/build/ntoslink.cmd"
 
@@ -110,19 +129,25 @@ cp "$here/obj/implib/ntos3k.lib" "$out/ntoskrnl.lib"
 vmrun 'T:\NTOS\3MAX\build\ntoslink.cmd'
 
 i=0
-while [ ! -f "$out/linkhal.log" ] && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
-for f in def lib link linkhal; do
+while [ ! -f "$out/linkhal3maxp.log" ] && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
+for f in def lib link linkhal3max linkhal3min linkhal3maxp; do
 	[ ! -f "$out/$f.log" ] || tr -d '\r' < "$out/$f.log" | grep -v '^$' |
 		grep -v 'LNK4006\|LNK4087\|LNK4088' | sed "s/^/$f: /" || true
 done
 [ -f "$out/ntoskrnl.exe" ] || { echo "build-kernel: no ntoskrnl.exe"; exit 1; }
 [ -f "$out/hal.dll" ] || { echo "build-kernel: no hal.dll"; exit 1; }
+for l in hal3min hal3maxp; do
+	[ -f "$out/$l.dll" ] || { echo "build-kernel: no $l.dll"; exit 1; }
+done
 
 mkdir -p "$here/obj"
 cp "$out/ntoskrnl.exe" "$out/ntoskrnl.map" "$here/obj/"
 cp "$out/hal.dll" "$here/obj/hal.dll"
 cp "$out/hal3max.map" "$here/obj/hal.map"
+for l in hal3min hal3maxp; do
+	cp "$out/$l.dll" "$out/$l.map" "$here/obj/"
+done
 docker run --rm -v "$here":/work/3MAX -w /work/3MAX --entrypoint sh 3max-build \
-	-c 'perl tools/r3kcheck.pl obj/ntoskrnl.exe obj/hal.dll' > "$here/obj/kernel-r3k.txt" 2>&1 || true
+	-c 'perl tools/r3kcheck.pl obj/ntoskrnl.exe obj/hal.dll obj/hal3min.dll obj/hal3maxp.dll' > "$here/obj/kernel-r3k.txt" 2>&1 || true
 grep -E '\.(exe|dll):' "$here/obj/kernel-r3k.txt" || cat "$here/obj/kernel-r3k.txt"
-ls -l "$here/obj/ntoskrnl.exe" "$here/obj/hal.dll"
+ls -l "$here/obj/ntoskrnl.exe" "$here/obj/hal.dll" "$here/obj/hal3min.dll" "$here/obj/hal3maxp.dll"

@@ -83,8 +83,8 @@ for c in $comps; do
 done
 o=$SHARE/NT/PRIVATE/CRT32/obj/mips
 mkdir -p "$o"; rm -f "$o"/*
-printf '%s\r\n' '@echo off' 'set PATH=C:\MSDEV\BIN;C:\WINNT\system32' 'cd /d T:\NTOS\3MAX\NT\PRIVATE\CRT32' \
-	"C:\\MSDEV\\BIN\\NMAKE.EXE -nologo -f makefile MIPS=1 386=0 ALPHA=0 CRTLIBTYPE=$TYPE > T:\\NTOS\\3MAX\\out\\$tree\\makefile.log 2>&1" \
+printf '%s\r\n' '@echo off' 'set PATH=%MSDevDir%\BIN;%SystemRoot%\system32' 'cd /d T:\NTOS\3MAX\NT\PRIVATE\CRT32' \
+	"%MSDevDir%\\BIN\\NMAKE.EXE -nologo -f makefile MIPS=1 386=0 ALPHA=0 CRTLIBTYPE=$TYPE > T:\\NTOS\\3MAX\\out\\$tree\\makefile.log 2>&1" \
 	> "$SHARE/build/crt32-$tree.cmd"
 vmrun "T:\\NTOS\\3MAX\\build\\crt32-$tree.cmd"
 i=0
@@ -112,7 +112,7 @@ mkdir -p "$SHARE/out/$final"
 rm -f "$SHARE/out/$final/"*
 {
 	printf '%s\n' '@echo off' "cd /d T:\\NTOS\\3MAX\\out\\$final"
-	printf '%s\n' "C:\\MSDEV\\BIN\\LIB.EXE -nologo -machine:mips -out:$final.lib ..\\$tree\\libc$sfx.lib ..\\conv$sfx\\conv$sfx.lib ..\\tran$sfx\\tran$sfx.lib > lib.log 2>&1"
+	printf '%s\n' "%MSDevDir%\\BIN\\LIB.EXE -nologo -machine:mips -out:$final.lib ..\\$tree\\libc$sfx.lib ..\\conv$sfx\\conv$sfx.lib ..\\tran$sfx\\tran$sfx.lib > lib.log 2>&1"
 	# (RELEASE_OBJECTS, of libc)
 	[ $TYPE != ST ] || printf '%s\n' "for %%f in (binmode commode setargv chkstk) do copy ..\\$tree\\%%f.obj . > nul"
 } | sed 's/$/\r/' > "$SHARE/build/crt32-$final.cmd"

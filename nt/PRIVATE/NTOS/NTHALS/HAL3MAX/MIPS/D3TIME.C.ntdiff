@@ -3,7 +3,7 @@
 =1 1 6
 +    d3time.c
 =1 8 4
-+    the DECstation 5000/200.  The realtime clock is a DS1287 whose registers
++    the DECstation 5000.  The realtime clock is a DS1287 whose registers
 +    are bytes at a stride of four in the system slot of the TURBOchannel.
 =1 13 14
 +#include "decrtc.h"

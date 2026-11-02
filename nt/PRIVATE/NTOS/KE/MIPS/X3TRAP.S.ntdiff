@@ -330,9 +330,17 @@
 =1 1354 73
 +//    t9 - The new PSR with the current interrupt enable set to the
 +//         previous interrupt enable.
-=1 1428 75
+=1 1428 71
++//    The pending interrupts are the ones that the PSR of the exception
++//    enables. A HAL whose devices interrupt the processor directly, without
++//    an interrupt mask of their own, disables the interrupt of a device that
++//    has no driver in the masks of the levels below the level of the device,
++//    where it may stay pending.
+=1 1498 5
 +//    t9 - The PSR of the exception.
-=1 1504 52
+=1 1504 14
++        and     t7,t7,t9                // merge pending and enabled interrupts
+=1 1518 38
 +        and     t9,t9,t2                // clear interrupt mask and enable
 =1 1557 1
 +        or      t9,t9,1 << PSR_IEC      // set interrupt enable

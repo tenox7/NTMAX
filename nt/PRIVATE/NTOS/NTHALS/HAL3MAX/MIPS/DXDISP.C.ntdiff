@@ -3,8 +3,8 @@
 =1 1 6
 +    dxdisp.c
 =1 8 4
-+    for a DECstation 5000/200 (KN02, MIPS R3000) with the color frame buffer
-+    of a TURBOchannel slot (PMAG-BA).
++    for a DECstation 5000 (MIPS R3000) with the color frame buffer of a
++    TURBOchannel slot (PMAG-BA).
 +
 +    The color frame buffer displays 1024 by 864 pixels of eight bits with a
 +    fixed timing. Its Bt459 display controller holds the color map and the

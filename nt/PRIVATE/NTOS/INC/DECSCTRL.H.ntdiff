@@ -1,0 +1,50 @@
+#ntdiff PRIVATE/NTOS/INC/DECSCTRL.H
+=1 1 86
++#elif defined(KN02_CA) || defined(KN02_BA) || defined(KN03_AA)
+=1 88 64
++#if defined(KN02_CA)
+=1 151 79
++#else
++
++//
++//  Define the bits of the System Support Register of the DECstation
++//  5000/1xx and 5000/240: the light emitting diodes and the enables of
++//  the devices of the system slot, and the enables of the DMA channels.
++//
++
++#define SSR_LEDS                    0x000000ff
++#define SSR_LANCE_ENABLE            0x00000100
++#define SSR_SCSI_ENABLE             0x00000200
++#define SSR_RTC_ENABLE              0x00000400
++#define SSR_SCC_ENABLE              0x00000800
++#define SSR_TRANSMIT_DISABLE_1      0x00002000
++#define SSR_TRANSMIT_DISABLE_2      0x00004000
++#define SSR_DIAGNOSTIC_DONE         0x00008000
++#define SSR_LANCE_DMA_ENABLE        0x00010000
++#define SSR_SCSI_DMA_ENABLE         0x00020000
++#define SSR_SCSI_DMA_DIRECTION      0x00040000  // device to memory
++
++//
++//  Define the bits of the System Interrupt Register: the interrupts of
++//  the devices (the low 16 bits, read only, the channels of decdef.h)
++//  and the events of the DMA channels, which writing a zero clears.
++//
++
++#define SIR_LANCE_DMA_READ_ERROR    0x00010000
++#define SIR_SCSI_DMA_READ_ERROR     0x00020000
++#define SIR_SCSI_DMA_OVERRUN        0x00040000
++#define SIR_SCSI_DMA_POINTER_LOAD   0x00080000
++#define SIR_DMA_EVENTS              0xffff0000
+=1 267 3
+=1 230 29
++//  Define the format of a DMA pointer register: the physical address of a
++//  longword shifted left three bits, with bits 29 to 31 of the address in
++//  the low bits.
++//
++
++#define IOCTL_DMA_POINTER(PhysicalAddress) \
++	((((PhysicalAddress) << 3) & ~0x1f) | (((PhysicalAddress) >> 29) & 0x7))
++
++#define IOCTL_DMA_ADDRESS(Pointer) \
++	((((Pointer) >> 3) & 0x1ffffffc) | (((Pointer) & 0x7) << 29))
+=1 257 14

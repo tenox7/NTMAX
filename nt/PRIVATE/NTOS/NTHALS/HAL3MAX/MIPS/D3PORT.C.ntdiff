@@ -3,24 +3,82 @@
 =1 1 6
 +    d3port.c
 =1 8 4
-+    the kernel debugger on a DECstation 5000/200 (KN02, MIPS R3000) and
-+    the kernel debugger on another machine.
++    the kernel debugger on a DECstation 5000 (MIPS R3000) and the kernel
++    debugger on another machine.
 +
-+    The kernel debugger uses line DEBUG_LINE of the DZ multiplexer
-+    (decdef.h). The other lines of the multiplexer are the keyboard, the
-+    mouse, and the console, so the multiplexer is not cleared and only the
-+    debugger line is set up. The registers of the multiplexer are addressed
-+    through KSEG1.
++    The kernel debugger uses serial line DEBUG_LINE (decdef.h), the
++    communications port. On the KN02 the line is a line of the DZ
++    multiplexer, whose other lines are the keyboard, the mouse, and the
++    console, so the multiplexer is not cleared and only the debugger line is
++    set up. On the KN02-BA and the KN03 the line is channel B of SCC 0
++    (decscc.h), whose channel A is the mouse, so the SCC is not reset and
++    only the channel of the debugger line is set up, without interrupts.
++    The DTR and RTS outputs of the line are outputs of channel A, which the
++    debugger sets before the port driver of the serial lines sets up the
++    mouse. The registers are addressed through KSEG1.
 =1 14 14
++
++#if defined(KN02_AA)
++
 +#include "decdz.h"
 +
++#else
++
++#include "decscc.h"
+=1 292 3
 =1 45 11
++
++#if defined(KN02_AA)
 +
 +//
 +// Define the line parameters of the debugger line.
 +//
 +
 +USHORT HalpLineParameters;
++
++#else
++
++//
++// Define the SCC channel of the debugger line and the time constant of its
++// baud rate.
++//
++
++#define DEBUG_SCC_PHYSICAL_BASE \
++    ((SCC_LINE_SCC(DEBUG_LINE) == 0) ? SCC_PHYSICAL_BASE : SCC1_PHYSICAL_BASE)
++
++#define DEBUG_CHANNEL_PHYSICAL_BASE \
++    (DEBUG_SCC_PHYSICAL_BASE + SCC_LINE_OFFSET(DEBUG_LINE))
++
++#define DEBUG_CHANNEL ((PSCC_CHANNEL)(KSEG1_BASE | DEBUG_CHANNEL_PHYSICAL_BASE))
++
++//
++// Define channel A of the SCC of the debugger line, which has the DTR and
++// RTS outputs of the line.
++//
++
++#define DEBUG_CONTROL_CHANNEL \
++    ((PSCC_CHANNEL)(KSEG1_BASE | (DEBUG_SCC_PHYSICAL_BASE + SCC_CHANNEL_A_OFFSET)))
++
++USHORT HalpTimeConstant;
++
++//
++// Define the routines that read and write a register of a channel.
++//
++
++UCHAR
++HalpReadSccRegister (
++    IN PSCC_CHANNEL Channel,
++    IN ULONG Register
++    );
++
++VOID
++HalpWriteSccRegister (
++    IN PSCC_CHANNEL Channel,
++    IN ULONG Register,
++    IN UCHAR Value
++    );
+=1 292 3
++#if defined(KN02_AA)
 +
 =1 86 13
 +    N.B. The receive silo of the multiplexer holds the characters of all
@@ -46,8 +104,40 @@
 +            ((PDZ_RECEIVE_BUFFER)(&DataShort))->OverrunError) {
 =1 169 8
 +
++#else
++
+=1 86 34
++    UCHAR Status;
+=1 122 12
++        // Wait until a character is available in the receive buffer of the
++        // channel.
+=1 135 3
++        if ((HalpReadSccRegister(DEBUG_CHANNEL, SCC_RR0) &
++             SCC_RR0_RECEIVE_AVAILABLE) == 0) {
+=1 140 4
++        // Read the receive condition of the character, then store the input
++        // byte in callers buffer.
++        //
++
++        Status = HalpReadSccRegister(DEBUG_CHANNEL, SCC_RR1);
++        *Input = (UCHAR)(READ_REGISTER_ULONG(&DEBUG_CHANNEL->Data) >> SCC_BYTE_SHIFT);
++        KeStallExecutionProcessor(2);
++
++        //
++        // Return function value as the not of the error indicators. The
++        // error indicators of the channel are latched until they are reset.
++        //
++
++        if ((Status & (SCC_RR1_PARITY_ERROR | SCC_RR1_OVERRUN_ERROR |
++                       SCC_RR1_FRAMING_ERROR)) != 0) {
++            HalpWriteSccRegister(DEBUG_CHANNEL, SCC_WR0, SCC_WR0_ERROR_RESET);
+=1 169 8
+=1 292 3
 =1 178 33
 +    ULONG BaudRate;
++
++#if defined(KN02_AA)
++
 +    USHORT DataShort;
 +    USHORT SpeedCode;
 +
@@ -112,7 +202,72 @@
 +    DataShort = READ_REGISTER_USHORT(&DZ_READ->ControlStatus.Short);
 +    ((PDZ_CONTROL_STATUS)(&DataShort))->MasterScanEnable = 1;
 +    WRITE_REGISTER_USHORT(&DZ_WRITE->ControlStatus.Short, DataShort);
-=1 270 3 -4
++    return TRUE;
++
++#else
++
++    //
++    // Compute the time constant of the baud rate generator of the channel
++    // from the baud rate. The baud rate defaults to 19200, as does a baud
++    // rate the generator cannot make.
++    //
++
+=1 237 1 -4
++    if ((BaudRate < 300) || (BaudRate > 115200)) {
+=1 239 3
++    HalpTimeConstant = (USHORT)SCC_TIME_CONSTANT(BaudRate);
+=1 264 9
++    KdComPortInUse = (PUCHAR)DEBUG_CHANNEL_PHYSICAL_BASE;
++
++    //
++    // Disable the interrupts of the channel, and set eight bit characters
++    // with one stop bit and no parity, with the clock of the channel the
++    // baud rate generator divided by 16.
++    //
++
++    HalpWriteSccRegister(DEBUG_CHANNEL, SCC_WR1, 0);
++    HalpWriteSccRegister(DEBUG_CHANNEL, SCC_WR4,
++                         SCC_WR4_CLOCK_X16 | SCC_WR4_ONE_STOP_BIT);
++
++    HalpWriteSccRegister(DEBUG_CHANNEL, SCC_WR3, SCC_WR3_RECEIVE_8_BITS);
++    HalpWriteSccRegister(DEBUG_CHANNEL, SCC_WR5, SCC_WR5_TRANSMIT_8_BITS);
++
++    //
++    // Set the time constant of the baud rate generator, whose clock is the
++    // clock of the SCC, and start it.
++    //
++
++    HalpWriteSccRegister(DEBUG_CHANNEL, SCC_WR11, SCC_WR11_CLOCKS_BRG);
++    HalpWriteSccRegister(DEBUG_CHANNEL, SCC_WR14, SCC_WR14_BRG_PCLK);
++    HalpWriteSccRegister(DEBUG_CHANNEL, SCC_WR12, (UCHAR)HalpTimeConstant);
++    HalpWriteSccRegister(DEBUG_CHANNEL, SCC_WR13,
++                         (UCHAR)(HalpTimeConstant >> 8));
++
++    HalpWriteSccRegister(DEBUG_CHANNEL, SCC_WR14,
++                         SCC_WR14_BRG_PCLK | SCC_WR14_BRG_ENABLE);
++
++    //
++    // Enable the receiver and the transmitter of the channel.
++    //
++
++    HalpWriteSccRegister(DEBUG_CHANNEL, SCC_WR3,
++                         SCC_WR3_RECEIVE_8_BITS | SCC_WR3_RECEIVE_ENABLE);
++
++    HalpWriteSccRegister(DEBUG_CHANNEL, SCC_WR5,
++                         SCC_WR5_TRANSMIT_8_BITS | SCC_WR5_TRANSMIT_ENABLE);
++
++    //
++    // Set data terminal ready and request to send of the line, the outputs
++    // of channel A. The transmitter of channel A stays disabled.
++    //
++
++    HalpWriteSccRegister(DEBUG_CONTROL_CHANNEL, SCC_WR5,
++                         SCC_WR5_DTR | SCC_WR5_TRANSMIT_8_BITS | SCC_WR5_RTS);
++
++    return TRUE;
+=1 292 3
++}
++
 =1 374 36
 +
 =1 411 37
@@ -121,6 +276,8 @@
 =1 451 7
 +
 =1 459 27
++#if defined(KN02_AA)
++
 +    USHORT DataShort;
 +    USHORT Enable;
 +    USHORT TransmitControl;
@@ -151,6 +308,22 @@
 +    WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitBuffer.Short, (USHORT)Output);
 +    WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitControlWrite.Short, TransmitControl);
 +    return;
++
++#else
++
++    //
++    // Wait for the transmit buffer of the channel to be empty, then transmit
++    // data.
++    //
++
++    while ((HalpReadSccRegister(DEBUG_CHANNEL, SCC_RR0) &
++            SCC_RR0_TRANSMIT_EMPTY) == 0) {
++    }
++
++    WRITE_REGISTER_ULONG(&DEBUG_CHANNEL->Data, (ULONG)Output << SCC_BYTE_SHIFT);
++    KeStallExecutionProcessor(2);
++    return;
+=1 292 3
 +}
 +
 =1 528 12
@@ -161,8 +334,68 @@
 +
 =1 567 12
 +    N.B. This routine performs no function on the DECstation system: the
-+         multiplexer is addressed through KSEG1, and the parameters of the
-+         debugger line are never changed by another component.
++         multiplexer or the SCC is addressed through KSEG1, and the
++         parameters of the debugger line are never changed by another
++         component.
 =1 541 13
 +    return;
 +}
++
++#if !defined(KN02_AA)
++
++UCHAR
++HalpReadSccRegister (
++    IN PSCC_CHANNEL Channel,
++    IN ULONG Register
+=1 90 6
++    This routine reads a read register of a channel of the SCC of the
++    debugger line. A register other than RR0 is selected with a write to the
++    control register of the channel first. The SCC needs time to recover
++    after each access of a register.
+=1 98 3
++    Channel - Supplies a pointer to the registers of the channel.
++
++    Register - Supplies the number of the read register.
+=1 106 3
++    The value of the register.
+=1 115 5
++    UCHAR Value;
++
++    if (Register != SCC_RR0) {
++        WRITE_REGISTER_ULONG(&Channel->Control, Register << SCC_BYTE_SHIFT);
++        KeStallExecutionProcessor(2);
++    }
++
++    Value = (UCHAR)(READ_REGISTER_ULONG(&Channel->Control) >> SCC_BYTE_SHIFT);
++    KeStallExecutionProcessor(2);
++    return Value;
++}
++
++VOID
++HalpWriteSccRegister (
++    IN PSCC_CHANNEL Channel,
++    IN ULONG Register,
++    IN UCHAR Value
+=1 90 6
++    This routine writes a write register of a channel of the SCC of the
++    debugger line. A register other than WR0 is selected with a write to the
++    control register of the channel first. The SCC needs time to recover
++    after each access of a register.
+=1 98 3
++    Channel - Supplies a pointer to the registers of the channel.
++
++    Register - Supplies the number of the write register.
++
++    Value - Supplies the value that is written.
+=1 477 9
++    if (Register != SCC_WR0) {
++        WRITE_REGISTER_ULONG(&Channel->Control, Register << SCC_BYTE_SHIFT);
++        KeStallExecutionProcessor(2);
++    }
++
++    WRITE_REGISTER_ULONG(&Channel->Control, (ULONG)Value << SCC_BYTE_SHIFT);
++    KeStallExecutionProcessor(2);
++    return;
++}
++
++#endif

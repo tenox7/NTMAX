@@ -4,7 +4,7 @@
 +    dxbeep.c
 =1 10 3
 +    This module implements the HAL speaker "beep" routines for a DECstation
-+    5000/200 (KN02, MIPS R3000) system.
++    5000 (MIPS R3000) system.
 =2 13 13
 +
 =3 28 13

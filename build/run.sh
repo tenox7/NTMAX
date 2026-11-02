@@ -16,10 +16,15 @@
 #	build/run.sh elf [FILE]		load an ELF file (obj/hello.elf) with
 #					gxemul's PROM emulation
 #
-#  The serial console (DZ line 3) is this terminal.  T=SECONDS runs without
-#  input and stops after that many seconds (tests).  GXEMUL_OPTS adds gxemul
-#  options: -X = the framebuffer console in a window, -V = start in gxemul's
-#  debugger, -i = trace every instruction.
+#  MODEL=3min runs a DECstation 5000/1xx (3MIN, KN02-BA) and MODEL=3maxplus a
+#  5000/240 (3MAX+, KN03) instead, with gxemul's PROM emulation (disk and
+#  elf), which boots from the SCSI controller of the system slot as "boot
+#  3/rz0" does.  The serial console (line 3: DZ line 3, or channel B of SCC 1)
+#  is this terminal.  T=SECONDS runs without input and stops after that many
+#  seconds (tests).  CD=FILE puts the ISO 9660 image FILE in a CD-ROM drive,
+#  SCSI ID 4 (rz4: NT's D:).  GXEMUL_OPTS adds gxemul options: -X = the
+#  framebuffer console in a window, -V = start in gxemul's debugger, -i =
+#  trace every instruction.
 #
 #  The ROM needs the option ROM of the SCSI controller (rom/pmaz-aa.bin, slot
 #  5) to boot from the disk; without it, "boot 5/rz0" comes back to ">>".
@@ -30,12 +35,19 @@
 set -e
 here=$(cd "$(dirname "$0")/.." && pwd)	# 3MAX
 gxemul=${GXEMUL:-$here/../gxemul/gxemul}
-machine="-e 3max"
+model=${MODEL:-3max}
+case $model in
+3max|3min|3maxplus) ;;
+*)	echo "run.sh: MODEL is 3max (5000/200), 3min (5000/1xx) or 3maxplus (5000/240)" >&2; exit 1 ;;
+esac
+machine="-e $model"
 
 case ${1:-disk} in
-disk)	args="-d ${2:-$here/obj/3max-disk.img}" ;;
+disk)	args="-d ${2:-$here/obj/3max-disk.img}${CD:+ -d c4:$CD}" ;;
 elf)	args="${2:-$here/obj/hello.elf}" ;;
 prom|screen)
+	[ $model = 3max ] ||
+		{ echo "run.sh: $1 runs the ROM of the 5000/200 (MODEL=3max)" >&2; exit 1; }
 	rom=$here/rom
 	[ -f "$rom/kn02-aa.bin" ] ||
 		{ echo "run.sh: no rom/kn02-aa.bin (tools/mkrom.py)" >&2; exit 1; }

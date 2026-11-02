@@ -11,7 +11,9 @@
 #			ldc1/sdc1, traps, sync, sqrt, trunc.w, 64-bit, cache...)
 #	load delay	the instruction after a load (lb..lwr, lwc1, mfc0, mfc1,
 #			cfc1, mtc1) uses the loaded register: the R3000 does not
-#			wait for the load, so it reads the old value
+#			wait for the load, so it reads the old value (an lwl or
+#			lwr into the register may follow a load: the R3000
+#			bypasses the value to it)
 #	FP compare	c.cond directly followed by bc1f/bc1t (the R3000 needs
 #			one instruction between them)
 #	HI/LO		mult, div, mthi or mtlo within two instructions after
@@ -332,9 +334,12 @@ sub check_file {
 				my $hit;
 				if (defined $p->{wr} && grep { $_ == $p->{wr} } @{$q->{rd}}) {
 					$hit = "r$p->{wr}";
-					# lwl/lwr to the same register may follow each other
-					undef $hit if $p->{name} =~ /^lw[lr]$/
-					    && $q->{name} =~ /^lw[lr]$/ && $q->{wr} == $p->{wr};
+					# an lwl/lwr may follow a load to its register: the
+					# R3000 bypasses the loaded value to its merge (not to
+					# its base register)
+					undef $hit if $p->{name} =~ /^l[bhw]/
+					    && $q->{name} =~ /^lw[lr]$/ && $q->{wr} == $p->{wr}
+					    && $q->{rd}[0] != $p->{wr};
 				}
 				$hit = "f$p->{fwr}" if defined $p->{fwr}
 				    && grep { $_ == $p->{fwr} } @{$q->{frd}};

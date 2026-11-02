@@ -1,0 +1,144 @@
+#ntdiff PRIVATE/NTOS/INC/DECDEF.H
+=1 1 48
++//
++// Define the physical base address and the size of the TURBOchannel slots:
++// the option slots (0 to 2), then the slots of the system module (5 SCSI,
++// 6 Ethernet, 7 system).  The error address register holds the address of
++// a failed memory or I/O access until a write clears it, the check
++// syndrome register the syndrome of a memory error.
++//
++
++#define TURBOCHANNEL0_PHYSICAL_BASE  0x1e000000
++#define TURBOCHANNEL_SLOT_SIZE       0x00400000
++#define CHECK_SYNDROME_PHYSICAL_BASE 0x1fd00000
++#define ERROR_ADDRESS_PHYSICAL_BASE  0x1fd80000
+=1 48 122
++//
++// Unique defines to the DECstation 5000/1xx (3MIN).
++//
++
++#elif defined(KN02_BA) // KN02_CA
++
++//
++// Define physical base addresses.  The option slots of the TURBOchannel
++// are 64mb each, the system slot (3) holds the IO Control ASIC and the
++// devices it decodes.
+=1 107 4
++#define TURBOCHANNEL2_PHYSICAL_BASE	0x18000000
++#define TURBOCHANNEL_SLOT_SIZE		0x04000000
+=1 111 4
++#define SCC1_PHYSICAL_BASE		0x1c180000
+=1 122 1
+=1 118 1
++#define SCSI_DMA_PHYSICAL_BASE		0x1c380000
+=1 121 1
++#define VIDEO_PHYSICAL_BASE  TURBOCHANNEL0_PHYSICAL_BASE  // CFB  PMAG-BA
++
++//
++// Define the physical addresses of the memory error register, the address
++// error register, which holds the address of a failed memory or I/O
++// access, and the timeout register, a write to which clears the timeout
++// interrupt.
++//
++
++#define MEMORY_ERROR_PHYSICAL_BASE	0x0c400000
++#define ADDRESS_ERROR_PHYSICAL_BASE	0x0e000004
++#define TIMEOUT_PHYSICAL_BASE		0x0e00000c
++
++//
++// Define DMA device channels, aka the bit of the device in the system
++// interrupt register of the IO Control ASIC.  This also will represent
++// the device interrupt vector.
++//
++
++#define CLOCK_CHANNEL    0x05           // Realtime clock
++#define SCC_CHANNEL      0x06           // SCC 0 (mouse, communications)
++#define SCC1_CHANNEL     0x07           // SCC 1 (keyboard, printer)
+=1 138 1
+=1 137 1
++#define TIMEOUT_CHANNEL  0x0c           // Memory error and timeout
++
++//
++// Define the interrupt pending and interrupt mask registers of the IO
++// Control ASIC.  The ASIC interrupts with int3, the option slots of the
++// TURBOchannel interrupt directly with int0 to int2.
+=1 151 3
++#define SYS_INTMASK_REG   0xbc040120
+=1 155 9
++// Define the vectors of the realtime clock and of the timeout interrupt,
++// which the IO Control ASIC dispatcher calls, and the vector of the first
++// option slot.
++//
++
++#define CLOCK_VECTOR (DEVICE_VECTORS + CLOCK_CHANNEL)
++#define TIMEOUT_VECTOR (DEVICE_VECTORS + TIMEOUT_CHANNEL)
++#define TURBOCHANNEL_VECTORS (DEVICE_VECTORS + MAXIMUM_NUMBER_OF_INTERRUPTS)
+=1 162 8
++//
++// Unique defines to the DECstation 5000/240 (3MAX+).
++//
++
++#elif defined(KN03_AA) // KN02_BA
++
++//
++// Define physical base addresses.  The option slots of the TURBOchannel
++// are 8mb each, the system slot (3) holds the IO Control ASIC, the devices
++// it decodes, and the memory error and system control registers.
++//
++
++#define TURBOCHANNEL0_PHYSICAL_BASE	0x1e000000
++#define TURBOCHANNEL1_PHYSICAL_BASE	0x1e800000
++#define TURBOCHANNEL2_PHYSICAL_BASE	0x1f000000
++#define TURBOCHANNEL_SLOT_SIZE		0x00800000
++#define IOCTL_PHYSICAL_BASE		0x1f840000
++#define ETHERNET_ROM_PHYSICAL_BASE	0x1f880000
++#define ETHERNET_PHYSICAL_BASE		0x1f8c0000
++#define SCC_PHYSICAL_BASE		0x1f900000
++#define SCC1_PHYSICAL_BASE		0x1f980000
++#define RTC_PHYSICAL_BASE		0x1fa00000
++#define ERROR_ADDRESS_PHYSICAL_BASE	0x1fa40000
++#define CHECK_SYNDROME_PHYSICAL_BASE	0x1fa80000
++#define SYSTEM_CSR_PHYSICAL_BASE	0x1fac0000
++#define SCSI_PHYSICAL_BASE		0x1fb00000
++#define SCSI_DMA_PHYSICAL_BASE		0x1fb80000
+=1 121 1
++#define VIDEO_PHYSICAL_BASE  TURBOCHANNEL0_PHYSICAL_BASE  // CFB  PMAG-BA
++
++//
++// Define DMA device channels, aka the bit of the device in the system
++// interrupt register of the IO Control ASIC.  This also will represent
++// the device interrupt vector.
++//
++
++#define SCC_CHANNEL      0x06           // SCC 0 (mouse, communications)
++#define SCC1_CHANNEL     0x07           // SCC 1 (keyboard, printer)
+=1 138 1
+=1 137 1
++#define VIDEO_CHANNEL    0x0b           // Color Frame Buffer in TC0 slot
++#define TURBOCHANNEL_CHANNEL 0x0b       // Option slots 0 to 2
++
++//
++// Define the interrupt pending and interrupt mask registers of the IO
++// Control ASIC.  The ASIC interrupts with int0 for the devices of the
++// system slot and the option slots, the realtime clock with int1 and the
++// memory with int3.
++//
++
++#define SYS_INTPEND_REG   0xbf840110
++#define SYS_INTMASK_REG   0xbf840120
+=1 155 9
++// Define the vector of the first option slot.
++//
++
++#define TURBOCHANNEL_VECTORS (DEVICE_VECTORS + TURBOCHANNEL_CHANNEL)
+=1 162 9
++#endif // KN03_AA
+=1 172 70
++#elif defined(KN02_BA)
++
++#define DEVICE_LEVEL 4                  // Device interrupt level
++#define TURBOCHANNEL_LEVEL 3            // Option slot interrupt level
++
++#elif defined(KN03_AA)
+=1 235 3
+=1 242 43

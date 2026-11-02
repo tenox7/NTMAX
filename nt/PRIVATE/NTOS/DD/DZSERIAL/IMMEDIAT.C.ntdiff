@@ -1,0 +1,9 @@
+#ntdiff PRIVATE/NTOS/DD/SERIAL/IMMEDIAT.C
+#crlf
+=1 1 23
++    The DZ serial driver of the DECstation starts an immediate character by
++    enabling the transmitter of the line: the DZ port driver calls the
++    output service when the line is ready.
+=1 23 478
++            (Extension->Port.EnableTransmit)(Extension->Port.PortContext);
+=1 503 60

@@ -16,7 +16,7 @@
 #	6  the user-mode images; where two of them import from each other,
 #	   the import library of one comes first (IMPLIB=1 build-image.sh:
 #	   advapi32 for rpcrt4, gdi32 for user32, winspool for gdi32,
-#	   netapi32 for NetRap, lsasrv for samsrv)
+#	   netapi32 for NetRap, lsasrv for samsrv, fteng32 for ftui32)
 #	7  the hives and the system disk: make-disk.sh reads KEEP, DISK and
 #	   FORCE as usual; without KEEP=1 the system on the disk starts over
 #	   at the first run
@@ -49,8 +49,9 @@ step() {
 	implib) shift; set -- env IMPLIB=1 sh "$here/build/build-image.sh" "$@" ;;
 	*) s=$1; shift; set -- sh "$here/build/$s" "$@" ;;
 	esac
-	# (rsh reads its standard input: not the rest of this script's)
-	if "$@" < /dev/null > "$f" 2>&1; then
+	# (rsh reads its standard input: not the rest of this script's; a
+	# library some of whose sources failed is a failed step, as an image is)
+	if "$@" < /dev/null > "$f" 2>&1 && ! grep -q '^build-lib: [1-9][0-9]* failed' "$f"; then
 		grep -E '^(build-[a-z0-9]+|make-[a-z]+): |instructions: ' "$f" | sed 's/^/	/' || true
 	else
 		tail -30 "$f"
@@ -87,7 +88,8 @@ step build-crt32.sh ST
 step build-crt32.sh MT
 step build-crt32.sh DLL
 
-# 3. the firmware (the boot library), the OS loader, the kernel and the HAL
+# 3. the firmware (the boot library), the OS loader, the kernel and the HALs
+# (of the 5000/200, the 5000/1xx and the 5000/240)
 for d in RTL/BOOT BOOT/LIB BOOT/BLDR CONFIG/BOOT; do
 	step build-lib.sh PRIVATE/NTOS/$d
 done
@@ -97,15 +99,21 @@ for d in KE MM EX IO CONFIG SE PS RTL FSRTL CACHE OB RAW KD INIT LPC VDM DBGK; d
 done
 step build-lib.sh PRIVATE/LSA/CLIENT/KERNEL
 step build-osloader.sh
-step build-lib.sh PRIVATE/NTOS/NTHALS/HAL3MAX
+for d in HAL3MAX HAL3MIN HAL3MAXP; do
+	step build-lib.sh PRIVATE/NTOS/NTHALS/$d
+done
 step build-kernel.sh
 
-# 4. the drivers (scsidisk links the class library and, as ncr53c9x does,
-# scsiport's import library; pmagba videoprt's)
+# 4. the drivers (scsidisk and scsicdrm link the class library and, as
+# ncr53c9x does, scsiport's import library; pmagba videoprt's; the tape
+# drivers the library of SCSITAPE\CLASS)
 step build-lib.sh PRIVATE/NTOS/DD/CLASS
 images NTOS/DD/SCSIPORT NTOS/DD/SCSIDISK NTOS/MINIPORT/NCR53C94 NTOS/FASTFAT NTOS/NPFS \
-	NTOS/MAILSLOT NTOS/VIDEO/PORT NTOS/VIDEO/PMAGBA NTOS/DD/DZPORT NTOS/DD/LK201 \
-	NTOS/DD/KBDCLASS NTOS/DD/VSXXX NTOS/DD/MOUCLASS
+	NTOS/MAILSLOT NTOS/VIDEO/PORT NTOS/VIDEO/PMAGBA NTOS/DD/DZPORT NTOS/DD/SCCPORT \
+	NTOS/DD/DZSERIAL \
+	NTOS/DD/LK201 NTOS/DD/KBDCLASS NTOS/DD/VSXXX NTOS/DD/MOUCLASS NTOS/DD/SCSICDRM NTOS/CDFS
+step build-lib.sh PRIVATE/NTOS/DD/SCSITAPE/CLASS
+images NTOS/DD/SCSITAPE/4MMDAT NTOS/DD/SCSITAPE/DLTTAPE
 
 # 5. the libraries of the user-mode images (the client libraries of SC and
 # WINREG have the names of the server ones: advapi32 takes them from their
@@ -124,7 +132,8 @@ for d in NTOS/RTL/USER URTL SM/CLIENT WINDOWS/BASE/RTL WINDOWS/WINNLS WINDOWS/WI
 	NET/SVCDLLS/RPL/CLIENT NET/ACCESS LSA/CLIENT/USER WINDOWS/SCREG/WINREG/SERVER NLSECUTL \
 	WINDOWS/SCREG/SC/SVCSLIB WINDOWS/SHELL/USERPRI WINDOWS/PORT1632 SDKTOOLS/ZTOOLS/SRC \
 	WINDOWS/DIAMOND/MSZIP/MDI.NT WINDOWS/DIAMOND/CHUCK/FDI.NT WINDOWS/SHELL/LZ/LIBS \
-	WINDOWS/NETDDE/INCS WINDOWS/NETDDE/SRC/TOOLKIT; do
+	WINDOWS/NETDDE/INCS WINDOWS/NETDDE/SRC/TOOLKIT WINDOWS/MEDIA/MMCNTRLS \
+	WINDOWS/MEDIA/AVI/DRAWDIB WINDOWS/MEDIA/AVI/COMPMAN WINDOWS/MEDIA/AVI/MCIWND; do
 	step build-lib.sh PRIVATE/$d
 done
 
@@ -151,7 +160,56 @@ images NEWSAM/SERVER LSA/SERVER LSA/MSV1_0 LSA/MSPRIVS WINDOWS/SCREG/SC/SERVER/D
 	WINDOWS/SHELL/CONTROL/MAIN WINDOWS/SHELL/CONTROL/CPANEL WINDOWS/SHELL/PROGMAN \
 	WINDOWS/SETUP/SETUPDLL WINDOWS/SHELL/MSCTLS WINDOWS/SHELL/ACCESORY/NOTEPAD \
 	WINDOWS/SHELL/ACCESORY/CALC WINDOWS/SHELL/ACCESORY/CLOCK WINDOWS/SHELL/GAMES/SOL \
-	WINDOWS/EP/WINMINE WINDOWS/SHELL/WINFILE
+	WINDOWS/EP/WINMINE WINDOWS/SHELL/WINFILE WINDOWS/EP/CARDDLL WINDOWS/EP/FREECELL \
+	WINDOWS/SHELL/ACCESORY/SPECHARS WINDOWS/OLE/CLIENT WINDOWS/OLE/SERVER \
+	WINDOWS/SHELL/ACCESORY/CARDFILE WINDOWS/SHELL/ACCESORY/PAINTBRS \
+	WINDOWS/SHELL/ACCESORY/TERMINAL WINDOWS/WINHELP/MVAPI
+step implib PRIVATE/WINDOWS/WINHELP/FTENGINE
+images WINDOWS/WINHELP/FTUI WINDOWS/WINHELP/FTENGINE WINDOWS/WINHELP/WINHELP SDKTOOLS/PERFMON \
+	MVDM/VDMUTILS/PIFEDIT
+# (the codecs of MSACM are .acm files; msacm32.drv, the wave mapper, comes
+# after msacm32.dll, the import library of which has the same name)
+images WINDOWS/MEDIA/WINMM WINDOWS/MEDIA/MMDRV WINDOWS/MEDIA/MCIWAVE WINDOWS/MEDIA/MCISEQ \
+	WINDOWS/MEDIA/MCICDA WINDOWS/MEDIA/SYNTH WINDOWS/MEDIA/MSACM/MSACM \
+	WINDOWS/MEDIA/MSACM/IMAADPCM WINDOWS/MEDIA/MSACM/MSADPCM WINDOWS/MEDIA/MSACM/GSM610 \
+	WINDOWS/MEDIA/MSACM/MSACMMAP WINDOWS/MEDIA/MCIOLE WINDOWS/MEDIA/SNDVOL \
+	WINDOWS/MEDIA/CDPLAYER WINDOWS/MEDIA/AVI/VIDEO WINDOWS/MEDIA/AVI/MSVIDC \
+	WINDOWS/MEDIA/AVI/MSRLE WINDOWS/MEDIA/AVI/MCIAVI32 WINDOWS/MEDIA/MPLAYER2
+# (the utilities: the file system DLLs that fmifs, Disk Administrator,
+# Backup and the command-line tools link; DISKREG and WINTOOLS\LIB are
+# libraries of windisk and ntbackup)
+images UTILS/ULIB/SRC UTILS/UREG/SRC UTILS/IFSUTIL/SRC UTILS/UFAT/SRC UTILS/UHPFS/SRC \
+	UTILS/UNTFS/SRC UTILS/CUFAT/SRC UTILS/CUHPFS UTILS/FMIFS/SRC
+step build-lib.sh PRIVATE/NTOS/DISKREG
+images UTILS/FDISK
+step build-lib.sh PRIVATE/SDKTOOLS/WINTOOLS/LIB
+images SDKTOOLS/WINTOOLS/CLB UTILS/NTBACKUP/SRC UTILS/ATTRIB UTILS/CHCP UTILS/CHKDSK UTILS/COMP \
+	UTILS/DOSKEY UTILS/FC UTILS/FIND UTILS/FINDSTR UTILS/HELP UTILS/LABEL UTILS/FORMAT \
+	UTILS/MODE UTILS/MORE UTILS/RECOVER UTILS/REPLACE UTILS/RESTORE/SRC UTILS/SORT \
+	UTILS/SUBST UTILS/TREE UTILS/XCOPY
+# (the NET UI programs, Event Viewer and User Manager: the libraries of the
+# NET UI toolkit, each PCH directory before its library, then its DLLs;
+# acledit, ntlanman and mprui; the libraries of the admin tools; regedt32
+# imports ntlanman)
+for d in STRING/PCH STRING/STRING COLLECT/PCH COLLECT/COLLECT MISC/FMX MISC/BUFFER MISC/MISC \
+	MISC/TRACE MISC/WINTIME MISC/SYSTEM MISC/FSENUM MISC/HEAP MISC/BASE MISC/ERRMAP BLT/PCH \
+	BLT/BLT BLT/BLTCC APPLIB/PCH APPLIB/APPLIB MNET32/PCH MNET32/MNET32 MNET32/NETSLOW \
+	LMOBJ/PCH LMOBJ/LMOENUM LMOBJ/LMOBJ LMOBJ/LOG PROFILE/PROFILE REG/REG MISC/BIN APPLIB/BIN \
+	LMOBJ/BIN; do
+	step build-lib.sh PRIVATE/NET/UI/COMMON/SRC/$d
+done
+images NET/UI/COMMON/SRC/DLL3/DLL0 NET/UI/COMMON/SRC/DLL3/DLL1 NET/UI/COMMON/SRC/DLL3/DLL2
+for d in ACLEDIT/ACLEDIT ACLEDIT/XLATE SHELL/SHELL SHELL/UTIL SHELL/ENUM SHELLUI/SHARE \
+	SHELLUI/FILE SHELLUI/MISC SHELLUI/XLATE MPR/XLATE; do
+	step build-lib.sh PRIVATE/NET/UI/$d
+done
+images NET/UI/ACLEDIT/BIN NET/UI/SHELL/BIN NET/UI/SHELLUI/BIN NET/UI/MPR/MPR
+for d in COMMON/SRC/ADMINAPP/SETFOCUS COMMON/SRC/ADMINAPP/ADMINAPP COMMON/SRC/ADMINAPP/COLWIDTH \
+	COMMON/SRC/ADMINAPP/BIN EVENTVWR/XLATE USER/XLATE; do
+	step build-lib.sh PRIVATE/NET/UI/ADMIN/$d
+done
+images NET/UI/ADMIN/EVENTVWR/EVENTVWR NET/UI/ADMIN/USER/USER NET/UI/ADMIN/USER/MINIUSER \
+	UTILS/REGEDIT/SRC
 
 # 7. the hives and the system disk
 step make-hives.sh

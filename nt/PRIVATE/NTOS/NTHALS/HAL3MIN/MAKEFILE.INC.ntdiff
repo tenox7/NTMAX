@@ -1,0 +1,46 @@
+#ntdiff PRIVATE/NTOS/NTHALS/HALFXSPC/MAKEFILE.INC
+#crlf
++mips\allstart.c: ..\hal3max\mips\allstart.c
++
++mips\d3clock.s:  ..\hal3max\mips\d3clock.s
++
++mips\d3port.c:   ..\hal3max\mips\d3port.c
++
++mips\d3prof.c:   ..\hal3max\mips\d3prof.c
++
++mips\d3time.c:   ..\hal3max\mips\d3time.c
++
++mips\dxbeep.c:   ..\hal3max\mips\dxbeep.c
++
++mips\dxdisp.c:   ..\hal3max\mips\dxdisp.c
++
++mips\dxdmadsp.s: ..\hal3max\mips\dxdmadsp.s
++
++mips\dxenvirv.c: ..\hal3max\mips\dxenvirv.c
++
++mips\dxflshio.c: ..\hal3max\mips\dxflshio.c
++
++mips\dxhwsup.c:  ..\hal3max\mips\dxhwsup.c
++
++mips\dxreturn.c: ..\hal3max\mips\dxreturn.c
++
++mips\dxsysint.c: ..\hal3max\mips\dxsysint.c
++
++mips\dxusage.c:  ..\hal3max\mips\dxusage.c
++
++mips\x3cache.s:  ..\hal3max\mips\x3cache.s
++
++mips\x3flshbf.s: ..\hal3max\mips\x3flshbf.s
++
++mips\x86bios.c:  ..\hal3max\mips\x86bios.c
++
++mips\xxcalstl.c: ..\hal3max\mips\xxcalstl.c
++
++mips\xxclock.c:  ..\hal3max\mips\xxclock.c
++
++mips\xxidle.s:   ..\hal3max\mips\xxidle.s
++
++mips\xxinitnt.c: ..\hal3max\mips\xxinitnt.c
++
++mips\xxinithl.c: ..\hal3max\mips\xxinithl.c
+=1 52 3

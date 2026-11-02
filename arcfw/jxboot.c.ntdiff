@@ -56,7 +56,28 @@
 +#if defined(DECSTATION)
 +StartChoice:
 +#endif
-=1 439 30
+=1 439 17
++#if defined(DECSTATION)
++
++            //
++            // The OS loader loads the HAL the load options name, hal.dll
++            // when they name none.  If the system module has a HAL of its
++            // own, and the options name none, name it in the options.
++            //
++
++            if ((FwSystem->HalName != NULL) &&
++                (strstr(&OsloadOptions[sizeof("OSLOADOPTIONS=") - 1], "HAL=") == NULL) &&
++                ((strlen(OsloadOptions) + sizeof(" HAL=") + strlen(FwSystem->HalName)) <=
++                 sizeof(OsloadOptions))) {
++                if (OsloadOptions[sizeof("OSLOADOPTIONS=") - 1] != 0) {
++                    strcat(OsloadOptions, " ");
++                }
++
++                strcat(OsloadOptions, "HAL=");
++                strcat(OsloadOptions, FwSystem->HalName);
++            }
+=1 133 3
+=1 456 13
 +#if defined(DECSTATION)
 +
 +            //

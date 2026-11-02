@@ -5,7 +5,7 @@ rem R3000 with C900, every file on its own; objects and logs to ..\out\ke3000
 set TOP=T:\NTOS\3MAX
 set NT=%TOP%\NT
 set O=%TOP%\out\ke3000
-set PATH=%TOP%\C900\BIN;C:\WINNT\system32
+set PATH=%TOP%\C900\BIN;%SystemRoot%\system32
 set INCLUDE=%NT%\PUBLIC\SDK\INC;%NT%\PUBLIC\SDK\INC\CRT
 set DEFS=-DMIPS=1 -D_MIPS_=1 -DMIPSEL -DNO_EXT_KEYS -DCONDITION_HANDLING=1 -DWIN32_LEAN_AND_MEAN=1 -DNT_UP=1 -DNT_INST=0 -DWIN32=100 -D_NT1X_=100 -DDBG=0 -DDEVL=1 -D_NTSYSTEM_ -DR3000 /QMR3000
 set CFLAGS=-nologo -c /Zel /Zp8 /Gy /W3 -Ox -Gt32 -D__stdcall= -D__cdecl= -D_LANGUAGE_C -DLANGUAGE_C

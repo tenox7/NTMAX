@@ -3,8 +3,8 @@
 =1 1 6
 +    d3prof.c
 =1 8 4
-+    and to compute the profiling interval for a DECstation 5000/200 (KN02,
-+    MIPS R3000) system.
++    and to compute the profiling interval for a DECstation 5000 (MIPS R3000)
++    system.
 +
 +    The R3000 has no count and compare registers. The performance counter
 +    counts the interrupts of the interval clock, the periodic interrupt of

@@ -1,0 +1,5 @@
+#ntdiff PRIVATE/NTOS/DD/SERIAL/PRECOMP.H
+#crlf
+=1 1 4
++#include "dzport.h"
+=1 5 3

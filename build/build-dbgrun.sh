@@ -12,8 +12,8 @@ set -e
 mkdir -p "$SHARE/host" "$SHARE/build"
 sed 's/$/\r/' "$here/tools/dbgrun.c" > "$SHARE/build/dbgrun.c"
 rm -f "$SHARE/host/dbgrun.exe"
-printf '%s\r\n' '@echo off' 'set PATH=C:\MSDEV\BIN;C:\WINNT\system32' 'set INCLUDE=C:\MSDEV\INCLUDE' \
-	'set LIB=C:\MSDEV\LIB' 'cd /d T:\NTOS\3MAX\build' \
+printf '%s\r\n' '@echo off' 'set PATH=%MSDevDir%\BIN;%SystemRoot%\system32' 'set INCLUDE=%MSDevDir%\INCLUDE' \
+	'set LIB=%MSDevDir%\LIB' 'cd /d T:\NTOS\3MAX\build' \
 	'cl -nologo -O2 -W3 -Fodbgrun.obj -FeT:\NTOS\3MAX\host\dbgrun.exe dbgrun.c > dbgrun.log 2>&1' \
 	> "$SHARE/build/dbgrun.cmd"
 vmrun 'T:\NTOS\3MAX\build\dbgrun.cmd'

@@ -2,6 +2,7 @@
 =1 1 23
 +#if defined(DECSTATION)
 +#include "jazzvdeo.h"
++#include "decscc.h"
 +#else
 =1 24 3
 +#endif
@@ -88,16 +89,73 @@
 +    return FALSE;
 +}
 +
++ULONG
++FwMakeSerialDescriptor (
++    IN PCM_PARTIAL_RESOURCE_LIST Descriptor,
++    IN ULONG Line
+=1 45 6
++    This routine makes the resource descriptor of a serial line of the
++    system module.  The lines of the DZ of the 5000/200 share the registers
++    and the interrupt of the DZ.  Each line of the 5000/1xx and the 5000/240
++    is a channel of one of their two SCCs (decscc.h): it is described by the
++    registers of the channel and the interrupt of its SCC.
+=1 52 3
++    Descriptor - Supplies a pointer to the descriptor to make.
++
++    Line - Supplies the number of the line: 0 the keyboard, 1 the mouse, 2
++        the communications port and 3 the printer port.
+=1 56 3
++    The size of the descriptor.
+=3 166 4
++    ULONG PortStart;
++    ULONG PortSize;
++    ULONG Vector;
++
++    if (FwSystem->SerialType == FwSerialDz) {
++        PortStart = FwSystem->SerialPhysicalBase[0];
++        PortSize = PAGE_SIZE;
++        Vector = FwSystem->SerialVector[0];
++
++    } else {
++        PortStart = FwSystem->SerialPhysicalBase[SCC_LINE_SCC(Line)] +
++                    SCC_LINE_OFFSET(Line);
++        PortSize = SCC_CHANNEL_SIZE;
++        Vector = FwSystem->SerialVector[SCC_LINE_SCC(Line)];
++    }
++
++    return JzMakeDescriptor (Descriptor,                // Descriptor
++                             TRUE,                      // Port
++                             PortStart,                 // PortStart
++                             PortSize,                  // PortSize
++                             TRUE,                      // Interrupt
++                             0,                         // InterruptFlags
++                             FwSystem->DeviceLevel,     // Level
++                             Vector,                    // Vector
++                             FALSE,                     // Memory
++                             0,                         // MemoryStart
++                             0,                         // MemorySize
++                             FALSE,                     // Dma
++                             0,                         // Channel
++                             FALSE,                     // SecondChannel
++                             FALSE,                     // DeviceSpecificData
++                             0,                         // Size
++                             NULL                       // Data
++                             );
++}
++
 =1 431 11
 +    This routine initializes the configuration entries of the DECstation
-+    5000/200 by calling the firmware add child routine: the system, the
-+    TURBOchannel with the lines of the DZ serial line multiplexer of the
-+    system slot, the network controller of slot 6 and the color frame buffer
-+    of slot 0 if the slot has one, and the SCSI adapter of slot 5.
++    5000 by calling the firmware add child routine: the system, the internal
++    bus of the system module with its serial lines (the lines of the DZ of
++    the 5000/200, the channels of the SCCs of the 5000/1xx and the
++    5000/240), the TURBOchannel with the frame buffer of the first option
++    slot that has one, the network controller, and the SCSI adapter of the
++    system module.  The addresses, interrupts and identifiers are those of
++    the description of the system module (dxsystem.c).
 =1 52 3
 +    Monitor - Not used, the firmware has no video driver.
 +
-+    Floppy, Floppy2 - Not used, the DECstation 5000/200 has no floppy
++    Floppy, Floppy2 - Not used, the DECstation 5000 has no floppy
 +        controller.
 =3 1047 8
 =1 238 1
@@ -107,55 +165,84 @@
 +    JAZZ_G364_CONFIGURATION_DATA VideoData;
 +    ULONG Line;
 +    CHAR ModuleName[TURBOCHANNEL_MODULE_NAME_LENGTH + 1];
++    PCHAR SerialIdentifier;
++    ULONG Slot;
 =1 475 16
-+                    "DEC-KN02"          // Identifier
++                    FwSystem->Identifier // Identifier
 =1 496 7
 +    // Add the internal bus of the system module as a child of root: the
-+    // devices of the system slot of the TURBOchannel, slot 7, which has no
-+    // option ROM.  They interrupt at the device level, with the vector of
-+    // the slot.
++    // devices of the system slot of the TURBOchannel, which has no option
++    // ROM.  They interrupt at the device level, with the vector of the
++    // device.
 =1 504 13
-+                    "KN02-Internal Bus" // Identifier
++                    FwSystem->InternalBus // Identifier
 =1 518 6
 +    //
-+    // Make the descriptor of the DZ, which all its lines share.
-=1 846 5
-+                          DZ_PHYSICAL_BASE,             // PortStart
-=1 852 4
-+                          DZ_VECTOR,                    // Vector
-=1 1069 11
-+    //
-+    // Add the serial ports, lines 2 and 3 of the DZ, as children of the
-+    // internal bus.
++    // Add the serial ports, the communications port (line 2) and the
++    // printer port (line 3), as children of the internal bus.
 +    //
 +
 +    for (Line = 0; Line < 2; Line++) {
++        DescriptorSize = FwMakeSerialDescriptor(Descriptor, Line + 2);
 =1 1231 9 4
 +                        Line,               // Key
 =1 1044 1
 +                        (Line == 0) ? "COM1" : "COM2" // Identifier
 =1 1243 5 4
 =1 288 3
-+    // Add the keyboard controller, line 0 of the DZ, as a child of the
-+    // internal bus, and the keyboard as its child.
-=1 607 4
-=1 1082 3
++    // Add the keyboard controller, line 0, as a child of the internal bus,
++    // and the keyboard as its child.
++    //
++
++    SerialIdentifier = (FwSystem->SerialType == FwSerialDz) ? "DZ" : "SCC";
++    DescriptorSize = FwMakeSerialDescriptor(Descriptor, 0);
+=1 1080 5
 =1 1149 6
-+                    "DZ"                // Identifier
++                    SerialIdentifier    // Identifier
 =1 880 6
 =1 1102 5
 =1 1171 6
 +                    "LK201"             // Identifier
 =1 1114 7
-+    // Add the pointer controller, line 1 of the DZ, as a child of the
-+    // internal bus, and the mouse as its child.
-=1 607 4
-=1 1146 9
-+                    "DZ"                // Identifier
++    // Add the pointer controller, line 1, as a child of the internal bus,
++    // and the mouse as its child.
++    //
++
++    DescriptorSize = FwMakeSerialDescriptor(Descriptor, 1);
+=1 1144 11
++                    SerialIdentifier    // Identifier
 =1 880 6
 =1 1166 11
 +                    "VSXXX"             // Identifier
 =1 1114 7
++    // Add the network controller of the system slot of the 5000/1xx and
++    // the 5000/240 as a child of the internal bus: the registers of the
++    // LANCE, which the IO Control ASIC gives DMA to memory.
++    //
++
++    if (!FwSystem->EthernetTurboChannel) {
++        DescriptorSize =
++            JzMakeDescriptor (Descriptor,               // Descriptor
++                              TRUE,                     // Port
++                              FwSystem->EthernetPhysicalBase, // PortStart
++                              PAGE_SIZE,                // PortSize
++                              TRUE,                     // Interrupt
++                              0,                        // InterruptFlags
++                              FwSystem->DeviceLevel,    // Level
++                              FwSystem->EthernetVector, // Vector
++                              FALSE,                    // Memory
++                              0,                        // MemoryStart
++                              0,                        // MemorySize
++                              FALSE,                    // Dma
++                              0,                        // Channel
++                              FALSE,                    // SecondChannel
++                              FALSE,                    // DeviceSpecificData
++                              0,                        // Size
++                              NULL                      // Data
+=1 1594 13 4
++                        FwSystem->EthernetIdentifier // Identifier
+=1 1243 5 4
+=1 288 3
 +    // Add the TURBOchannel as a child of root. The devices of the
 +    // TURBOchannel are its children, the interrupt of each described
 +    // relative to the bus: the slot of the device is both its level and its
@@ -166,23 +253,36 @@
 +                    "TURBOchannel"      // Identifier
 =1 518 6
 +    //
-+    // Add the network controller of TURBOchannel slot 6 as a child of the
-+    // TURBOchannel.
-=1 846 4
-=1 1410 5
-+                          ETHERNET_CHANNEL,             // Level
-+                          ETHERNET_CHANNEL,             // Vector
-+                          TRUE,                         // Memory
-+                          TURBOCHANNEL_SLOT_PHYSICAL_BASE(ETHERNET_CHANNEL), // MemoryStart
-+                          TURBOCHANNEL_SLOT_SIZE,       // MemorySize
-=1 1072 10
-=1 1598 9
-+                    "PMAD-AA"           // Identifier
-=1 1243 6
++    // Add the network controller of the 5000/200, the PMAD-AA of
++    // TURBOchannel slot 6, as a child of the TURBOchannel.
 +    //
-+    // Add the color frame buffer of TURBOchannel slot 0 as a child of the
-+    // TURBOchannel, if the option ROM of the slot names one.  The firmware
-+    // has no video driver: its console stays on the serial line.
++
++    if (FwSystem->EthernetTurboChannel) {
++        DescriptorSize =
++            JzMakeDescriptor (Descriptor,               // Descriptor
++                              FALSE,                    // Port
++                              0,                        // PortStart
++                              0,                        // PortSize
++                              TRUE,                     // Interrupt
++                              0,                        // InterruptFlags
++                              FwSystem->EthernetVector, // Level
++                              FwSystem->EthernetVector, // Vector
++                              TRUE,                     // Memory
++                              FwSystem->EthernetPhysicalBase, // MemoryStart
++                              FwSystem->TurboChannelSlotSize, // MemorySize
++                              FALSE,                    // Dma
++                              0,                        // Channel
++                              FALSE,                    // SecondChannel
++                              FALSE,                    // DeviceSpecificData
++                              0,                        // Size
++                              NULL                      // Data
+=1 1594 13 4
++                        FwSystem->EthernetIdentifier // Identifier
+=1 1243 5 4
+=1 288 3
++    // Add the color frame buffer of the first option slot whose option ROM
++    // names one as a child of the TURBOchannel.  The firmware has no video
++    // driver: its console stays on the serial line.
 +    //
 +    // The configuration data of the frame buffer is the configuration data
 +    // of the graphics boards of the Jazz firmware, which the miniport driver
@@ -191,19 +291,21 @@
 +    // video memory at the start of the slot.
 +    //
 +
-+    if (FwGetTurboChannelModule(VIDEO_CHANNEL, ModuleName) &&
-+        (strcmp(ModuleName, "PMAG-BA") == 0)) {
-+
++    for (Slot = 0; Slot < FwSystem->TurboChannelSlots; Slot += 1) {
++        if (FwGetTurboChannelModule(Slot, ModuleName) &&
++            (strcmp(ModuleName, "PMAG-BA") == 0)) {
+=3 476 4 -8
++    if (Slot < FwSystem->TurboChannelSlots) {
 =1 635 2 4
-+        VideoData.Irql = VIDEO_CHANNEL;
-+        VideoData.Vector = VIDEO_CHANNEL;
++        VideoData.Irql = (USHORT)Slot;
++        VideoData.Vector = (USHORT)Slot;
 +        VideoData.ControlBase =
-+            TURBOCHANNEL_SLOT_PHYSICAL_BASE(VIDEO_CHANNEL) + CFB_CONTROL_OFFSET;
++            TURBOCHANNEL_SLOT_PHYSICAL_BASE(Slot) + CFB_CONTROL_OFFSET;
 +        VideoData.ControlSize = CFB_CONTROL_SIZE;
 +        VideoData.CursorBase = VideoData.ControlBase;
 +        VideoData.CursorSize = VideoData.ControlSize;
 +        VideoData.FrameBase =
-+            TURBOCHANNEL_SLOT_PHYSICAL_BASE(VIDEO_CHANNEL) + CFB_FRAME_OFFSET;
++            TURBOCHANNEL_SLOT_PHYSICAL_BASE(Slot) + CFB_FRAME_OFFSET;
 +        VideoData.FrameSize = CFB_FRAME_SIZE;
 =1 1033 2
 =1 610 5 4
@@ -216,13 +318,19 @@
 +        if ((ArcAddChild( Level1, &Component, &VideoData )) == NULL) {
 +            return;
 =3 477 4 -8
-+    // Add the scsi adapter of TURBOchannel slot 5 as a child of root.  Its
-+    // memory is the page of the registers of the 53C94; the DMA address
-+    // register and the buffer of the slot belong to the SCSI channel of the
-+    // HAL.
-=1 1402 33
++    // Add the scsi adapter of the system module as a child of root.  Its
++    // memory is the page of the registers of the 53C94; the DMA of the
++    // adapter belongs to the SCSI channel of the HAL.
+=1 1402 13
++                          FwSystem->DeviceLevel,        // Level
++                          FwSystem->ScsiVector,         // Vector
++                          TRUE,                         // Memory
++                          FwSystem->ScsiPhysicalBase,   // MemoryStart
+=1 1419 2
++                          FwSystem->ScsiChannel,        // Channel
+=1 1422 13
 =1 875 4
-+                    "PMAZ-AA"           // Identifier
++                    FwSystem->ScsiIdentifier // Identifier
 =2 521 3
 =1 93 3
 +#else
