@@ -31,6 +31,30 @@ the mouse.
 - Not part of the port: the Spooler (printing, Print Manager) and RAS. The
   hive has no Spooler service.
 
+## DECstation models
+
+| Model | System board, processor | NT on it |
+|---|---|---|
+| DECstation and DECsystem 5000/200 | KN02 (3MAX), R3000 | Works in gxemul; not yet tried on a real machine |
+| DECstation 5000/120, 5000/125, 5000/133 | KN02-BA (3MIN), R3000 | Written, not built or tested yet |
+| DECstation and DECsystem 5000/240, DECsystem 5900 | KN03 (3MAX+), R3000A | Written, not built or tested yet |
+| DECstation 5000/150 | KN04, R4000 | Not supported: the port is built for the R3000 |
+| DECstation and DECsystem 5000/260, DECsystem 5900/260 | KN05, R4400 | Not supported: the port is built for the R3000 |
+| Personal DECstation 5000/20, /25, /33, /50 (MAXINE) | KN02-CA, R3000 (/50: R4000) | Not supported: no drivers for its built-in frame buffer and its ACCESS.bus keyboard and mouse |
+| DECstation 2100 and 3100, DECsystem 3100 | KN01 (PMAX), R2000 | Not supported: no TURBOchannel, no drivers for its SCSI and frame buffer |
+| DECstation 5100, DECsystem 5400, 5500 and 5800 | KN230, KN210, KN220, KN5800 | Not supported: other buses and devices |
+
+- The three supported boards need a PMAG-BA color frame buffer: it is the
+  only display that NT has a driver for here (not yet: the PMAGB-JA (TX)
+  and the other frame buffers).
+- One firmware runs on all three boards: it asks the ROM which board it is
+  on. On an R4000 or R4400 it prints a message and goes back to the ROM's
+  prompt.
+- `MODEL=3min` or `MODEL=3maxplus` makes `build/run.sh` run a 5000/1xx or
+  a 5000/240 in gxemul, with gxemul's PROM emulation (`rom/` has only the
+  5000/200's ROM). gxemul's 5000/240, and a fix to its SCCs, are on the
+  `ntmax-local` branch of [tenox7/gxemul](https://github.com/tenox7/gxemul).
+
 ## No Microsoft code
 
 This repository holds none of the NT source. A file of the port that is an
