@@ -93,15 +93,16 @@
 +// The map registers of the SCSI channel are the pages of a buffer of
 +// contiguous memory below 512mb, which the processor addresses through
 +// KSEG1. The data of a transfer is copied to and from the start of the
-+// pages that are allocated for it, so that the DMA starts at a doubleword,
-+// and the DMA pointer and the next DMA pointer cover a transfer of two
-+// pages. The SCSI channel has three map registers, the pages a transfer of
-+// two pages spans: the class drivers split a transfer to one page less
-+// than the map registers of the channel.
++// buffer, so that the DMA starts at a doubleword, and the DMA pointer and
++// the next DMA pointer cover a transfer of two pages. The SCSI channel has
++// two map registers, the pages of the DMA pointers: a class driver passes
++// a transfer that spans no more pages than the map registers of the
++// channel whole, at most two pages, and splits a longer one into transfers
++// of one page less.
 +//
 +
-+#define SCSI_MAP_REGISTERS 3
 +#define SCSI_TRANSFER_PAGES 2
++#define SCSI_MAP_REGISTERS SCSI_TRANSFER_PAGES
 +#define SCSI_CONTROL_HALFWORDS 0x3
 +
 +//

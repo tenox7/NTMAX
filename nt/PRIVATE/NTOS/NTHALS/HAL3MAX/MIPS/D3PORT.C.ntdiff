@@ -49,7 +49,8 @@
 +#define DEBUG_CHANNEL_PHYSICAL_BASE \
 +    (DEBUG_SCC_PHYSICAL_BASE + SCC_LINE_OFFSET(DEBUG_LINE))
 +
-+#define DEBUG_CHANNEL ((PSCC_CHANNEL)(KSEG1_BASE | DEBUG_CHANNEL_PHYSICAL_BASE))
++#define DEBUG_CHANNEL \
++    ((PSCC_CHANNEL_REGISTERS)(KSEG1_BASE | DEBUG_CHANNEL_PHYSICAL_BASE))
 +
 +//
 +// Define channel A of the SCC of the debugger line, which has the DTR and
@@ -57,7 +58,8 @@
 +//
 +
 +#define DEBUG_CONTROL_CHANNEL \
-+    ((PSCC_CHANNEL)(KSEG1_BASE | (DEBUG_SCC_PHYSICAL_BASE + SCC_CHANNEL_A_OFFSET)))
++    ((PSCC_CHANNEL_REGISTERS)(KSEG1_BASE | \
++                              (DEBUG_SCC_PHYSICAL_BASE + SCC_CHANNEL_A_OFFSET)))
 +
 +USHORT HalpTimeConstant;
 +
@@ -67,13 +69,13 @@
 +
 +UCHAR
 +HalpReadSccRegister (
-+    IN PSCC_CHANNEL Channel,
++    IN PSCC_CHANNEL_REGISTERS Channel,
 +    IN ULONG Register
 +    );
 +
 +VOID
 +HalpWriteSccRegister (
-+    IN PSCC_CHANNEL Channel,
++    IN PSCC_CHANNEL_REGISTERS Channel,
 +    IN ULONG Register,
 +    IN UCHAR Value
 +    );
@@ -345,7 +347,7 @@
 +
 +UCHAR
 +HalpReadSccRegister (
-+    IN PSCC_CHANNEL Channel,
++    IN PSCC_CHANNEL_REGISTERS Channel,
 +    IN ULONG Register
 =1 90 6
 +    This routine reads a read register of a channel of the SCC of the
@@ -373,7 +375,7 @@
 +
 +VOID
 +HalpWriteSccRegister (
-+    IN PSCC_CHANNEL Channel,
++    IN PSCC_CHANNEL_REGISTERS Channel,
 +    IN ULONG Register,
 +    IN UCHAR Value
 =1 90 6

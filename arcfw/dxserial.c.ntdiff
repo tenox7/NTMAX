@@ -44,7 +44,7 @@
 +//
 +
 +#define SCC_LINE_CHANNEL(Line) \
-+    ((PSCC_CHANNEL)(KSEG1_BASE | \
++    ((PSCC_CHANNEL_REGISTERS)(KSEG1_BASE | \
 +                    (FwSystem->SerialPhysicalBase[SCC_LINE_SCC(Line)] + \
 +                     SCC_LINE_OFFSET(Line))))
 +
@@ -79,7 +79,7 @@
 =3 90 3
 +UCHAR
 +SerialReadScc (
-+    IN PSCC_CHANNEL Channel,
++    IN PSCC_CHANNEL_REGISTERS Channel,
 +    IN ULONG Register
 =1 115 6
 +    This routine reads a read register of an SCC channel: a write of the
@@ -106,7 +106,7 @@
 +
 +VOID
 +SerialWriteScc (
-+    IN PSCC_CHANNEL Channel,
++    IN PSCC_CHANNEL_REGISTERS Channel,
 +    IN ULONG Register,
 +    IN UCHAR Value
 =1 115 6
@@ -131,7 +131,7 @@
 =1 111 68
 +    SP    -  Base address of the serial port: the line.
 =1 180 8
-+    PSCC_CHANNEL Channel;
++    PSCC_CHANNEL_REGISTERS Channel;
 +    USHORT DataShort;
 +    USHORT Enable;
 +
@@ -180,7 +180,7 @@
 +    lost, as is a character with a parity or framing error on an SCC.
 =3 2375 11
 +    UCHAR Character;
-+    PSCC_CHANNEL Channel;
++    PSCC_CHANNEL_REGISTERS Channel;
 +    USHORT DataShort;
 +    ULONG Line;
 +    PSERIAL_RECEIVE_BUFFER Receive;
@@ -401,7 +401,7 @@
 =1 366 21
 +    SP -  Supplies the base of the serial port: the line.
 =1 388 7
-+    PSCC_CHANNEL Channel;
++    PSCC_CHANNEL_REGISTERS Channel;
 +    USHORT DataShort;
 =4 842 3
 +    // On an SCC, let the transmitter send the last character the console

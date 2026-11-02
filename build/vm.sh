@@ -141,27 +141,74 @@ vmrun() {
 ntcopy() {
 	for d in "$@"; do
 		ntcurrent all "$d" && continue
-		ntstart
-		mkdir -p "$SHARE/NT/$d"
-		[ ! -d "$nt35/$d" ] ||
-			rsync -a --inplace "$nt35/$d/" "$SHARE/NT/$d/"
-		[ ! -d "$here/nt/$d" ] ||
-			rsync -a --inplace --exclude='*.ntdiff' "$here/nt/$d/" "$SHARE/NT/$d/"
-		ntstamp all "$d"
+		ntlock all "$d"
+		if ! ntcurrent all "$d"; then
+			ntstart
+			mkdir -p "$SHARE/NT/$d"
+			if [ -d "$nt35/$d" ]; then
+				ntexcl all "$d" > "$_l/exclude"
+				rsync -a --inplace --exclude-from="$_l/exclude" "$nt35/$d/" "$SHARE/NT/$d/"
+			fi
+			[ ! -d "$here/nt/$d" ] ||
+				rsync -a --inplace --exclude='*.ntdiff' "$here/nt/$d/" "$SHARE/NT/$d/"
+			ntstamp all "$d"
+		fi
+		ntunlock
 	done
 }
 
 ntcopytop() {
 	for d in "$@"; do
 		ntcurrent top "$d" && continue
-		ntstart
-		mkdir -p "$SHARE/NT/$d"
-		[ ! -d "$nt35/$d" ] ||
-			rsync -a --inplace --exclude='*/' "$nt35/$d/" "$SHARE/NT/$d/"
-		[ ! -d "$here/nt/$d" ] ||
-			rsync -a --inplace --exclude='*/' --exclude='*.ntdiff' "$here/nt/$d/" "$SHARE/NT/$d/"
-		ntstamp top "$d"
+		ntlock top "$d"
+		if ! ntcurrent top "$d"; then
+			ntstart
+			mkdir -p "$SHARE/NT/$d"
+			if [ -d "$nt35/$d" ]; then
+				ntexcl top "$d" > "$_l/exclude"
+				rsync -a --inplace --exclude='*/' --exclude-from="$_l/exclude" "$nt35/$d/" "$SHARE/NT/$d/"
+			fi
+			[ ! -d "$here/nt/$d" ] ||
+				rsync -a --inplace --exclude='*/' --exclude='*.ntdiff' "$here/nt/$d/" "$SHARE/NT/$d/"
+			ntstamp top "$d"
+		fi
+		ntunlock
 	done
+}
+
+# Build steps that run at the same time copy directories at once.  A
+# directory is copied by one step at a time (ntlock all|top DIR, then
+# ntunlock): another step that needs it waits, then finds it current.  The
+# copy from the NT tree leaves out the files that 3MAX/nt has in its place
+# (ntexcl all|top DIR: their paths in the tree, whatever their case, as
+# rsync patterns), so the share never holds the NT version of one of them,
+# not even until the copy from 3MAX/nt: a step that compiles while another
+# copies reads the files it is to read.  (The lock of a step that ended
+# without ntunlock, stopped, goes: the lock holds its process id.)
+ntlock() {
+	mkdir -p "$here/obj/ntcopy"
+	_l=$here/obj/ntcopy/lock-$1-$(printf '%s\n' "$2" | tr / _)
+	until mkdir "$_l" 2>/dev/null; do
+		_p=$(cat "$_l/pid" 2>/dev/null) || _p=
+		if [ -n "$_p" ] && ! kill -0 "$_p" 2>/dev/null; then
+			rm -rf "$_l"
+		else
+			sleep 1
+		fi
+	done
+	echo $$ > "$_l/pid"
+}
+ntunlock() {
+	rm -rf "$_l"
+}
+ntexcl() {
+	[ -d "$here/nt/$2" ] || return 0
+	if [ "$1" = top ]; then _x='-maxdepth 1'; else _x=; fi
+	{
+		(cd "$here/nt/$2" && find . $_x -type f ! -name '*.ntdiff' | sed 's/^/3MAX /')
+		(cd "$nt35/$2" && find . $_x -type f | sed 's/^/NT /')
+	} | awk '$1 == "3MAX" { sub(/^3MAX \.\//, ""); have[tolower($0)] = 1; next }
+		{ sub(/^NT \.\//, ""); if (tolower($0) in have) print "/" $0 }'
 }
 
 # ntcurrent all|top DIR: true if the share's copy of DIR is current (see

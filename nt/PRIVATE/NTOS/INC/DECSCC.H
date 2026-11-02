@@ -26,10 +26,10 @@ Abstract:
 // reads or writes that register.
 //
 
-typedef struct _SCC_CHANNEL {
+typedef struct _SCC_CHANNEL_REGISTERS {
     ULONG Control;
     ULONG Data;
-} SCC_CHANNEL, *PSCC_CHANNEL;
+} SCC_CHANNEL_REGISTERS, *PSCC_CHANNEL_REGISTERS;
 
 #define SCC_CHANNEL_B_OFFSET 0x0
 #define SCC_CHANNEL_A_OFFSET 0x8

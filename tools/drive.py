@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 #
 #  drive.py -- run gxemul as a DECstation 5000/200 on a pseudo terminal and
-#  type at its serial console from a script, for tests.
+#  type at its serial console from a script, for tests (MODEL=3min: a
+#  5000/1xx, MODEL=3maxplus: a 5000/240, as with run.sh).
 #
 #    python3 tools/drive.py [-t SECONDS] [-l LOG] DISK.IMG|MACHINE.json STEP...
 #
@@ -54,7 +55,7 @@ opts = shlex.split(os.environ.get('GXEMUL_OPTS', ''))
 if disk.endswith('.json'):
     cmd = [gxemul] + opts + [disk]
 else:
-    cmd = [gxemul, '-e', '3max'] + opts + ['-d', disk]
+    cmd = [gxemul, '-e', os.environ.get('MODEL', '3max')] + opts + ['-d', disk]
 pid, fd = pty.fork()
 if pid == 0:
     os.execv(cmd[0], cmd)

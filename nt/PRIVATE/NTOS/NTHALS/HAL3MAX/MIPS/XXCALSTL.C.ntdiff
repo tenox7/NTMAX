@@ -4,7 +4,41 @@
 +    the clock and profile interrupts for a DECstation 5000 (MIPS R3000)
 +    system. The interval clock is the periodic interrupt of the realtime
 +    clock, and the profile interrupt is taken at a multiple of it.
-=1 15 145
+=1 15 28
++
++//
++// Define the first and the largest scale factor of the calibration, in
++// iterations of the stall loop per microsecond: the first assumes 50ns
++// per instruction and a five instruction stall loop, the largest covers a
++// processor a thousand times faster, as an emulator runs it.
++//
++
++#define FIRST_STALL_SCALE_FACTOR (1000 / (50 * 5))
++#define MAXIMUM_STALL_SCALE_FACTOR 4096
+=1 43 41
++    // Use a range of scale factors from 50ns per instruction down, assuming
++    // a five instruction stall loop. Each try doubles the scale factor and
++    // so the length of the stall, until the stall spans the three interrupts
++    // of the interval clock that the calibration takes.
++    //
++
++    for (Index = FIRST_STALL_SCALE_FACTOR;
++         Index <= MAXIMUM_STALL_SCALE_FACTOR;
++         Index <<= 1) {
+=1 89 12
++        PCR->StallScaleFactor = Index;
+=1 102 45
++    // Compute the stall execution scale factor. If no try captured both stall
++    // counts, then the interval clock does not interrupt and the scale factor
++    // is one.
++    //
++
++    if (HalpStallEnd > HalpStallStart) {
+=1 150 3 4
++    } else {
++        HalpStallScaleFactor = 0;
++    }
+=1 152 8
 +    // Connect the real clock interrupt routine. The realtime clock of the
 +    // KN02-BA interrupts through the IO Control ASIC, whose dispatcher calls
 +    // the routine of the clock vector.

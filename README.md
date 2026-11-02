@@ -8,13 +8,16 @@ port: the ARC firmware, the R3000 assembler of the kernel, the HAL, the
 frame buffer miniport and the drivers of the serial lines, the keyboard and
 the mouse.
 
-## Status (2026-11-01)
+## Status (2026-11-02)
 
 - NT boots to its graphical shell on the color frame buffer (PMAG-BA,
   1024 by 864, 8 bits a pixel).
 - The genuine developer first run (three boots: `registry.ini`, then
   `winlogon.cmd` in a cmd console, then the logon) ends at the logon dialog
   and Program Manager.
+- The 5000/1xx and the 5000/240 do the same first run to Program Manager,
+  with the keyboard and the mouse on their SCC lines; the programs below
+  are tried on the 5000/200.
 - The LK201 keyboard and the VSXXX mouse work, Ctrl+Alt+Del too.
 - SCSI CD-ROM drives (CDFS: drive D:) and tape drives (DAT, DLT) work, and
   DZ lines 2 and 3 are COM1 and COM2.
@@ -36,8 +39,8 @@ the mouse.
 | Model | System board, processor | NT on it |
 |---|---|---|
 | DECstation and DECsystem 5000/200 | KN02 (3MAX), R3000 | Works in gxemul; not yet tried on a real machine |
-| DECstation 5000/120, 5000/125, 5000/133 | KN02-BA (3MIN), R3000 | Written, not built or tested yet |
-| DECstation and DECsystem 5000/240, DECsystem 5900 | KN03 (3MAX+), R3000A | Written, not built or tested yet |
+| DECstation 5000/120, 5000/125, 5000/133 | KN02-BA (3MIN), R3000 | Works in gxemul (first run, logon, keyboard, mouse); not yet tried on a real machine |
+| DECstation and DECsystem 5000/240, DECsystem 5900 | KN03 (3MAX+), R3000A | Works in gxemul (first run, logon, keyboard, mouse); not yet tried on a real machine |
 | DECstation 5000/150 | KN04, R4000 | Not supported: the port is built for the R3000 |
 | DECstation and DECsystem 5000/260, DECsystem 5900/260 | KN05, R4400 | Not supported: the port is built for the R3000 |
 | Personal DECstation 5000/20, /25, /33, /50 (MAXINE) | KN02-CA, R3000 (/50: R4000) | Not supported: no drivers for its built-in frame buffer and its ACCESS.bus keyboard and mouse |
@@ -50,10 +53,11 @@ the mouse.
 - One firmware runs on all three boards: it asks the ROM which board it is
   on. On an R4000 or R4400 it prints a message and goes back to the ROM's
   prompt.
-- `MODEL=3min` or `MODEL=3maxplus` makes `build/run.sh` run a 5000/1xx or
-  a 5000/240 in gxemul, with gxemul's PROM emulation (`rom/` has only the
-  5000/200's ROM). gxemul's 5000/240, and a fix to its SCCs, are on the
-  `ntmax-local` branch of [tenox7/gxemul](https://github.com/tenox7/gxemul).
+- `MODEL=3min` or `MODEL=3maxplus` makes `build/run.sh` and `tools/drive.py`
+  run a 5000/1xx or a 5000/240 in gxemul, with gxemul's PROM emulation
+  (`rom/` has only the 5000/200's ROM). gxemul's 5000/240, and a fix to its
+  SCCs, are on the `ntmax-local` branch of
+  [tenox7/gxemul](https://github.com/tenox7/gxemul).
 
 ## No Microsoft code
 
@@ -227,15 +231,16 @@ A new disk has no firmware settings: in the firmware's setup run
 buffer must be in slot 0), "Set default environment" (SCSI hard disk 0,
 partition 1) and, in "Manage startup", "Add a boot selection" (the defaults
 give `\os\nt\osloader.exe`). The firmware keeps them on the disk, blocks
-2016-2047.
+2016-2047: a disk moved to another model needs "Set default configuration"
+again, on that model.
 
 Then the developer first run: boot 1 reads `\winnt\registry.ini` and
 restarts (a restart ends gxemul: start it again), boot 2 logs on and runs
 `winlogon.cmd` (a box says that the domain list cannot be made: OK, or it
 goes after two minutes), boot 3 shows the logon: log on as Administrator,
-with no password. The boots after that show the domain list box and then
-"The system could not log you on" (the automatic logon that `winlogon.cmd`
-set up): OK both, and log on.
+with no password. From boot 3 on, the domain list box and then "The system
+could not log you on" (the automatic logon that `winlogon.cmd` set up) come
+before the logon: OK both.
 `make-disk.sh` sets the disk up for a new first run; `KEEP=1 make-disk.sh`
 writes only the programs.
 

@@ -146,7 +146,7 @@ typedef struct _SCC_LINE {
     struct _SCC_EXTENSION *Extension;
     struct _SCC_CONTROLLER *Controller;
     ULONG LineNumber;
-    PSCC_CHANNEL Channel;
+    PSCC_CHANNEL_REGISTERS Channel;
     SCC_PARAMETERS Parameters;
     UCHAR ModemControl;
     BOOLEAN Connected;
@@ -421,13 +421,13 @@ SccpSetBreak(
 
 UCHAR
 SccpReadRegister(
-    IN PSCC_CHANNEL Channel,
+    IN PSCC_CHANNEL_REGISTERS Channel,
     IN ULONG Register
     );
 
 VOID
 SccpWriteRegister(
-    IN PSCC_CHANNEL Channel,
+    IN PSCC_CHANNEL_REGISTERS Channel,
     IN ULONG Register,
     IN UCHAR Value
     );
@@ -637,8 +637,9 @@ Return Value:
         Line->Extension = Extension;
         Line->Controller = Controller;
         Line->LineNumber = Index;
-        Line->Channel = (PSCC_CHANNEL)((PUCHAR)Controller->Registers +
-                                       SCC_LINE_OFFSET(Index));
+        Line->Channel =
+            (PSCC_CHANNEL_REGISTERS)((PUCHAR)Controller->Registers +
+                                     SCC_LINE_OFFSET(Index));
 
         if (SCC_LINE_OFFSET(Index) == SCC_CHANNEL_A_OFFSET) {
             Controller->ChannelA = Line;
@@ -1739,7 +1740,7 @@ Return Value:
 
 {
 
-    PSCC_CHANNEL Channel;
+    PSCC_CHANNEL_REGISTERS Channel;
     UCHAR ReceiveParameters;
     UCHAR TransmitControl;
 
@@ -2270,7 +2271,7 @@ Return Value:
 
 UCHAR
 SccpReadRegister(
-    IN PSCC_CHANNEL Channel,
+    IN PSCC_CHANNEL_REGISTERS Channel,
     IN ULONG Register
     )
 
@@ -2310,7 +2311,7 @@ Return Value:
 
 VOID
 SccpWriteRegister(
-    IN PSCC_CHANNEL Channel,
+    IN PSCC_CHANNEL_REGISTERS Channel,
     IN ULONG Register,
     IN UCHAR Value
     )
