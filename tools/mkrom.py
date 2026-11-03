@@ -17,8 +17,8 @@
 #	pmad-aa.bin	the option ROM of slot 6, the Ethernet interface
 #
 #  An option ROM is one byte wide, dumped one ROM byte per file byte, which
-#  is what gxemul loads.  The ROMs are DEC's: they are not part of 3MAX,
-#  and rom/ is never committed.
+#  is what gxemul loads.  The ROMs are DEC's; rom/ has those of a
+#  5000/200, with the ROM of its PMAG-BA frame buffer (slot 0).
 
 import os, struct, sys, zipfile
 

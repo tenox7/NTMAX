@@ -132,7 +132,7 @@ NTMAX/
            its screen)
   ctest/   tests of the compiler in R3000 mode
   hello/   the first boot test program
-  rom/     the 5000/200's own ROMs, made by tools/mkrom.py (DEC's: not here)
+  rom/     the 5000/200's own ROMs (DEC's), as tools/mkrom.py makes them
   obj/     the build's outputs
 ```
 
