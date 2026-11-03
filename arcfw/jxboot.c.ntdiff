@@ -12,10 +12,19 @@
 +#if defined(DECSTATION)
 +
 +    //
-+    // Get the file the console boot command names, if any.
++    // Get the file the console boot command names, if any.  If the NVRAM
++    // is not valid (the test of FwCheckNvram), there is no boot selection
++    // to start: the menu comes at once, for the setup.
 +    //
 +
-+    FwGetConsoleBootFile(BootFile, sizeof(BootFile));
++    if ((FwConfigurationCheckChecksum() == ESUCCESS) &&
++        (FwEnvironmentCheckChecksum() == ESUCCESS) &&
++        ((FwGetEnvironmentVariable(BootString[SystemPartitionVariable]) != NULL) ||
++         (FwGetEnvironmentVariable("Fwsearchpath") != NULL))) {
++        FwGetConsoleBootFile(BootFile, sizeof(BootFile));
++    } else {
++        BootFile[0] = 0;
++    }
 +#endif
 =1 212 62
 +#if defined(DECSTATION)

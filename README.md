@@ -27,6 +27,10 @@ the mouse.
   video too), CD Player and Volume Control; the three games; Disk
   Administrator, Performance Monitor and Backup. Help and the command-line
   tools of `PRIVATE\UTILS` run too (not built yet: format, mode and more).
+- The programs of `apps/`, as in [pint](https://github.com/tenox7/pint),
+  run: the task manager, twelve more games, ntfetch, and TenoxVNC and
+  Internet Explorer 1.5 (without a network). The tools of
+  `PRIVATE\SDKTOOLS` that build for the R3000 are in `\SDKTOOLS`.
 - The 5000/200 has no sound hardware: Volume Control finds no device.
 - Not yet: networking; Event Viewer, User Manager and Registry Editor (their
   NET UI DLLs do not build yet); ClipBook (it needs the NetDDE services),
@@ -106,18 +110,26 @@ NTMAX/
              PRIVATE\NTOS\DD\LK201       the keyboard port of KBDCLASS
              PRIVATE\NTOS\DD\VSXXX       the pointer port of MOUCLASS
              PRIVATE\LSA\CRYPT\ENGINE    the LSA's encryption engine
-             PUBLIC\OAK\BIN              SYSTEM.INI (the DECstation hive) and
-                                         REGISTRY.INI (the first run's answers)
+             PRIVATE\SDKTOOLS\PERFMTR    perfmtrp.h (an include path)
+             PUBLIC\OAK\BIN              SYSTEM.INI (the DECstation hive),
+                                         SOFTWARE.INI (the task manager in
+                                         Winlogon) and REGISTRY.INI (the first
+                                         run's answers)
            and the R3000 versions of other MIPS files (no MIPS II code: no
            ldc1/sdc1, ll/sc, branch-likely)
+  apps/    programs that are not part of NT, as in pint: taskman (an NT
+           4-style task manager), games (the games of the Games group),
+           tenoxvnc (a VNC viewer), ie (Internet Explorer 1.5), ntfetch
   build/   the build scripts (below), Dockerfile (image 3max-build)
-  tools/   ntdiff.pl; mkdecboot.pl (the DEC boot block); pe2bin.pl (a PE image
-           laid out flat); r3kcheck.pl (code an R3000 cannot run, load-delay
-           mistakes); r3kimplib.pl, r3kmark.pl (R3000 import thunks, image
-           type); makeinc.pl (the makefiles a MAKEFILE includes, copied to
-           the build machine with it); mkrom.py (rom/ from dumps of the ROM
-           chips); dbgrun.c, vmkill.c (programs for the MIPS NT machine);
-           drive.py, vtscreen.py (type at the serial console, show its screen)
+  tools/   ntdiff.pl; grp.pl (the items of Program Manager's groups for \GAMES
+           and \APPS); mkdecboot.pl (the DEC boot block); pe2bin.pl (a PE
+           image laid out flat); r3kcheck.pl (code an R3000 cannot run,
+           load-delay mistakes); r3kimplib.pl, r3kmark.pl (R3000 import
+           thunks, image type); makeinc.pl (the makefiles a MAKEFILE includes,
+           copied to the build machine with it); mkrom.py (rom/ from dumps of
+           the ROM chips); dbgrun.c, vmkill.c (programs for the MIPS NT
+           machine); drive.py, vtscreen.py (type at the serial console, show
+           its screen)
   ctest/   tests of the compiler in R3000 mode
   hello/   the first boot test program
   rom/     the 5000/200's own ROMs, made by tools/mkrom.py (DEC's: not here)
@@ -166,8 +178,12 @@ build/build-arcfw.sh              # the firmware, obj/arcfw.bin
 build/build-osloader.sh           # obj/osloader.exe
 build/build-kernel.sh             # obj/ntoskrnl.exe and obj/hal.dll
 build/build-image.sh DIR          # the driver, DLL or programs of DIR
+DEST=games build/build-image.sh DIR  # the same into obj/games (\GAMES), apps or sdktools
+UMTEST=1 build/build-image.sh DIR # also the test programs of UMTEST (RANDOM)
 build/make-hives.sh               # obj/hives: SYSTEM, SOFTWARE, DEFAULT
 build/make-disk.sh                # obj/3max-disk.img (KEEP=1 keeps NT's state)
+build/decstation-image.sh         # obj/ntmax-decstation.tar.gz: a new disk for real machines
+IMG=DISK build/portable-gxemul-image.sh  # obj/ntmax-gxemul.tar.gz: gxemul for macOS, Linux, Windows + DISK
 ```
 
 The kernel links the libraries of `PRIVATE/NTOS` (KE, MM, EX, IO, ...) and
@@ -209,6 +225,11 @@ that `build-image.sh` builds them from:
 | attrib, chcp, chkdsk, comp, doskey, fc, find, findstr, help, label, format, mode, more, recover, replace, restore, sort, subst, tree, xcopy | `PRIVATE/UTILS/`NAME (`RESTORE/SRC`) |
 | netui0, netui1, netui2, acledit, ntlanman, ntlanui, mprui | `PRIVATE/NET/UI/COMMON/SRC/DLL3/DLL0`, `DLL3/DLL1`, `DLL3/DLL2`, `NET/UI/ACLEDIT/BIN`, `UI/SHELL/BIN`, `UI/SHELLUI/BIN`, `UI/MPR/MPR` |
 | eventvwr, usrmgr, musrmgr, regedt32 | `PRIVATE/NET/UI/ADMIN/EVENTVWR/EVENTVWR`, `ADMIN/USER/USER`, `ADMIN/USER/MINIUSER`, `PRIVATE/UTILS/REGEDIT/SRC` |
+| taskman | `APPS/taskman` (`apps/taskman`) |
+| the games, in `\GAMES` (`DEST=games`) | `APPS/games/`NAME |
+| wsock32 (with the libraries of `LIBUEMUL`, `SOCKREG`, `SOCKUTIL`) | `PRIVATE/NET/SOCKETS/WINSOCK` |
+| iexplore (with the libraries of `APPS/ie/shared`, `win32`, `bearssl`, `basic`), tenoxvnc, ntfetch, in `\APPS` (`DEST=apps`) | `APPS/ie/make`, `APPS/tenoxvnc/win32`, `APPS/ntfetch` |
+| the SDK tools, in `\SDKTOOLS` (`DEST=sdktools`) | `PRIVATE/SDKTOOLS/`... (`build-all.sh`, step 8) |
 
 Every object and image goes through `tools/r3kcheck.pl`: the compiler in
 R3000 mode still lets some MIPS II code through.
@@ -232,7 +253,9 @@ buffer must be in slot 0), "Set default environment" (SCSI hard disk 0,
 partition 1) and, in "Manage startup", "Add a boot selection" (the defaults
 give `\os\nt\osloader.exe`). The firmware keeps them on the disk, blocks
 2016-2047: a disk moved to another model needs "Set default configuration"
-again, on that model.
+again, on that model. The ROM's boot driver writes those blocks, so while NT
+runs (its SCSI driver owns the controller) the firmware keeps NT's changes
+to the environment in memory, and writes them when NT restarts.
 
 Then the developer first run: boot 1 reads `\winnt\registry.ini` and
 restarts (a restart ends gxemul: start it again), boot 2 logs on and runs
@@ -246,7 +269,11 @@ writes only the programs.
 
 At the ROM's `>>` prompt, `boot 5/rz0` starts the firmware;
 `boot 5/rz0/osloader` starts that boot selection at once. With gxemul's own
-PROM, `GXEMUL_OPTS="-X -j osloader"` does the same.
+PROM, `GXEMUL_OPTS="-X -j osloader"` does the same. NT restarts through the
+firmware's reboot routine, and the ROM then boots what its `boot` variable
+names: after `setenv boot 5/rz0/osloader`, NT's restarts start NT again,
+and `boot` alone starts it (with `setenv haltaction b`, also at power-on).
+With no `boot` variable, the ROM stops at `>>`.
 
 The keyboard is an LK201, which has no Esc key: in NT, F11 is Esc, as on
 an LK201 (the Esc key of the Mac types Ctrl+[).
@@ -255,6 +282,60 @@ The 5000/200's ROM sets the clock's year to 72 when it is not 72 or 73, so
 the HAL and the firmware keep the year in byte 63 of the clock's RAM, as
 Linux does (gxemul sets it from the Mac's clock). On a real machine, set
 the date once in NT.
+
+## Task Manager
+
+Control+F11 (Ctrl+Esc: F11 is the LK201's Esc), or a double-click on the
+desktop, opens an NT 4-style task manager (`apps/taskman`, TASKMAN.EXE) in
+place of Program Manager's Task List: Applications (Switch To, End Task),
+Processes (End Process, Set Priority, more columns under View) and
+Performance (CPU and memory history). The hive names it in
+`Winlogon\Taskman` (`SOFTWARE.INI`); unchecking its Options > Replace Task
+List brings the Task List back at the next logon.
+
+## Games
+
+Program Manager's Games group has, beside Solitaire, Minesweeper and
+FreeCell, the games of `apps/games`, in `\GAMES`: 2048, Breakout, Bubble
+Breaker, Moon Lander, Missile Command, Snake (NTSNAKE.EXE), Tankz, NT
+Rigue, RISCque, Sokoban, RISCoban and WiNTown, a port of Micropolis. They
+were written for NT 4 and changed to the API of NT 3.5. The R3000 at 25 MHz
+is slow for the ones that draw the whole screen: NT Rigue takes half a
+minute to show its first picture. WiNTown and the Micropolis simulator are
+under the GPL 3.0 with Electronic Arts' additional terms
+(`apps/games/wintown/LICENSE`); the other games are public domain.
+
+## ntfetch
+
+`\APPS\NTFETCH.EXE` (ntfetch in the Main group) is ntfetch (`apps/ntfetch`,
+from github.com/tenox7/ntfetch): the system at a glance, in one window in
+the style of WinMSD, with an R3000 chip; `ntfetch --text > FILE` writes it
+as text.
+
+## VNC viewer and Internet Explorer
+
+`\APPS\TENOXVNC.EXE` (TenoxVNC in the Main group) is the Win32 build of
+TenoxVNC (`apps/tenoxvnc`, from github.com/tenox7/tenoxvnc), a VNC viewer.
+Run without a server, it asks for one (`host`, `host:display` or
+`host::port`), with the password, encoding and colors; F8 opens its menu.
+It is under the GPL 2.0 (`apps/tenoxvnc/LICENCE.TXT`), its zlib and IJG
+JPEG decoders under their own terms (`LICENSE.zlib`, `README.jpeg`).
+
+`\APPS\IEXPLORE.EXE` (Internet Explorer in the Main group) is Internet
+Explorer 1.5 (`apps/ie`, with BearSSL for HTTPS).
+
+Both import `wsock32.dll`, which is built for them, but the port has no
+network yet: no network adapter driver and no TCP/IP. Until then, Internet
+Explorer shows local folders (`iexplore c:\apps`), and TenoxVNC cannot reach
+a server.
+
+## SDK tools
+
+The tools of the NT source's `PRIVATE\SDKTOOLS` that build for the R3000
+are in `\SDKTOOLS` (step 8 of `build-all.sh`), not on the PATH: the tools
+of pint's `\SDKTOOLS`, with the SLM commands as copies of `execslm.exe` and
+the templates of flex and yacc (`skeleton.flx`, `yypars.c`). SLEEP is in
+system32.
 
 ## Limits of gxemul
 

@@ -23,6 +23,9 @@
 #				(the R3000 and DECstation versions of NT files,
 #				and new files) go over them (a directory of
 #				new files only, such as a new HAL, is in 3MAX/nt only)
+#				(DIR APPS/... is a directory of 3MAX/apps, the
+#				programs of other projects built with the system,
+#				which the tree does not have: ovl)
 #  ntcopytop DIR...		the same for the files of the directories only, not
 #				their subdirectories
 #				(a directory is copied again only when a file of
@@ -53,6 +56,18 @@ SHARE=${SHARE:-/Volumes/NTOS/3MAX}
 RSH=${RSH:-$HOME/go/bin/rsh}
 
 [ -d "$SHARE" ] || { echo "vm.sh: $SHARE is not mounted" >&2; exit 1; }
+
+# ovl DIR: the directory of 3MAX with the files that go over the tree's DIR
+# (DIR from the top of the tree): 3MAX/nt/DIR, and for APPS (the programs of
+# other projects that the system is built with, which the tree does not
+# have: APPS/GAMES/2048) 3MAX/apps, which the share has as %NT%\APPS
+ovl() {
+	case $1 in
+	[aA][pP][pP][sS]) printf '%s\n' "$here/apps" ;;
+	[aA][pP][pP][sS]/*) printf '%s\n' "$here/apps/${1#*/}" ;;
+	*) printf '%s\n' "$here/nt/$1" ;;
+	esac
+}
 
 # The files of 3MAX that are NT files with R3000 and DECstation changes are
 # kept as edit scripts (FILE.ntdiff) over the NT tree: write the ones that
@@ -139,38 +154,38 @@ vmrun() {
 }
 
 ntcopy() {
-	for d in "$@"; do
-		ntcurrent all "$d" && continue
-		ntlock all "$d"
-		if ! ntcurrent all "$d"; then
+	for _d in "$@"; do
+		ntcurrent all "$_d" && continue
+		ntlock all "$_d"
+		if ! ntcurrent all "$_d"; then
 			ntstart
-			mkdir -p "$SHARE/NT/$d"
-			if [ -d "$nt35/$d" ]; then
-				ntexcl all "$d" > "$_l/exclude"
-				rsync -a --inplace --exclude-from="$_l/exclude" "$nt35/$d/" "$SHARE/NT/$d/"
+			mkdir -p "$SHARE/NT/$_d"
+			if [ -d "$nt35/$_d" ]; then
+				ntexcl all "$_d" > "$_l/exclude"
+				rsync -a --inplace --exclude-from="$_l/exclude" "$nt35/$_d/" "$SHARE/NT/$_d/"
 			fi
-			[ ! -d "$here/nt/$d" ] ||
-				rsync -a --inplace --exclude='*.ntdiff' "$here/nt/$d/" "$SHARE/NT/$d/"
-			ntstamp all "$d"
+			[ ! -d "$(ovl "$_d")" ] ||
+				rsync -a --inplace --exclude='*.ntdiff' "$(ovl "$_d")/" "$SHARE/NT/$_d/"
+			ntstamp all "$_d"
 		fi
 		ntunlock
 	done
 }
 
 ntcopytop() {
-	for d in "$@"; do
-		ntcurrent top "$d" && continue
-		ntlock top "$d"
-		if ! ntcurrent top "$d"; then
+	for _d in "$@"; do
+		ntcurrent top "$_d" && continue
+		ntlock top "$_d"
+		if ! ntcurrent top "$_d"; then
 			ntstart
-			mkdir -p "$SHARE/NT/$d"
-			if [ -d "$nt35/$d" ]; then
-				ntexcl top "$d" > "$_l/exclude"
-				rsync -a --inplace --exclude='*/' --exclude-from="$_l/exclude" "$nt35/$d/" "$SHARE/NT/$d/"
+			mkdir -p "$SHARE/NT/$_d"
+			if [ -d "$nt35/$_d" ]; then
+				ntexcl top "$_d" > "$_l/exclude"
+				rsync -a --inplace --exclude='*/' --exclude-from="$_l/exclude" "$nt35/$_d/" "$SHARE/NT/$_d/"
 			fi
-			[ ! -d "$here/nt/$d" ] ||
-				rsync -a --inplace --exclude='*/' --exclude='*.ntdiff' "$here/nt/$d/" "$SHARE/NT/$d/"
-			ntstamp top "$d"
+			[ ! -d "$(ovl "$_d")" ] ||
+				rsync -a --inplace --exclude='*/' --exclude='*.ntdiff' "$(ovl "$_d")/" "$SHARE/NT/$_d/"
+			ntstamp top "$_d"
 		fi
 		ntunlock
 	done
@@ -184,7 +199,9 @@ ntcopytop() {
 # rsync patterns), so the share never holds the NT version of one of them,
 # not even until the copy from 3MAX/nt: a step that compiles while another
 # copies reads the files it is to read.  (The lock of a step that ended
-# without ntunlock, stopped, goes: the lock holds its process id.)
+# without ntunlock, stopped, goes: the lock holds its process id.)  ntcopy
+# and ntcopytop loop with _d: the loop variable d of a caller, the include
+# scan of build-lib.sh, stays its own.
 ntlock() {
 	mkdir -p "$here/obj/ntcopy"
 	_l=$here/obj/ntcopy/lock-$1-$(printf '%s\n' "$2" | tr / _)
@@ -202,10 +219,10 @@ ntunlock() {
 	rm -rf "$_l"
 }
 ntexcl() {
-	[ -d "$here/nt/$2" ] || return 0
+	[ -d "$(ovl "$2")" ] || return 0
 	if [ "$1" = top ]; then _x='-maxdepth 1'; else _x=; fi
 	{
-		(cd "$here/nt/$2" && find . $_x -type f ! -name '*.ntdiff' | sed 's/^/3MAX /')
+		(cd "$(ovl "$2")" && find . $_x -type f ! -name '*.ntdiff' | sed 's/^/3MAX /')
 		(cd "$nt35/$2" && find . $_x -type f | sed 's/^/NT /')
 	} | awk '$1 == "3MAX" { sub(/^3MAX \.\//, ""); have[tolower($0)] = 1; next }
 		{ sub(/^NT \.\//, ""); if (tolower($0) in have) print "/" $0 }'
@@ -218,7 +235,7 @@ ntcurrent() {
 	_s=$here/obj/ntcopy/$1-$(printf '%s\n' "$2" | tr / _)
 	[ -f "$_s" ] && cmp -s "$_s" "$SHARE/NT/$2/.ntcopy-$1" 2>/dev/null || return 1
 	if [ "$1" = top ]; then _x='-maxdepth 1'; else _x=; fi
-	[ -z "$(find "$nt35/$2" "$here/nt/$2" $_x \( -newer "$_s" -o -cnewer "$_s" \) -print 2>/dev/null | head -1)" ]
+	[ -z "$(find "$nt35/$2" "$(ovl "$2")" $_x \( -newer "$_s" -o -cnewer "$_s" \) -print 2>/dev/null | head -1)" ]
 }
 ntstart() {
 	mkdir -p "$here/obj/ntcopy"
@@ -279,7 +296,8 @@ ntpath() {
 	r=
 	for c in $(printf "%s\n" "$p" | tr / ' '); do
 		# (|| :, as set -e ends the list at the first ls that fails)
-		m=$( { ls "$nt35/$r" || :; ls "$here/nt/$r" || :; } 2>/dev/null | grep -ix "$c" | head -1)
+		m=$( { ls "$nt35/$r" || :; ls "$(ovl "$r")" || :; [ -n "$r" ] || echo APPS; } 2>/dev/null |
+			grep -ix "$c" | head -1)
 		[ -n "$m" ] || return 0
 		r=${r:+$r/}$m
 	done

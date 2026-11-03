@@ -4,9 +4,12 @@
 +
 +        //
 +        // The DECstation is reset by the console, which restarts the
-+        // system the way its boot action does.
++        // system the way its boot action does.  First the non-volatile
++        // configuration is written, if a loaded program, or the system it
++        // started, changed it.
 +        //
 +
++        FwNvramRelease();
 +        FwRexReboot();
 +#else
 =1 69 2
@@ -15,9 +18,22 @@
 +#if defined(DECSTATION)
 +
 +    //
-+    // A halted DECstation waits at the console prompt.
++    // A halted DECstation waits at the console prompt.  First the
++    // non-volatile configuration is written, if a loaded program, or the
++    // system it started, changed it.
 +    //
 +
++    FwNvramRelease();
 +    FwRexHalt();
 +#endif
-=1 98 306
+=1 98 182
++#if defined(DECSTATION)
++
++    //
++    // The firmware has control again: write the non-volatile configuration,
++    // if a loaded program, or the system it started, changed it.
++    //
++
++    FwNvramRelease();
++#endif
+=1 280 124

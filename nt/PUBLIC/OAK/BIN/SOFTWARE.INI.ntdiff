@@ -1,0 +1,7 @@
+#ntdiff PUBLIC/OAK/BIN/SOFTWARE.INI
+#crlf
+=1 1 1245
++#if defined(_DECSTATION_)
++                    Taskman=taskman.exe /tasklist
++#endif // defined(_DECSTATION_)
+=1 1246 666

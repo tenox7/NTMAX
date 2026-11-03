@@ -1,0 +1,6 @@
+#ntdiff PRIVATE/SDKTOOLS/PERFMTR/PERFMTRP.H
+#crlf
+=1 1 36
++#include "..\..\inc\srvfsctl.h"
++
++#endif // _PERFMTRP_

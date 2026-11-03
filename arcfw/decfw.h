@@ -301,6 +301,16 @@ FwNvramFlush (
     VOID
     );
 
+VOID
+FwNvramDefer (
+    VOID
+    );
+
+ARC_STATUS
+FwNvramRelease (
+    VOID
+    );
+
 //
 // Define the routine that reads a longword where a read may take a bus
 // error, and the routine that reads the module name of a TURBOchannel slot.

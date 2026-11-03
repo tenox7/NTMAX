@@ -1,2 +1,18 @@
 #ntdiff PRIVATE/NTOS/FW/MIPS/FWLOAD.C
-=1 1 1043
+=1 1 985
++#if defined(DECSTATION)
++
++                //
++                // The program, or the system it starts, can drive the
++                // controller of the boot device: the non-volatile
++                // configuration is written when the firmware gets control
++                // back.
++                //
++
++                FwNvramDefer();
++#endif
+=1 985 7
++#if defined(DECSTATION)
++                FwNvramRelease();
++#endif
+=1 992 52

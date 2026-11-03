@@ -7,7 +7,9 @@
 +
 +    The DECstation has no NVRAM for the environment of the ARC firmware,
 +    which keeps it on the boot device: the environment variables are read
-+    and written with the routines of the firmware.
++    and written with the routines of the firmware.  While the system runs,
++    its drivers own the boot device, so the firmware keeps the changes in
++    memory and writes them when the system restarts (HalReturnToFirmware).
 =2 13 46
 +
 =1 410 2

@@ -27,7 +27,11 @@
 #				font, is also the font of the HAL: the OS
 #				loader looks for it there), the help files
 #				of the programs and the texts of the
-#				performance counters (system32)
+#				performance counters (system32);
+#				the tools of the SDK in \SDKTOOLS
+#				(obj/sdktools: build-image.sh DEST=sdktools),
+#				the games of apps/games in \GAMES and the
+#				other programs of apps in \APPS
 #
 #  A new disk (none yet, or FORCE=1) is DISK_MB (default 256) MB, with the
 #  system partition formatted and the configuration not set yet (the
@@ -38,9 +42,11 @@
 #  the new hives replace every file of system32\config (sam and security
 #  too, which lsass makes again), with \winnt\registry.ini (the overlay of
 #  PUBLIC\OAK\BIN\REGISTRY.INI, which winlogon reads at the first boot),
-#  its program groups in \winnt\idw and an empty \tmp; the winlogon.cmd of
-#  an earlier first run goes.  KEEP=1 keeps the system where it is: only the
-#  programs are written, the hives and the files of the first run are not.
+#  its program groups in \winnt\idw (the games of \GAMES in the Games
+#  group, TenoxVNC, Internet Explorer and ntfetch of \APPS in Main:
+#  tools/grp.pl) and an empty \tmp; the winlogon.cmd of an earlier first
+#  run goes.  KEEP=1 keeps the system where it is: only the programs are
+#  written, the hives and the files of the first run are not.
 
 set -e
 here=$(cd "$(dirname "$0")/.." && pwd)	# 3MAX
@@ -87,6 +93,29 @@ if [ -f obj/ntoskrnl.exe ] && [ -f obj/hal.dll ]; then
 	    obj/system32/*.com obj/system32/*.cpl; do
 		[ ! -f "$f" ] || mcopy -o -i "$p" "$f" ::/winnt/system32/$(basename "$f")
 	done
+	# the tools of the SDK, the games and the other programs of apps, each
+	# folder with its DLLs
+	for d in SDKTOOLS GAMES APPS; do
+		l=obj/$(echo $d | tr A-Z a-z)
+		ls $l 2>/dev/null | grep -q -i "\.\(exe\|dll\|com\)$" || continue
+		mmd -D s -i "$p" ::/$d 2>/dev/null || true
+		for f in $l/*.exe $l/*.dll $l/*.com; do
+			[ ! -f "$f" ] || mcopy -o -i "$p" "$f" ::/$d/$(basename "$f")
+		done
+	done
+	# the commands of SLM, copies of execslm.exe, which runs slm.exe with
+	# its name (SLMNEW\SLM\MAKEFILE.INC), and the templates of the scanners
+	# that flex writes (flex -Sc:\sdktools\skeleton.flx) and of the parsers
+	# of yacc (on the INCLUDE path)
+	if [ -f obj/sdktools/execslm.exe ]; then
+		for n in addfile addproj catsrc defect delfile delproj enlist in log out scomp ssync status; do
+			mcopy -o -i "$p" obj/sdktools/execslm.exe ::/SDKTOOLS/$n.exe
+		done
+	fi
+	[ ! -f obj/sdktools/flex.exe ] ||
+		mcopy -o -i "$p" /work/PRIVATE/SDKTOOLS/FLEX/SKELETON.FLX ::/SDKTOOLS/skeleton.flx
+	[ ! -f obj/sdktools/yacc.exe ] ||
+		mcopy -o -i "$p" /work/PRIVATE/SDKTOOLS/YACC/YYPARS.C ::/SDKTOOLS/yypars.c
 	mcopy -o -i "$p" obj/hal.dll ::/os/nt/hal.dll
 	for f in obj/hal3min.dll obj/hal3maxp.dll; do
 		[ ! -f "$f" ] || mcopy -o -i "$p" "$f" ::/os/nt/$(basename "$f")
@@ -105,8 +134,28 @@ if [ -f obj/ntoskrnl.exe ] && [ -f obj/hal.dll ]; then
 		mcopy -o -i "$p" nt/PUBLIC/OAK/BIN/REGISTRY.INI ::/winnt/registry.ini
 		mmd -D s -i "$p" ::/winnt/idw ::/tmp 2>/dev/null || true
 		for f in MAIN ACCESORI GAMES ADMIN; do
-			mcopy -o -i "$p" /work/PRIVATE/WINDOWS/SHELL/PROGMAN/$f.GRP \
-				::/winnt/idw/$(echo $f | tr A-Z a-z).grp
+			cp /work/PRIVATE/WINDOWS/SHELL/PROGMAN/$f.GRP /tmp/$f.GRP
+		done
+		# the games of \GAMES in the Games group, TenoxVNC, Internet
+		# Explorer and ntfetch of \APPS in Main, each run from the system drive
+		# (HOMEDRIVE, which winlogon sets to it for a user without a
+		# home directory)
+		grp() {
+			g=$1 d=$2 c=$3; shift 3
+			i=$IFS; IFS="|"; set -- $*; IFS=$i
+			n=
+			for x; do
+				[ -f obj/$d/${x#*=}.exe ] && n="$n|$x"
+			done
+			i=$IFS; IFS="|"; set -- ${n#|}; IFS=$i
+			[ $# = 0 ] || perl tools/grp.pl /tmp/$g.GRP obj/$d "%HOMEDRIVE%\\$(echo $d | tr a-z A-Z)" $c "$@"
+		}
+		grp GAMES games 5 "2048=2048|Breakout=breakout|Bubble Breaker=bubbles|Moon Lander=lander" \
+			"Missile Command=misl|Snake=ntsnake|Tankz=tankz|NT Rigue=ntrigue|RISCque=riscque" \
+			"Sokoban=sokoban|RISCoban=riscoban|WiNTown=wintown"
+		grp MAIN apps 6 "TenoxVNC=tenoxvnc|Internet Explorer=iexplore|ntfetch=ntfetch"
+		for f in MAIN ACCESORI GAMES ADMIN; do
+			mcopy -o -i "$p" /tmp/$f.GRP ::/winnt/idw/$(echo $f | tr A-Z a-z).grp
 		done
 		mdel -i "$p" ::/winnt/winlogon.cmd 2>/dev/null || true
 	fi

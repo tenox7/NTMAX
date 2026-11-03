@@ -8,9 +8,11 @@
 =1 12 10
 =1 23 11
 +
-+    The DECstation has no reset under program control: a reset is done by a jump
-+    to the reset entry of the PROM, which initializes the system as a
-+    reset does and then takes the halt action of the console.
++    The system is restarted by the reboot routine of the firmware.  The
++    firmware keeps its environment on the boot disk, which the drivers of
++    the system own while it runs, so the changes the system makes to the
++    environment wait in memory: the reboot routine writes them, then has
++    the console boot the system again.
 =1 38 12
 +
 =1 50 5
@@ -18,8 +20,7 @@
 =1 55 12
 =2 147 4
 =2 92 6
-+        // Jump to the reset entry of the PROM.
++        // Restart through the firmware.
 +        //
 +
-+        ((VOID (*)(VOID))PROM_RESET_VIRTUAL_ADDRESS)();
-=1 81 9
+=1 80 10

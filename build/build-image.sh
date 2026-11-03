@@ -75,7 +75,10 @@
 #  library and export file of an image with exports stay in
 #  T:\NTOS\3MAX\out\img\IMAGE (the images that link with them find them
 #  there).  make-disk.sh puts the drivers in \winnt\system32\drivers and the
-#  other images in \winnt\system32.
+#  other images in \winnt\system32.  With DEST=NAME the programs and DLLs go
+#  to obj/NAME in place of obj/system32: DEST=sdktools, games and apps, which
+#  make-disk.sh puts in \SDKTOOLS, \GAMES and \APPS.  With UMTEST=1 the
+#  test programs of UMTEST are programs of UMAPPL too (build-lib.sh).
 
 set -e
 . "$(dirname "$0")/vm.sh"
@@ -84,13 +87,14 @@ DIR=${1%/}
 WDIR=$(printf "%s\n" "$DIR" | tr / '\\')
 
 IMPLIB=${IMPLIB:-0}
+DEST=${DEST:-system32}
 if [ "$IMPLIB" = 1 ]; then
 	# the files that build-lib.sh copies for the SOURCES file and the
 	# export list (of this directory, the one above or the MIPS ones)
 	ntcopy "$DIR"
 	ntcopytop "$(dirname "$DIR")"
 	for d in "$DIR/MIPS" "$(dirname "$DIR")/MIPS"; do
-		[ ! -d "$nt35/$d" ] && [ ! -d "$here/nt/$d" ] || ntcopy "$d"
+		[ ! -d "$nt35/$d" ] && [ ! -d "$(ovl "$d")" ] || ntcopy "$d"
 	done
 	mkdir -p "$SHARE/build"
 else
@@ -109,7 +113,8 @@ ntcopytop PUBLIC/SDK/LIB	# (coffbase.txt)
 
 vars=$(ntsources "$DIR" TARGETNAME TARGETTYPE TARGETEXT NTTARGETFILES TARGETLIBS LINKLIBS DLLDEF DLLENTRY DLLBASE \
 	MIPS_DLLLIBOBJECTS UMTYPE USE_CRTDLL USE_LIBCMT NTPROFILEINPUT DRIVER_ALIGNMENT NTDEBUGTYPE GPSIZE \
-	UMAPPL UMAPPLEXT UMLIBS UMRES UMOBJS UMENTRY UMBASE COFFBASE LNKFLAGS CRTLIBS EXEPROFILEINPUT TARGETPATH)
+	UMAPPL UMTEST UMAPPLEXT UMLIBS UMRES UMOBJS UMENTRY UMBASE COFFBASE LNKFLAGS CRTLIBS EXEPROFILEINPUT TARGETPATH \
+	SOURCES MIPS_SOURCES)
 var() { printf '%s\n' "$vars" | sed -n "s/^$1=//p" | sed 's/^ *//; s/ *$//'; }
 NAME=$(var TARGETNAME)
 TYPE=$(var TARGETTYPE)
@@ -121,6 +126,7 @@ LIBRARY|UMAPPL_NOLIB) EXT= ;;
 *)	echo "build-image: $DIR: TARGETTYPE $TYPE is not an image this script links" >&2; exit 1 ;;
 esac
 UMAPPL=$(var UMAPPL | tr '*' ' ')
+[ "$UMTEST" != 1 ] || UMAPPL="$UMAPPL $(var UMTEST | tr '*' ' ')"
 # (build.exe makes a DLL with MAKEDLL=1, which SOURCES can test: the codecs of
 # MSACM name their .acm copy, NTTARGETFILES, only then)
 case $TYPE in
@@ -144,7 +150,12 @@ lib() {
 		d=$(ntpath "$(dirname "$(dirname "$(dirname "$p")")")")
 		f=$(ls "$SHARE/NT/$d/obj/mips" 2>/dev/null | grep -ix "$(basename "$p")" | head -1)
 		[ -z "$d" ] || [ -z "$f" ] ||
-			{ printf '%s\n' "%NT%\\$(printf "%s\n" "$d" | tr / '\\')\\obj\\mips\\$f"; return; } ;;
+			{ printf '%s\n' "%NT%\\$(printf "%s\n" "$d" | tr / '\\')\\obj\\mips\\$f"; return; }
+		# (the library of this directory, a LIBRARY of .rc sources only:
+		# build-lib.sh makes none, as it has no objects; COMPACT names it in
+		# UMLIBS, and links its .res by UMRES)
+		[ "$d" != "$DIR" ] || [ "$TYPE" != LIBRARY ] ||
+			[ -n "$(printf '%s\n' $(var SOURCES) $(var MIPS_SOURCES) | grep -v -i '\.rc$')" ] || return 0 ;;
 	esac
 	# (img/NAME.EXT: the import library of a DLL of another extension,
 	# winspool.drv; a DLL of the name, msacm32.dll, comes first)
@@ -187,6 +198,14 @@ obj() {
 		t=$(ntsources "$d" TARGETNAME | sed -n 's/^TARGETNAME=//p' | sed 's/ *$//')
 	fi
 	f=$(basename "$o" | tr A-Z a-z)
+	# (a .res of this directory that an NTTARGETFILE0 rule made in its
+	# obj\mips, not build-lib.sh in out: the programs of IMAGEHLP)
+	if [ "$d" = "$DIR" ] && [ ! -f "$SHARE/out/$t/$f" ]; then
+		case $o in *.[rR][eE][sS])
+			m=$(ls "$SHARE/NT/$d/obj/mips" 2>/dev/null | grep -ix "$f" | head -1)
+			[ -z "$m" ] || { printf '%s\n' "%NT%\\$(printf "%s\n" "$d" | tr / '\\')\\obj\\mips\\$m"; return; } ;;
+		esac
+	fi
 	[ -n "$t" ] && [ -f "$SHARE/out/$t/$f" ] ||
 		{ echo "build-image: $DIR: no object $1 (build-lib.sh $d)" >&2; exit 1; }
 	printf '%s\n' "%L%\\$t\\$f"
@@ -247,8 +266,27 @@ cmdhead() {
 	printf '%s\n' "set O=%L%\\img\\$1" "cd /d %NT%\\$WDIR"
 }
 
+# imgdir FILE: the directory of out\img that the image FILE (NAME.EXT) is
+# linked in: NAME, or FILE for an image of another extension than its type's
+# (msacm32.drv beside msacm32.dll) and for a program of the name of a DLL
+# made before it (SECEDIT.exe of SECEDIT\APP beside the SECEDIT.dll of
+# SECEDIT\DLL: the DLL's import library stays)
+imgdir() {
+	case $1 in
+	*.[dD][lL][lL]|*.[sS][yY][sS]) printf '%s\n' "${1%.*}" ;;
+	*.[eE][xX][eE])
+		if ls "$SHARE/out/img/${1%.*}" 2>/dev/null | grep -qi '\.dll$'; then
+			printf '%s\n' "$1"
+		else
+			printf '%s\n' "${1%.*}"
+		fi ;;
+	*) printf '%s\n' "$1" ;;
+	esac
+}
+
 # linkimg FILE DEST OPTIONS INPUTS: link the image FILE (IMAGE.EXT) in
-# T:\NTOS\3MAX\out\img\IMAGE, then check it and mark it R3000 in obj/DEST.
+# T:\NTOS\3MAX\out\img\IMAGE (imgdir), then check it and mark it R3000 in
+# obj/DEST.
 # NT's link32 kept the first definition of a symbol that an object and a
 # library both define, link 3.10 does it with -force:multiple (as for the
 # kernel, build-kernel.sh): libcntpr's memorym.obj defines memcpy, memmove
@@ -256,10 +294,7 @@ cmdhead() {
 # muldiv.obj defines RtlEnlargedUnsignedDivide, and the member of
 # ntdll.lib that lcompat.c imports it with has its thunk of that name.
 linkimg() {
-	img=${1%.*}
-	# (an image of another extension than its type's has a directory of
-	# its file name: msacm32.drv beside msacm32.dll)
-	case $1 in *.[dD][lL][lL]|*.[eE][xX][eE]|*.[sS][yY][sS]) ;; *) img=$1 ;; esac
+	img=$(imgdir "$1")
 	io=$SHARE/out/img/$img
 	force=' -force:multiple'
 	# The options and the inputs go in a response file, one to a line, as
@@ -480,11 +515,16 @@ if [ -n "$EXT" ]; then
 		case $(var UMTYPE) in windows) dsub=windows ;; console) dsub=console ;; *) dsub=native ;; esac
 		base=$(var DLLBASE); base=${base:-"@%NT%\\PUBLIC\\SDK\\LIB\\coffbase.txt,$NAME"}
 		entry=$(var DLLENTRY); entry=${entry:+-entry:$entry}; entry=${entry:--noentry}
-		linkimg "$NAME.$EXT" system32 "-dll $order -base:$base -subsystem:$dsub $entry" "$exp %L%\\$NAME\\*.obj$res$libs" ;;
+		linkimg "$NAME.$EXT" "$DEST" "-dll $order -base:$base -subsystem:$dsub $entry" "$exp %L%\\$NAME\\*.obj$res$libs" ;;
 	PROGRAM)
 		umres=$(files $(var UMRES))
-		linkimg "$NAME.$EXT" system32 "-subsystem:$sub -base:$umbase $gp $umentry $(var LNKFLAGS)" \
-			"$umres %L%\\$NAME\\*.obj$res$libs" ;;
+		# (a PROGRAM whose SOURCES does not compile its UMAPPL program of
+		# its own name links that program's object: SUCK, TAIL)
+		po=
+		u=$(printf "%s\n" "$NAME" | tr A-Z a-z)
+		[ ! -f "$SHARE/out/$NAME/um/$u.obj" ] || po=" %L%\\$NAME\\um\\$u.obj"
+		linkimg "$NAME.$EXT" "$DEST" "-subsystem:$sub -base:$umbase $gp $umentry $(var LNKFLAGS)" \
+			"$umres %L%\\$NAME\\*.obj$po$res$libs" ;;
 	*)
 		align=$(var DRIVER_ALIGNMENT)
 		linkimg "$NAME.$EXT" drivers "$order -align:${align:-0x20} -subsystem:native -debug:notmapped -base:0x10000 -entry:DriverEntry" \
@@ -498,8 +538,8 @@ if [ -n "$EXT" ]; then
 		t=$(basename "$(printf "%s\n" "$t" | tr '\\' /)" | tr A-Z a-z)
 		case $t in "$(printf "%s\n" "$NAME" | tr A-Z a-z)".*) ;; *) continue ;; esac
 		[ "${t##*.}" != lib ] && [ "${t##*.}" != "$EXT" ] || continue
-		mv "$here/obj/system32/$NAME.$EXT" "$here/obj/system32/$t"
-		echo "build-image: obj/system32/$t, the copy of $NAME.$EXT that makefile.inc makes"
+		mv "$here/obj/$DEST/$NAME.$EXT" "$here/obj/$DEST/$t"
+		echo "build-image: obj/$DEST/$t, the copy of $NAME.$EXT that makefile.inc makes"
 	done
 fi
 
@@ -512,8 +552,7 @@ for u in $UMAPPL; do
 	# the rule of the program makes: CARDFILE)
 	[ $TYPE != PROGRAM ] || [ "$u$ext" != "$(printf "%s\n" "$NAME.$EXT" | tr A-Z a-z)" ] || continue
 	# (the directory linkimg links it in: out\img\NAME.com for a .com)
-	ui=$u
-	case $ext in .[dD][lL][lL]|.[eE][xX][eE]|.[sS][yY][sS]) ;; *) ui=$u$ext ;; esac
+	ui=$(imgdir "$u$ext")
 	if [ "$u" != "$NAME" ] || [ -z "$EXT" ]; then
 		mkdir -p "$SHARE/out/img/$ui"; rm -f "$SHARE/out/img/$ui/"*
 	fi
@@ -523,9 +562,14 @@ for u in $UMAPPL; do
 	[ -z "$(var EXEPROFILEINPUT)" ] || order="-order:@$u.prf"
 	ulibs=
 	for l in $umlibs; do ulibs="$ulibs $(lib "$l")"; done
-	# (each list by itself: a failing lookup ends the script)
-	umres=$(files $(var UMRES)); umobjs=$(files $(var UMOBJS)); uml=$(files $(var UMLIBS))
+	# (each list by itself: a failing lookup ends the script; UMRES=$(@R).res
+	# is the program's own .res, as $@ of makefile.def's rule for it is
+	# obj\*\PROGRAM.exe: ntsources, which reads SOURCES for its target
+	# dump, gives dump.res)
+	r=$(var UMRES)
+	[ "$(printf '%s\n' "$r" | tr A-Z a-z)" != dump.res ] || r="obj\\*\\$u.res"
+	umres=$(files $r); umobjs=$(files $(var UMOBJS)); uml=$(files $(var UMLIBS))
 	crt=$(files $(var CRTLIBS)); ll=$(files $(var LINKLIBS))
-	linkimg "$u$ext" system32 "$order $gp -base:$umbase -subsystem:$sub $umentry $(var LNKFLAGS)" \
+	linkimg "$u$ext" "$DEST" "$order $gp -base:$umbase -subsystem:$sub $umentry $(var LNKFLAGS)" \
 		"$umres $po$umobjs$uml$ulibs$crt$ll"
 done

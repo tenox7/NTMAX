@@ -17,7 +17,12 @@
 #	   the import library of one comes first (IMPLIB=1 build-image.sh:
 #	   advapi32 for rpcrt4, gdi32 for user32, winspool for gdi32,
 #	   netapi32 for NetRap, lsasrv for samsrv, fteng32 for ftui32)
-#	7  the hives and the system disk: make-disk.sh reads KEEP, DISK and
+#	7  the programs of apps/: the task manager, the games (obj/games),
+#	   wsock32, which TenoxVNC and Internet Explorer import, and the
+#	   programs of obj/apps
+#	8  the tools of PRIVATE\SDKTOOLS that build for the R3000
+#	   (obj/sdktools)
+#	9  the hives and the system disk: make-disk.sh reads KEEP, DISK and
 #	   FORCE as usual; without KEEP=1 the system on the disk starts over
 #	   at the first run
 #
@@ -37,7 +42,8 @@ FIRST=${1:-1}
 log=$here/obj/build-all
 n=0
 
-# step SCRIPT [ARG...]: the next step, a script of build/; "implib DIR" is
+# step [VAR=VALUE...] SCRIPT [ARG...]: the next step, a script of build/
+# with the variables VAR (DEST=games build-image.sh DIR); "implib DIR" is
 # IMPLIB=1 build-image.sh DIR
 step() {
 	n=$((n + 1))
@@ -45,9 +51,13 @@ step() {
 	[ "$n" -ge "$FIRST" ] || return 0
 	echo "build-all: $n ($(date +%H:%M)) $*"
 	f=$log/$n.log
+	e=
+	while :; do
+		case $1 in *=*) e="$e $1"; shift ;; *) break ;; esac
+	done
 	case $1 in
-	implib) shift; set -- env IMPLIB=1 sh "$here/build/build-image.sh" "$@" ;;
-	*) s=$1; shift; set -- sh "$here/build/$s" "$@" ;;
+	implib) shift; set -- env $e IMPLIB=1 sh "$here/build/build-image.sh" "$@" ;;
+	*) s=$1; shift; set -- env $e sh "$here/build/$s" "$@" ;;
 	esac
 	# (rsh reads its standard input: not the rest of this script's; a
 	# library some of whose sources failed is a failed step, as an image is)
@@ -211,7 +221,56 @@ done
 images NET/UI/ADMIN/EVENTVWR/EVENTVWR NET/UI/ADMIN/USER/USER NET/UI/ADMIN/USER/MINIUSER \
 	UTILS/REGEDIT/SRC
 
-# 7. the hives and the system disk
+# 7. the programs of apps/ (APPS/DIR): the task manager, in system32; the
+# games, in \GAMES; wsock32 (the libraries of SOCKETS, then the DLL); the
+# libraries of Internet Explorer, then the programs of \APPS
+step build-image.sh APPS/taskman
+for d in 2048 breakout bubbles lander missile ntrigue riscoban riscque snake sokoban tankz wintown; do
+	step DEST=games build-image.sh APPS/games/$d
+done
+for d in LIBUEMUL SOCKREG SOCKUTIL; do
+	step build-lib.sh PRIVATE/NET/SOCKETS/$d
+done
+images NET/SOCKETS/WINSOCK
+for d in shared win32 bearssl basic; do
+	step build-lib.sh APPS/ie/$d
+done
+for d in ie/make tenoxvnc/win32 ntfetch; do
+	step DEST=apps build-image.sh APPS/$d
+done
+
+# 8. the tools of PRIVATE\SDKTOOLS that build for the R3000, in \SDKTOOLS:
+# the libraries and DLLs that other tools link (RLTOOLS\COMMON in
+# out\rlcommon, as the common.lib of SHELL\ACCESORY\COMMON is in out\common),
+# then the tools; the program of RANDOM is a test program of UMTEST
+sdk() {
+	for d; do step DEST=sdktools build-image.sh "PRIVATE/SDKTOOLS/$d"; done
+}
+for d in RESTOOLS/UNICODE TLIBS/NB3LIB/SRC WZMAIL/DH.NEW/LIB WINDIFF/CLIENT VCTOOLS/PDB/DBI; do
+	step build-lib.sh PRIVATE/SDKTOOLS/$d
+done
+step OUT=rlcommon build-lib.sh PRIVATE/SDKTOOLS/RESTOOLS/RLTOOLS/COMMON
+sdk IMAGEHLP SECEDIT/DLL TOPDESK/DLL RESMON VCTOOLS/RCDLL GUTILS SPY/DLL FASTIMER PSAPI WAP/FERNEL \
+	WAP/BASE WAP/ADVAPI WAP/CRTDLL ALIAS CAT CHECKREL CHMODE CMDEVENT CRASHDMP CP DELNODE DIFF \
+	DISKMON DU ECHOTIME EXP FCOM GETDBG HEAD INFILTER LOC LS MUNGE MV PARCOMP PERFMTR PSTAT \
+	PROFILE RATHOLE RESCAN REGINI RM STARTPGM STRINGS SUCK SYNC TAIL TC TIMER TOUCH TRANS UNDEL \
+	UPD UPDRN VDMPERF WALK WC WHERE WPERF DSKBENCH YNC BUILD RESTOOLS/RLTOOLS/RLMAN \
+	RESTOOLS/RLTOOLS/RLQUIKED RESTOOLS/RLTOOLS/RLADMIN RESTOOLS/RLTOOLS/RLEDIT \
+	RESTOOLS/RESONEXE RESTOOLS/TCT GENSRV HE LIST UNITS MAPMSG QGREP PPR RCPP HD UIXPORT VADUMP \
+	HEXTRACT HSPLIT WCSHDR PVIEW TEE WS ZWAPI WINOBJ DDESPY REGTOGRP REMOTE CNTRTEXT/LODCTR \
+	CNTRTEXT/UNLODCTR CNTRTEXT/CTRLIST LISTMUNG TZ TOPDESK/APP DISKPERF BIN2C NETJOIN MTTF/MAIN \
+	MTTF/SETUP MTTF/VWR DUMPGRP TLIST MAKEANI COMPACT REGDIFF CACLS BUILDNUM AUTOWRAP \
+	VCTOOLS/CVDUMP VCTOOLS/MC VCTOOLS/RC VCTOOLS/CONTENTS/HDXCVT VCTOOLS/PMAKE/SRC PCH PDC \
+	NTSLM MASM DISKEDIT DLGEDIT DOCTOR DOSDEV DSKIMAGE FONTEDIT IMAGEDIT MIP2COFF OBJDIR \
+	READLINE SETLINK SOLIDPP SLMNEW/SLM SLMNEW/UTIL SLMNEW/SLMED/DAYTONA SLMNEW/FIXDIFF SPY/APP \
+	SECLIST SIMBAD TAKEOWN RCDUMP VI NEWINVTP WZMAIL/MAIL1.0 WAP/DUMP WAP/CONVERT \
+	WINDIFF/WINDIFF WINDIFF/SERVER ZOOMIN COMPDIR PVIEWER ROSHARE A2COFF CLEARMEM EDITREG XEROX \
+	TILE CNTFS DETAB DIS32 DISKGEOM FILEVER FLEX GETBIN LOGOFF MODSEL MPTEST MRGSCOMP \
+	MHLSRV/CLIENT MHLSRV/SERVER NEWER NTFSDUMP OWNTREE RSHELL/NTCLIENT RSHELL/SERVER SFS TIMTP \
+	LZTEST VMTESTS XMAS YACC ZD DSKDUMP KERNPROF SECEDIT/APP
+step UMTEST=1 DEST=sdktools build-image.sh PRIVATE/SDKTOOLS/RANDOM
+
+# 9. the hives and the system disk
 step make-hives.sh
 step make-disk.sh
 

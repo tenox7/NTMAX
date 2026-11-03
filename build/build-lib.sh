@@ -6,6 +6,7 @@
 #	build-lib.sh DIR
 #	ONLY="SOURCE..." build-lib.sh DIR
 #	OUT=DIRECTORY build-lib.sh DIR
+#	UMTEST=1 build-lib.sh DIR
 #
 #  With OUT, the objects and the library go to T:\NTOS\3MAX\out\OUT (OUT=
 #  crtst/stdio) in place of out\TARGETNAME: a component built again with
@@ -16,8 +17,12 @@
 #  SOURCES entries) are compiled again, and the library is made of their new
 #  objects and the objects of the other sources from the last build, as
 #  build.exe compiles only the sources that changed.
+#
+#  With UMTEST=1, the test programs of UMTEST are programs of UMAPPL too, as
+#  makefile.def builds them (RANDOM of SDKTOOLS has no other); without it
+#  they are left out, as the test programs of the tree's libraries are.
 #  DIR is the directory of the SOURCES file, from the top of the tree
-#  (PRIVATE/NTOS/RTL/BOOT).  nmake reads SOURCES, MIPS\SOURCES and
+#  (PRIVATE/NTOS/RTL/BOOT; APPS/... for one of 3MAX/apps, vm.sh).  nmake reads SOURCES, MIPS\SOURCES and
 #  ..\MIPS\SOURCES on the machine, as makefile.def does, for TARGETNAME,
 #  SOURCES, MIPS_SOURCES (with MIPS_R3000 defined: the 3MAX/nt versions of
 #  the MIPS SOURCES files pick the R3000 files with it),
@@ -52,7 +57,7 @@ set -e
 . "$(dirname "$0")/vm.sh"
 [ $# -eq 1 ] || { echo "usage: build-lib.sh DIR" >&2; exit 1; }
 DIR=${1%/}
-[ -f "$nt35/$DIR/SOURCES" ] || [ -f "$here/nt/$DIR/SOURCES" ] || { echo "build-lib: no $DIR/SOURCES" >&2; exit 1; }
+[ -f "$nt35/$DIR/SOURCES" ] || [ -f "$(ovl "$DIR")/SOURCES" ] || { echo "build-lib: no $DIR/SOURCES" >&2; exit 1; }
 WDIR=$(printf "%s\n" "$DIR" | tr / '\\')
 mkdir -p "$SHARE/build"
 # (each replaced only when it changed, and whole: the steps of build-all.sh
@@ -82,14 +87,18 @@ done
 # The makefiles that the MAKEFILE includes before makefile.def, which set
 # macros the SOURCES file starts from (NET\UI: the rules.mk of the
 # directories above, and the uiglobal.mk of COMMON\SRC with C_DEFINES): the
-# files of their directories.
-for d in $(perl "$here/tools/makeinc.pl" "$nt35" "$here/nt" "$DIR"); do
-	ntcopytop "$d"
-done
+# files of their directories.  (The programs of APPS have their SOURCES files
+# only.)
+case $DIR in [aA][pP][pP][sS]/*) ;; *)
+	for d in $(perl "$here/tools/makeinc.pl" "$nt35" "$here/nt" "$DIR"); do
+		ntcopytop "$d"
+	done ;;
+esac
 # The files of the tree that the rules of makefile.inc take by their
 # $(BASEDIR) paths (PERFMON: the perfc009.dat of SDKTOOLS\CNTRTEXT\PERFINI,
-# which it copies for binplace): the files of their directories.
-for m in "$here/nt/$DIR" "$nt35/$DIR"; do
+# which it copies for binplace) or by their paths from the directory (the
+# DBI of VCTOOLS\PDB copies ..\msf\msf.cpp): the files of their directories.
+for m in "$(ovl "$DIR")" "$nt35/$DIR"; do
 	f=$(ls "$m" 2>/dev/null | grep -ix makefile.inc | head -1)
 	[ -n "$f" ] || continue
 	for p in $(tr -d '\r' < "$m/$f" | LC_ALL=C grep -o -i '\$(BASEDIR)\\[A-Za-z0-9_.\\*]*' | sort -u); do
@@ -99,11 +108,16 @@ for m in "$here/nt/$DIR" "$nt35/$DIR"; do
 		d=$(ntpath "${p%\\*}")
 		[ -z "$d" ] || ntcopytop "$d"
 	done
+	for p in $(tr -d '\r' < "$m/$f" | LC_ALL=C grep -o '\.\.\\[A-Za-z0-9_.\\]*' | sort -u); do
+		case ${p##*\\} in *.*) ;; *) continue ;; esac
+		d=$(ntpath "$(printf '%s\n' "${p%\\*}" | tr '\\' /)")
+		[ -z "$d" ] || ntcopytop "$d"
+	done
 	break
 done
 ntcopytop PUBLIC/SDK/LIB	# (placefil.txt, the place file of binplace)
 vars=$(ntsources "$DIR" TARGETNAME TARGETTYPE SOURCES MIPS_SOURCES INCLUDES C_DEFINES NET_C_DEFINES USE_CRTDLL USE_LIBCMT \
-	NTTARGETFILE0 GPSIZE UMAPPL TARGETPATH NTTARGETFILES TARGETLIBS LINKLIBS UMRES)
+	NTTARGETFILE0 GPSIZE UMAPPL UMTEST TARGETPATH NTTARGETFILES TARGETLIBS LINKLIBS UMRES UMLIBS USER_INCLUDES)
 var() { printf '%s\n' "$vars" | sed -n "s/^$1=//p" | sed 's/^ *//; s/ *$//'; }
 NAME=$(var TARGETNAME)
 [ -n "$NAME" ] || { echo "build-lib: $DIR: no TARGETNAME"; printf '%s\n' "$vars"; exit 1; }
@@ -123,14 +137,25 @@ MKLIB=1
 [ "$(var TARGETTYPE)" != UMAPPL_NOLIB ] && [ -n "$(printf '%s' "$SRCS" | tr -d ' ')" ] || MKLIB=
 [ "$(var TARGETTYPE)" != LIBRARY ] ||
 	[ -n "$(printf '%s\n' $SRCS | grep -v -i '\.rc$')" ] || MKLIB=
-# A .res file of this directory's obj that TARGETLIBS, LINKLIBS or UMRES
-# names and SOURCES does not make (WINHELP: obj\*\winhelp.res, of its
-# NTTARGETFILE0 winhelp.rc) is made by the .rc.res rule of makefile.def,
-# from the .rc of its name: it compiles as a .rc of SOURCES does.
-for r in $(var TARGETLIBS | sed 's/\*/mips/g') $(var LINKLIBS | sed 's/\*/mips/g') $(var UMRES | sed 's/\*/mips/g'); do
+# A .res file of this directory's obj that TARGETLIBS, LINKLIBS, UMRES or
+# UMLIBS names and SOURCES does not make (WINHELP: obj\*\winhelp.res, of
+# its NTTARGETFILE0 winhelp.rc; TOPDESK\APP: obj\*\topdesk.res in UMLIBS)
+# is made by the .rc.res rule of makefile.def, from the .rc of its name: it
+# compiles as a .rc of SOURCES does.  UMRES and UMLIBS count only where
+# programs link them, as in makefile.def: a PROGRAM or PROGLIB, or the
+# programs of UMAPPL (the UMRES of WINSOCK, a DLL, names a wsock32.res
+# that nothing makes).
+umfiles=
+case $(var TARGETTYPE) in PROGRAM|PROGLIB) umfiles="$(var UMRES) $(var UMLIBS)" ;; esac
+[ -z "$(var UMAPPL)" ] && { [ "$UMTEST" != 1 ] || [ -z "$(var UMTEST)" ]; } ||
+	umfiles="$(var UMRES) $(var UMLIBS)"
+for r in $(var TARGETLIBS | sed 's/\*/mips/g') $(var LINKLIBS | sed 's/\*/mips/g') $(printf '%s\n' "$umfiles" | sed 's/\*/mips/g'); do
 	case $r in [oO][bB][jJ]\\mips\\*.[rR][eE][sS]) ;; *) continue ;; esac
 	b=$(basename "$(printf "%s\n" "$r" | tr '\\' /)" | sed 's/\.[^.]*$//' | tr A-Z a-z)
+	# (a .rc of SOURCES makes it; a C source of its name does not: the
+	# topdesk.c and topdesk.res of TOPDESK\APP)
 	for s in $SRCS; do
+		case $s in *.[rR][cC]) ;; *) continue ;; esac
 		[ "$(basename "$(printf "%s\n" "${s%.*}" | tr '\\' /)" | tr A-Z a-z)" != "$b" ] || continue 2
 	done
 	SRCS="$SRCS $b.rc"
@@ -142,12 +167,15 @@ if [ -n "$(var USE_CRTDLL)" ]; then CDEF="-D_DLL=1 -D_MT=1"
 elif [ -n "$(var USE_LIBCMT)" ]; then CDEF="-D_MT=1"
 else CDEF=; fi
 CDEF="$CDEF $(var C_DEFINES) $(var NET_C_DEFINES)"
+# (the tree's rc has no -U: a .rc compiles with the defines but the -U of
+# C_DEFINES, which only the C compiler takes: IE's -UWIN32_LEAN_AND_MEAN)
+RCDEF=$(printf '%s\n' "$CDEF" | sed -E 's/(^|[[:space:]])[-/]U[^[:space:]]*//g')
 
 # ntfile S: true if the tree (or 3MAX/nt) has the source S (relative to DIR)
 ntfile() {
 	f=$(printf "%s\n" "$1" | tr '\\' /)
 	d=$(ntpath "$(dirname "$f")")
-	[ -n "$d" ] && ls "$nt35/$d" "$here/nt/$d" 2>/dev/null | grep -qix "$(basename "$f")"
+	[ -n "$d" ] && ls "$nt35/$d" "$(ovl "$d")" 2>/dev/null | grep -qix "$(basename "$f")"
 }
 
 # ntsrc S: the file that makefile.def compiles for the SOURCES entry S.  For
@@ -172,9 +200,10 @@ ntsrc() {
 	printf '%s\n' "$1"
 }
 
-# The sources of the UMAPPL programs that SOURCES does not compile.
+# The sources of the UMAPPL programs (and with UMTEST=1 of the UMTEST ones)
+# that SOURCES does not compile.
 UMSRCS=
-for u in $(var UMAPPL | tr '*' ' '); do
+for u in $(var UMAPPL | tr '*' ' ') $([ "$UMTEST" != 1 ] || var UMTEST | tr '*' ' '); do
 	for s in $SRCS; do
 		b=$(basename "$(printf "%s\n" "$s" | tr '\\' /)")
 		case $b in *.[rR][cC]) continue ;; esac
@@ -186,7 +215,8 @@ done
 # Copy the include directories and the directories of the sources.
 INC='-Imips\ -I.'	# (makefile.def: -Imips\ -I. first, for C and the assembler)
 incs=
-for i in $(var INCLUDES | tr ';' ' '); do
+# (USER_INCLUDES before INCLUDES, as makefile.def's INCPATH0: SLMNEW)
+for i in $(var USER_INCLUDES | tr ';' ' ') $(var INCLUDES | tr ';' ' '); do
 	d=$(ntpath "$i")
 	[ -n "$d" ] || { printf "%s\n" "build-lib: $DIR: no include directory $i"; continue; }
 	ntcopy "$d"; incs="$incs $d"
@@ -205,7 +235,7 @@ while [ -n "$scan" ]; do
 	next=
 	for d in $scan; do
 		for f in $(LC_ALL=C command grep -ahE '^[[:space:]]*#[[:space:]]*include[[:space:]]*"[^"]*\.\.' \
-		    "$nt35/$d"/* "$here/nt/$d"/* 2>/dev/null | LC_ALL=C sed 's/^[^"]*"\([^"]*\)".*/\1/' | tr '\\' / | sort -u); do
+		    "$nt35/$d"/* "$(ovl "$d")"/* 2>/dev/null | LC_ALL=C sed 's/^[^"]*"\([^"]*\)".*/\1/' | tr '\\' / | sort -u); do
 			i=$(ntpath "$(dirname "$f")" "$d")
 			[ -n "$i" ] || continue
 			case $seen in *" $i "*) continue ;; esac
@@ -267,7 +297,7 @@ cmd=$SHARE/build/$OF.cmd
 		ntfile "$s" || printf '%s\n' "%MKINC% $s > %O%\\$o.gen.log 2>&1"
 		case $s in
 		*.[sS])	printf '%s\n' "cl %AFLAGS% %INC% %CPU% %DEFS% $CDEF -Fo%O%\\$o.obj $s > %O%\\$o.log 2>&1" ;;
-		*.[rR][cC]) printf '%s\n' "rc -r %INC% %DEFS% $CDEF -fo%O%\\$o.res $s > %O%\\$o.rc.log 2>&1" ;;
+		*.[rR][cC]) printf '%s\n' "rc -r %INC% %DEFS% $RCDEF -fo%O%\\$o.res $s > %O%\\$o.rc.log 2>&1" ;;
 		*)	printf '%s\n' "cl %CFLAGS% %INC% %CPU% %DEFS% $CDEF -Fo%O%\\$o.obj $s > %O%\\$o.log 2>&1" ;;
 		esac
 	done
