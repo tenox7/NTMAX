@@ -187,7 +187,8 @@ images WINDOWS/MEDIA/WINMM WINDOWS/MEDIA/MMDRV WINDOWS/MEDIA/MCIWAVE WINDOWS/MED
 	WINDOWS/MEDIA/AVI/MSRLE WINDOWS/MEDIA/AVI/MCIAVI32 WINDOWS/MEDIA/MPLAYER2
 # (the utilities: the file system DLLs that fmifs, Disk Administrator,
 # Backup and the command-line tools link; DISKREG and WINTOOLS\LIB are
-# libraries of windisk and ntbackup)
+# libraries of windisk, ntbackup and winmsd; Windows NT Diagnostics also
+# imports its 3D controls, the winmsd.dll of WINTOOLS\CTL3D\DLL)
 images UTILS/ULIB/SRC UTILS/UREG/SRC UTILS/IFSUTIL/SRC UTILS/UFAT/SRC UTILS/UHPFS/SRC \
 	UTILS/UNTFS/SRC UTILS/CUFAT/SRC UTILS/CUHPFS UTILS/FMIFS/SRC
 step build-lib.sh PRIVATE/NTOS/DISKREG
@@ -197,6 +198,7 @@ images SDKTOOLS/WINTOOLS/CLB UTILS/NTBACKUP/SRC UTILS/ATTRIB UTILS/CHCP UTILS/CH
 	UTILS/DOSKEY UTILS/FC UTILS/FIND UTILS/FINDSTR UTILS/HELP UTILS/LABEL UTILS/FORMAT \
 	UTILS/MODE UTILS/MORE UTILS/RECOVER UTILS/REPLACE UTILS/RESTORE/SRC UTILS/SORT \
 	UTILS/SUBST UTILS/TREE UTILS/XCOPY
+images SDKTOOLS/WINTOOLS/CTL3D/DLL SDKTOOLS/WINTOOLS/WINMSD
 # (the NET UI programs, Event Viewer and User Manager: the libraries of the
 # NET UI toolkit, each PCH directory before its library, then its DLLs;
 # acledit, ntlanman and mprui; the libraries of the admin tools; regedt32

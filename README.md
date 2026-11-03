@@ -183,7 +183,7 @@ UMTEST=1 build/build-image.sh DIR # also the test programs of UMTEST (RANDOM)
 build/make-hives.sh               # obj/hives: SYSTEM, SOFTWARE, DEFAULT
 build/make-disk.sh                # obj/3max-disk.img (KEEP=1 keeps NT's state)
 build/decstation-image.sh         # obj/ntmax-decstation.tar.gz: a new disk for real machines
-IMG=DISK build/portable-gxemul-image.sh  # obj/ntmax-gxemul.tar.gz: gxemul for macOS, Linux, Windows + DISK
+IMG=DISK build/portable-gxemul-image.sh  # obj/ntmax-gxemul.tar.gz: gxemul for macOS, Linux, Windows + DISK + rom/
 ```
 
 The kernel links the libraries of `PRIVATE/NTOS` (KE, MM, EX, IO, ...) and
@@ -222,6 +222,7 @@ that `build-image.sh` builds them from:
 | msvfw32, msvidc32, msrle32, mciavi32 | `PRIVATE/WINDOWS/MEDIA/AVI/VIDEO`, `AVI/MSVIDC`, `AVI/MSRLE`, `AVI/MCIAVI32` |
 | ulib, ureg, ifsutil, ufat, uhpfs, untfs, cufat, cuhpfs, fmifs | `PRIVATE/UTILS/ULIB/SRC`, `UREG/SRC`, `IFSUTIL/SRC`, `UFAT/SRC`, `UHPFS/SRC`, `UNTFS/SRC`, `CUFAT/SRC`, `CUHPFS`, `FMIFS/SRC` |
 | windisk, ntbackup, clb | `PRIVATE/UTILS/FDISK`, `UTILS/NTBACKUP/SRC`, `PRIVATE/SDKTOOLS/WINTOOLS/CLB` |
+| winmsd, winmsd.dll (its 3D controls) | `PRIVATE/SDKTOOLS/WINTOOLS/WINMSD`, `WINTOOLS/CTL3D/DLL` |
 | attrib, chcp, chkdsk, comp, doskey, fc, find, findstr, help, label, format, mode, more, recover, replace, restore, sort, subst, tree, xcopy | `PRIVATE/UTILS/`NAME (`RESTORE/SRC`) |
 | netui0, netui1, netui2, acledit, ntlanman, ntlanui, mprui | `PRIVATE/NET/UI/COMMON/SRC/DLL3/DLL0`, `DLL3/DLL1`, `DLL3/DLL2`, `NET/UI/ACLEDIT/BIN`, `UI/SHELL/BIN`, `UI/SHELLUI/BIN`, `UI/MPR/MPR` |
 | eventvwr, usrmgr, musrmgr, regedt32 | `PRIVATE/NET/UI/ADMIN/EVENTVWR/EVENTVWR`, `ADMIN/USER/USER`, `ADMIN/USER/MINIUSER`, `PRIVATE/UTILS/REGEDIT/SRC` |

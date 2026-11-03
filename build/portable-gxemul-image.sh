@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Ready-to-run gxemul package obj/ntmax-gxemul.tar.gz: a disk with NT installed (IMG), run.sh
-# and run.cmd (build/portable: a 5000/200 with its frame buffer in a window) and gxemul (the
-# HEAD of ../gxemul) for macOS (arm64 and x86_64 in one binary, with the SDL2 of the official
-# framework), Linux x86_64 and aarch64 (AlmaLinux 9, its SDL2 bundled) and Windows x86_64
-# (mingw-w64, the official SDL2 DLL), the last three built in Docker. The binaries stay in
-# obj/portable/bin; FORCE=1 rebuilds them.
+# Ready-to-run gxemul package obj/ntmax-gxemul.tar.gz: a disk with NT installed (IMG), the
+# 5000/200 with its frame buffer in a window and DEC's ROMs (build/portable/ntmax.json, rom/ of
+# tools/mkrom.py), the ROM's settings (nvram.bin: boot 5/rz0/osloader, English), run.sh and
+# run.cmd (build/portable) and gxemul (the HEAD of ../gxemul) for macOS (arm64 and x86_64 in
+# one binary, with the SDL2 of the official framework), Linux x86_64 and aarch64 (AlmaLinux 9,
+# its SDL2 bundled) and Windows x86_64 (mingw-w64, the official SDL2 DLL), the last three built
+# in Docker. The binaries stay in obj/portable/bin; FORCE=1 rebuilds them.
 #
 # Usage:  IMG=disk.img [FORCE=1] build/portable-gxemul-image.sh [TARGET...]
 #
@@ -106,15 +107,33 @@ windows() {
 		cd /out && wine ./gxemul.exe -h 2>&1 | grep "GXemul $V"'
 }
 
+nvram() {	# nvram FILE: the ROM's settings, the clock's 50 bytes of RAM (registers 14-63)
+	{
+		printf '\000\003\030\000\000\000\000\000'	# 14-21, as the ROM sets them (16: more=24)
+		printf '5/rz0/osloader'				# 22-35: boot
+		head -c 26 /dev/zero				# 36-61
+		printf '1'					# 62: console=1, English (the ROM does not ask)
+		# 63: the year for NT (2000 + it): gxemul takes it from the file, not from the clock
+		printf "\\$(printf %03o $(($(date +%Y) - 2000)))"
+	} >"$1"
+	[[ $(wc -c <"$1") -eq 50 ]]
+}
+
 pack() {
 	[[ -n ${IMG:-} && -f $IMG ]] || { echo "IMG= a disk with NT installed (see the top of $0)" >&2; exit 1; }
 	local b s=$P/stage r=$P/stage/ntmax-gxemul
 	for b in macos linux-x86_64 linux-aarch64 windows-x86_64; do
 		[[ -d $P/bin/$b ]] || { echo "no obj/portable/bin/$b: build it first" >&2; exit 1; }
 	done
+	for b in kn02-aa pmag-ba pmaz-aa pmad-aa; do
+		[[ -s rom/$b.bin ]] || { echo "no rom/$b.bin (tools/mkrom.py)" >&2; exit 1; }
+	done
 	echo ">> packing obj/ntmax-gxemul.tar.gz"
-	rm -rf "$s" && mkdir -p "$r"
+	rm -rf "$s" && mkdir -p "$r/rom"
 	cp "$IMG" "$r/ntmax-disk.img"
+	cp rom/kn02-aa.bin rom/pmag-ba.bin rom/pmaz-aa.bin rom/pmad-aa.bin "$r/rom/"
+	cp build/portable/ntmax.json "$r/"
+	nvram "$r/nvram.bin"
 	cp build/portable/run.sh "$r/" && chmod +x "$r/run.sh"
 	sed 's/$/\r/' build/portable/run.cmd >"$r/run.cmd"
 	sed "s/@V@/$V/g" build/portable/README.txt >"$r/README.txt"

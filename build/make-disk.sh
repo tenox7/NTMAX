@@ -154,6 +154,10 @@ if [ -f obj/ntoskrnl.exe ] && [ -f obj/hal.dll ]; then
 			"Missile Command=misl|Snake=ntsnake|Tankz=tankz|NT Rigue=ntrigue|RISCque=riscque" \
 			"Sokoban=sokoban|RISCoban=riscoban|WiNTown=wintown"
 		grp MAIN apps 6 "TenoxVNC=tenoxvnc|Internet Explorer=iexplore|ntfetch=ntfetch"
+		# Windows NT Diagnostics in Administrative Tools, where Setup puts
+		# it (PARTIAL.INF, AdminToolsItemsWinnt), run from the path
+		[ ! -f obj/system32/winmsd.exe ] ||
+			perl tools/grp.pl /tmp/ADMIN.GRP obj/system32 "" 3 "Windows NT Diagnostics=winmsd"
 		for f in MAIN ACCESORI GAMES ADMIN; do
 			mcopy -o -i "$p" /tmp/$f.GRP ::/winnt/idw/$(echo $f | tr A-Z a-z).grp
 		done
