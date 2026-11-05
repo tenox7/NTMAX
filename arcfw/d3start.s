@@ -89,7 +89,7 @@
         jal     t0                      // print message
         nop                             //
         lw      t0,REX_COMMAND_OFFSET(s3) // get console command service
-        li      a0,0x68                 // set halt command ('h')
+        li      a0,REX_COMMAND_HALT     // set halt command
         jal     t0                      // return to the console prompt
         nop                             //
 3:      b       3b                      // the console does not return
@@ -125,6 +125,54 @@
 FwProcessorMessage:
         .ascii  "\nThe ARC firmware runs on a DECstation 5000 with an R3000 processor.\n\0"
         .text
+
+        SBTTL("Return To Console")
+//++
+//
+// VOID
+// FwRexReturnToConsole (
+//    IN ULONG Command
+//    )
+//
+// Routine Description:
+//
+//    This routine gives the machine back to the console with the console
+//    command service.  The termination routines of the firmware call it,
+//    and a loaded program, or the system it started, calls them on its own
+//    stack, which the system maps: the console runs unmapped, with the
+//    bootstrap vectors.  So the routine disables interrupts, gives the
+//    exceptions to the bootstrap vectors of the console, continues on the
+//    firmware stack, which no loaded program uses, and calls FwRexRelease,
+//    which puts back the work area of the console in page zero, resets the
+//    SCSI bus for the boot driver of the console, writes the non-volatile
+//    configuration and calls the command service.
+//
+// Arguments:
+//
+//    Command (a0) - Supplies the console command, REX_COMMAND_BOOT or
+//        REX_COMMAND_HALT.
+//
+// Return Value:
+//
+//    Does not return.
+//
+//--
+
+        LEAF_ENTRY(FwRexReturnToConsole)
+
+        .set    noreorder
+        li      t0,(1 << PSR_BEV) | (1 << PSR_CU1) // disable interrupts, set BEV
+        mtc0    t0,psr                  //
+        nop                             //
+        nop                             //
+        la      sp,FwStack + FW_STACK_SIZE - (4 * 4) // set firmware stack
+        jal     FwRexRelease            // give the machine to the console
+        nop                             //
+10:     b       10b                     // FwRexRelease does not return
+        nop                             //
+        .set    reorder
+
+        .end    FwRexReturnToConsole
 
         SBTTL("Initialize PCR")
 //++

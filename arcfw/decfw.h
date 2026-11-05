@@ -54,6 +54,14 @@ Abstract:
 #define REX_COMMAND_OFFSET 0xac
 
 //
+// Define the commands of the console command service: restart the system
+// the way the console boot action does, and return to the console prompt.
+//
+
+#define REX_COMMAND_BOOT 0x62           // 'b'
+#define REX_COMMAND_HALT 0x68           // 'h'
+
+//
 // Define the fields of the system identifier of the console: the processor
 // (bits 24 to 31) and the system module (bits 16 to 23), and the system
 // modules the firmware runs on.
@@ -205,6 +213,14 @@ extern ULONG FwRtcPhysicalBase;
 #define FW_NVRAM_BLOCK 2016
 #define FW_NVRAM_BLOCKS (FW_NVRAM_SIZE / 512)
 
+//
+// Define the number of times a write of the image that waited for a loaded
+// program is tried: after the reset of the SCSI bus (FwRexResetScsiBus),
+// the first command a device gets reports the reset (unit attention).
+//
+
+#define FW_NVRAM_WRITE_TRIES 3
+
 extern UCHAR FwNvram[FW_NVRAM_SIZE];
 
 //
@@ -263,8 +279,42 @@ FwRexHalt (
     VOID
     );
 
+//
+// Define the routines that keep the console's work area in page zero, the
+// exception page, while a loaded program runs: the system a program starts
+// can take the page (the MIPS system keeps its exception vectors, its
+// first processor control block and its idle thread there), so the page
+// is saved when the firmware invokes a program, and put back before the
+// firmware gives the machine back to the console.
+//
+
 VOID
-FwRexReboot (
+FwRexSavePageZero (
+    VOID
+    );
+
+VOID
+FwRexReturnToConsole (
+    IN ULONG Command
+    );
+
+VOID
+FwRexRelease (
+    IN ULONG Command
+    );
+
+//
+// Define the routine that gives the SCSI bus back to the console's boot
+// driver after a loaded program ran, and the time it waits after the reset
+// of the bus: the reset to selection time of a device, 250 milliseconds,
+// twice, since FwStallExecution counts for a 25 MHz processor and the
+// 5000/240 has a 40 MHz one.
+//
+
+#define REX_SCSI_RESET_DELAY (2 * 250 * 1000)
+
+VOID
+FwRexResetScsiBus (
     VOID
     );
 

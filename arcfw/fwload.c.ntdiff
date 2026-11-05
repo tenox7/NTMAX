@@ -6,10 +6,13 @@
 +                // The program, or the system it starts, can drive the
 +                // controller of the boot device: the non-volatile
 +                // configuration is written when the firmware gets control
-+                // back.
++                // back.  The system can also take page zero, where the
++                // console keeps its work area: the page is saved, to be
++                // put back before the console gets control again.
 +                //
 +
 +                FwNvramDefer();
++                FwRexSavePageZero();
 +#endif
 =1 985 7
 +#if defined(DECSTATION)

@@ -13,12 +13,15 @@
 +    The module also holds the interface to the REX console callback vector
 +    (dectccbv.h), which the firmware uses to read and write the boot device,
 +    to get the memory bitmap and the system identifier, and to halt and
-+    reboot.
++    reboot, and the routines that keep the work area the console has in
++    page zero while a loaded program runs and give the console its SCSI bus
++    back.
 =1 17 3
 +    Kernel mode only.
 =1 22 4
 =1 31 1
 +#include "decfw.h"
++#include "ncr53c94.h"
 +#define CALLBACK_VECTOR
 +#include "dectccbv.h"
 +
@@ -38,6 +41,16 @@
 +ULONG FwRexMagic;
 +PVOID FwRexVector;
 +#define ccv ((PTcCBV)FwRexVector)
++
++//
++// Define the copy of page zero that FwRexSavePageZero takes when the
++// firmware invokes a program, and whether there is one.  The console keeps
++// its work area in the page (the state of its boot device among it), and
++// its boot read and write services use it.
++//
++
++ULONG FwRexPageZero[PAGE_SIZE / sizeof(ULONG)];
++BOOLEAN FwRexPageZeroSaved;
 +
 +//
 +// Define the firmware stack, the memory size in megabytes and the state the
@@ -253,20 +266,123 @@
 +FwRexHalt (
 =1 2261 7
 +    This routine returns to the console prompt with the console command
-+    service, command 'h'.
++    service, command 'h'.  The firmware calls it when it cannot run, before
++    it invokes any program.
 =1 658 7
 +    Does not return.
 =1 2073 4
-+    (*ccv->_reboot)('h');
++    (*ccv->_reboot)(REX_COMMAND_HALT);
 +}
 +
 +VOID
-+FwRexReboot (
++FwRexSavePageZero (
 =1 2261 7
-+    This routine restarts the system the way the console boot action does,
-+    with the console command service, command 'b'.
-=1 658 7
++    This routine is called before the firmware invokes a loaded program.  It
++    copies page zero, which holds the work area of the console, to
++    FwRexPageZero: the system that the program starts can take the page,
++    the exception page of a MIPS system, and FwRexRelease puts the copy
++    back before the console gets control again.
++
++    The page is read through KSEG1: the console writes its work area
++    uncached.
+=1 658 10
++
++{
++    ULONG Index;
++    PULONG PageZero;
++
++    PageZero = (PULONG)KSEG1_BASE;
++    for (Index = 0; Index < (PAGE_SIZE / sizeof(ULONG)); Index += 1) {
++        FwRexPageZero[Index] = PageZero[Index];
++    }
++
++    FwRexPageZeroSaved = TRUE;
++}
++
++VOID
++FwRexResetScsiBus (
+=1 2261 7
++    This routine gives the SCSI bus of the system module back to the boot
++    driver of the console after a loaded program ran.  The SCSI driver of
++    the system that the program started negotiates synchronous transfers
++    with the devices, which keep them until the bus is reset, and it leaves
++    the synchronous offset of the last device it selected in the protocol
++    chip.  The boot driver of the console sends no messages and transfers
++    asynchronously, as its power-up initialization set the chip, and it
++    starts a transfer with the chip as it finds it.
++
++    So the routine sets the chip to asynchronous transfers and resets the
++    bus, which returns every device to asynchronous transfers and ends what
++    a device still had in progress, waits the reset to selection time, and
++    clears the reset interrupt of the chip.  The first command a device
++    gets after the reset reports the reset (unit attention), so the caller
++    tries a failed write again.
+=1 658 10
++
++{
++    PSCSI_REGISTERS ScsiRegisters;
++    UCHAR Status;
++
++    ScsiRegisters = (PSCSI_REGISTERS)(KSEG1_BASE | FwSystem->ScsiPhysicalBase);
++    SCSI_WRITE(ScsiRegisters, SynchronousOffset, 0);
++    SCSI_WRITE(ScsiRegisters, Command, FLUSH_FIFO);
++    SCSI_WRITE(ScsiRegisters, Command, RESET_SCSI_BUS);
++    FwStallExecution(REX_SCSI_RESET_DELAY);
++
++    //
++    // Read the status, then the interrupt register, which clears the
++    // interrupt.
++    //
++
++    Status = SCSI_READ(ScsiRegisters, ScsiStatus);
++    Status = SCSI_READ(ScsiRegisters, ScsiInterrupt);
++    SCSI_WRITE(ScsiRegisters, Command, FLUSH_FIFO);
+=1 2393 3
++VOID
++FwRexRelease (
++    IN ULONG Command
+=1 2262 6
++    This routine gives the machine back to the console.  FwRexReturnToConsole
++    calls it on the firmware stack, with interrupts disabled and the
++    exceptions on the bootstrap vectors of the console.
++
++    If the firmware invoked a program, the routine first puts back page
++    zero as it was then: the system that the program started has kept its
++    exception vectors, its first processor control block and its idle
++    thread in the page, over the work area of the console, and the boot
++    write service of the console, which writes the non-volatile
++    configuration, would take its own data from the page.  The page is
++    written through KSEG1, then both caches are swept, so no cached line
++    of the system's page is left.  The SCSI bus is reset, so the devices
++    the system's SCSI driver left in synchronous transfers return to the
++    asynchronous transfers of the console's boot driver.
++
++    Then the non-volatile configuration is written, if a loaded program,
++    or the system it started, changed it, and the console command service
++    restarts the system the way the console boot action does (command
++    'b'), or returns to the console prompt (command 'h').
+=1 219 3
++    Command - Supplies the console command, REX_COMMAND_BOOT or
++        REX_COMMAND_HALT.
+=1 229 3
 +    Does not return.
 =1 2073 4
-+    (*ccv->_reboot)('b');
++    ULONG Index;
++    PULONG PageZero;
++
++    if (FwRexPageZeroSaved != FALSE) {
++        PageZero = (PULONG)KSEG1_BASE;
++        for (Index = 0; Index < (PAGE_SIZE / sizeof(ULONG)); Index += 1) {
++            PageZero[Index] = FwRexPageZero[Index];
++        }
++
++        HalSweepDcache();
++        HalSweepIcache();
++        FwRexResetScsiBus();
++    }
++
++    FwNvramRelease();
++    (*ccv->_reboot)(Command);
++    for (;;) {
++    }
 +}

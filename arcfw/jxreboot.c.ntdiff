@@ -4,13 +4,14 @@
 +
 +        //
 +        // The DECstation is reset by the console, which restarts the
-+        // system the way its boot action does.  First the non-volatile
-+        // configuration is written, if a loaded program, or the system it
-+        // started, changed it.
++        // system the way its boot action does.  First, after a loaded
++        // program ran, the work area of the console in page zero is put
++        // back and the SCSI bus is reset for the boot driver of the
++        // console, and the non-volatile configuration is written, if the
++        // program, or the system it started, changed it.
 +        //
 +
-+        FwNvramRelease();
-+        FwRexReboot();
++        FwRexReturnToConsole(REX_COMMAND_BOOT);
 +#else
 =1 69 2
 +#endif
@@ -18,13 +19,14 @@
 +#if defined(DECSTATION)
 +
 +    //
-+    // A halted DECstation waits at the console prompt.  First the
-+    // non-volatile configuration is written, if a loaded program, or the
-+    // system it started, changed it.
++    // A halted DECstation waits at the console prompt.  First, after a
++    // loaded program ran, the work area of the console in page zero is
++    // put back and the SCSI bus is reset for the boot driver of the
++    // console, and the non-volatile configuration is written, if the
++    // program, or the system it started, changed it.
 +    //
 +
-+    FwNvramRelease();
-+    FwRexHalt();
++    FwRexReturnToConsole(REX_COMMAND_HALT);
 +#endif
 =1 98 182
 +#if defined(DECSTATION)

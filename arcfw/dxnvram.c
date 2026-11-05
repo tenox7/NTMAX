@@ -150,7 +150,10 @@ Routine Description:
     loaded program, which returned or called a termination routine: the
     program, or the system it started, has given the machine back.  The
     copy is written if it changed meanwhile, and later changes are written
-    at once.
+    at once.  A failed write is tried again, up to FW_NVRAM_WRITE_TRIES
+    times: when the firmware gives the machine back to the console, it
+    resets the SCSI bus first (FwRexResetScsiBus), and the first command
+    the boot device gets after the reset reports the reset.
 
 Arguments:
 
@@ -163,10 +166,19 @@ Return Value:
 --*/
 
 {
+    ARC_STATUS Status;
+    ULONG Try;
+
     FwNvramDeferred = FALSE;
+    Status = ESUCCESS;
     if (FwNvramChanged != FALSE) {
-        return FwNvramFlush();
+        for (Try = 0; Try < FW_NVRAM_WRITE_TRIES; Try += 1) {
+            Status = FwNvramFlush();
+            if (Status == ESUCCESS) {
+                break;
+            }
+        }
     }
 
-    return ESUCCESS;
+    return Status;
 }
