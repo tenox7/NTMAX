@@ -132,6 +132,14 @@
 +    MctadrRev2 = FALSE;
 +
 +    //
++    // Set the serial line of the console up before the first message.  The
++    // console can leave the transmitter of the line disabled (the console
++    // of the 5000/1xx does, when its own console is the screen), and a
++    // character written to a disabled transmitter stays in its buffer.
++    //
++
+=3 309 2
++    //
 +    // Initialize MemorySize to the size of memory in megabytes.  The console
 +    // returns the bitmap of the memory it tested, one bit per page.
 +    //
@@ -316,10 +324,12 @@
 +    a device still had in progress, waits the reset to selection time, and
 +    clears the reset interrupt of the chip.  The first command a device
 +    gets after the reset reports the reset (unit attention), so the caller
-+    tries a failed write again.
++    tries a failed write again.  The status and the interrupt register of
++    the chip after the reset are shown on the console.
 =1 658 10
 +
 +{
++    UCHAR Interrupt;
 +    PSCSI_REGISTERS ScsiRegisters;
 +    UCHAR Status;
 +
@@ -335,8 +345,9 @@
 +    //
 +
 +    Status = SCSI_READ(ScsiRegisters, ScsiStatus);
-+    Status = SCSI_READ(ScsiRegisters, ScsiInterrupt);
++    Interrupt = SCSI_READ(ScsiRegisters, ScsiInterrupt);
 +    SCSI_WRITE(ScsiRegisters, Command, FLUSH_FIFO);
++    FwPrint(FW_REX_SCSI_RESET_MSG, Status, Interrupt);
 =1 2393 3
 +VOID
 +FwRexRelease (
@@ -353,14 +364,18 @@
 +    write service of the console, which writes the non-volatile
 +    configuration, would take its own data from the page.  The page is
 +    written through KSEG1, then both caches are swept, so no cached line
-+    of the system's page is left.  The SCSI bus is reset, so the devices
-+    the system's SCSI driver left in synchronous transfers return to the
-+    asynchronous transfers of the console's boot driver.
++    of the system's page is left.  The serial line of the firmware console
++    is set up again, as the system's serial drivers can have changed it,
++    and each step from there on is shown on it, so a terminal on the line
++    shows how far the return to the console got.  The SCSI bus is reset,
++    so the devices the system's SCSI driver left in synchronous transfers
++    return to the asynchronous transfers of the console's boot driver.
 +
 +    Then the non-volatile configuration is written, if a loaded program,
 +    or the system it started, changed it, and the console command service
 +    restarts the system the way the console boot action does (command
-+    'b'), or returns to the console prompt (command 'h').
++    'b'), or returns to the console prompt (command 'h'), once the serial
++    line has sent the last message.
 =1 219 3
 +    Command - Supplies the console command, REX_COMMAND_BOOT or
 +        REX_COMMAND_HALT.
@@ -378,10 +393,19 @@
 +
 +        HalSweepDcache();
 +        HalSweepIcache();
++        SerialConsoleSetup();
++        FwPrint(FW_REX_RETURN_MSG);
 +        FwRexResetScsiBus();
 +    }
 +
 +    FwNvramRelease();
++    if (Command == REX_COMMAND_BOOT) {
++        FwPrint(FW_REX_BOOT_MSG);
++    } else {
++        FwPrint(FW_REX_HALT_MSG);
++    }
++
++    SerialConsoleDrain();
 +    (*ccv->_reboot)(Command);
 +    for (;;) {
 +    }

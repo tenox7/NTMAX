@@ -1,2 +1,32 @@
 #ntdiff PRIVATE/NTOS/FW/MIPS/FWUSA.C
 =1 1 209
++
++#if defined(DECSTATION)
++
++//
++// Return to the console strings.
++//
++
++PCHAR FW_REX_RETURN_MSG = "\r\n The firmware has control again, page zero is restored.\r\n";
++PCHAR FW_REX_SCSI_RESET_MSG = " SCSI bus reset, status %02x, interrupt %02x.\r\n";
++PCHAR FW_NVRAM_WRITE_MSG = " Writing the firmware settings, try %d";
++PCHAR FW_NVRAM_FAILED_MSG = "...failed.\r\n";
++PCHAR FW_REX_BOOT_MSG = " Restarting with the console.\r\n";
++PCHAR FW_REX_HALT_MSG = " Returning to the console.\r\n";
++
++//
++// The strings of the summary of the system module (dxlog.c) and of the
++// start of a loaded program.
++//
++
++PCHAR FW_SYSTEM_MSG = " System: %s, console system id %08lx.\r\n";
++PCHAR FW_PROCESSOR_MSG = " Processor id %04lx, floating point id %04lx.\r\n";
++PCHAR FW_MEMORY_MSG = " Memory: %d MB, caches %d KB instruction and %d KB data.\r\n";
++PCHAR FW_SLOT_MSG = " TURBOchannel slot %d: %s.\r\n";
++PCHAR FW_SLOT_EMPTY_MSG = "empty";
++PCHAR FW_CONSOLE_ARGUMENTS_MSG = " Console boot arguments:";
++PCHAR FW_CONSOLE_VARIABLES_MSG = " Console variables: console %.80s, osconsole %.80s.\r\n";
++PCHAR FW_UNDEFINED_MSG = "none";
++PCHAR FW_PROGRAM_START_MSG = " Starting %.200s at %08lx.\r\n";
++
++#endif

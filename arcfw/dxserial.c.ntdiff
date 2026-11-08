@@ -51,6 +51,19 @@
 +#define SCC_RECOVERY_TIME 2
 +
 +//
++// Define how long the transmitter of a line is waited for: up to
++// SERIAL_TRANSMIT_WAIT polls, SERIAL_TRANSMIT_POLL microseconds apart,
++// about twenty character times at 9600 baud.  A line that cannot take a
++// character by then does not work, and the character is lost rather than
++// the firmware waiting for the line forever.  Define also the time a
++// character takes at 9600 baud in microseconds.
++//
++
++#define SERIAL_TRANSMIT_POLL 10
++#define SERIAL_TRANSMIT_WAIT 2000
++#define SERIAL_CHARACTER_TIME 1042
++
++//
 +// Define the position of the cursor on the console terminal.  The console
 +// output driver keeps it for the routines that edit a line where it is
 +// shown (FwGetString), as the display driver of a video console does.
@@ -130,10 +143,14 @@
 =3 3092 3
 =1 111 68
 +    SP    -  Base address of the serial port: the line.
-=1 180 8
+=1 180 4
++    otherwise an error code is returned: EIO if the line cannot take the
++    character.
+=1 185 3
 +    PSCC_CHANNEL_REGISTERS Channel;
 +    USHORT DataShort;
 +    USHORT Enable;
++    ULONG Wait;
 +
 +    //
 +    // On an SCC, wait until the transmitter of the channel can take a
@@ -143,8 +160,15 @@
 +
 +    if (FwSystem->SerialType == FwSerialScc) {
 +        Channel = SCC_LINE_CHANNEL(SP);
-+        while ((SerialReadScc(Channel, SCC_RR0) & SCC_RR0_TRANSMIT_EMPTY) == 0) {
++        for (Wait = 0;
++             (SerialReadScc(Channel, SCC_RR0) & SCC_RR0_TRANSMIT_EMPTY) == 0;
++             Wait += 1) {
++            if (Wait == SERIAL_TRANSMIT_WAIT) {
++                return EIO;
++            }
++
 +            SerialPoll();
++            FwStallExecution(SERIAL_TRANSMIT_POLL);
 +        }
 +
 +        WRITE_REGISTER_ULONG(&Channel->Data, (ULONG)(UCHAR)Char << SCC_BYTE_SHIFT);
@@ -159,7 +183,7 @@
 +    Enable = READ_REGISTER_USHORT(&DZ_READ->TransmitControlRead.Short);
 +    Enable |= (USHORT)(1 << SP);
 +    WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitControlWrite.Short, Enable);
-+    for (;;) {
++    for (Wait = 0; ; Wait += 1) {
 +        DataShort = READ_REGISTER_USHORT(&DZ_READ->ControlStatus.Short);
 +        if (((PDZ_CONTROL_STATUS)(&DataShort))->TransmitReady != 0) {
 +            if (((PDZ_CONTROL_STATUS)(&DataShort))->TransmitLine == SP) {
@@ -167,7 +191,14 @@
 +            }
 +            Enable &= ~(1 << ((PDZ_CONTROL_STATUS)(&DataShort))->TransmitLine);
 +            WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitControlWrite.Short, Enable);
-=3 2394 4
++        }
++
++        if (Wait == SERIAL_TRANSMIT_WAIT) {
++            return EIO;
++        }
++
++        FwStallExecution(SERIAL_TRANSMIT_POLL);
+=1 359 3
 =1 198 2
 +    WRITE_REGISTER_USHORT(&DZ_WRITE->TransmitBuffer.Short, (UCHAR)Char);
 =1 245 3
@@ -468,6 +499,59 @@
 +    DataShort = READ_REGISTER_USHORT(&DZ_READ->ControlStatus.Short);
 +    ((PDZ_CONTROL_STATUS)(&DataShort))->MasterScanEnable = 1;
 +    WRITE_REGISTER_USHORT(&DZ_WRITE->ControlStatus.Short, DataShort);
+=3 2353 3
++VOID
++SerialConsoleSetup (
+=3 3189 7
++    This routine sets the serial line of the firmware console up again
++    after a loaded program ran: the system that the program started has
++    its own drivers for the serial lines, which can have changed the speed
++    or the format of the line, or disabled its transmitter.  On an SCC, a
++    read of the control register first points the channel at register 0,
++    wherever a driver left it.
+=3 3200 12
++    ULONG Line;
++
++    if ((BlFileTable[ARC_CONSOLE_OUTPUT].Flags.Open == 0) ||
++        (BlFileTable[ARC_CONSOLE_OUTPUT].DeviceEntryTable != &SerialEntryTable)) {
+=3 2353 3 4
++    Line = BlFileTable[ARC_CONSOLE_OUTPUT].u.SerialContext.PortBase;
++    if (FwSystem->SerialType == FwSerialScc) {
++        SerialReadScc(SCC_LINE_CHANNEL(Line), SCC_RR0);
++    }
++
++    SerialBootSetup(Line);
+=3 2353 3
++VOID
++SerialConsoleDrain (
+=3 3189 7
++    This routine waits until the serial line of the firmware console has
++    sent the characters it was given, before the firmware gives the machine
++    back to the console, which sets the line up again.  The channel of an
++    SCC reports when it has sent all, which is waited for up to four
++    character times.  A DZ reports no empty transmitter, so the routine
++    waits four character times: the line holds two characters, and
++    FwStallExecution counts for a 25 MHz processor, while the 5000/240 has
++    a 40 MHz one.
+=3 3200 12
++    PSCC_CHANNEL_REGISTERS Channel;
++    ULONG Wait;
++
++    if ((BlFileTable[ARC_CONSOLE_OUTPUT].Flags.Open == 0) ||
++        (BlFileTable[ARC_CONSOLE_OUTPUT].DeviceEntryTable != &SerialEntryTable)) {
+=3 2353 3 4
++    if (FwSystem->SerialType == FwSerialScc) {
++        Channel = SCC_LINE_CHANNEL(BlFileTable[ARC_CONSOLE_OUTPUT].u.SerialContext.PortBase);
++        for (Wait = 0;
++             Wait < ((4 * SERIAL_CHARACTER_TIME) / SERIAL_TRANSMIT_POLL);
++             Wait += 1) {
++            if ((SerialReadScc(Channel, SCC_RR1) & SCC_RR1_ALL_SENT) != 0) {
+=3 1554 3 -4
++            FwStallExecution(SERIAL_TRANSMIT_POLL);
+=3 2417 3 4
++    }
++
++    FwStallExecution(4 * SERIAL_CHARACTER_TIME);
 =3 2353 3
 =1 448 20
 +    SP_BASE(FileId);

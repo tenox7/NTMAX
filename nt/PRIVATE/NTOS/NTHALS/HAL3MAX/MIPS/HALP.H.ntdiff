@@ -237,7 +237,34 @@
 +HalpTurboChannelDispatch (
 =1 67 3
 +#endif
-=1 169 4
++
++//
++// Define the routines of the serial log (dxlog.c): the text the HAL
++// displays and the lines of the HAL go to the console line too.
++//
++
++VOID
++HalpLogSetup (
+=1 67 4
++HalpLogString (
++    IN PUCHAR String
+=1 68 3
++HalpLogStartLine (
+=1 67 4
++HalpLogPrint (
++    IN PCHAR Format,
++    ...
+=1 68 3
++HalpLogSystem (
+=1 67 4
++HalpLogErrorRegisters (
++    IN ULONG FailedAddress,
++    IN ULONG CheckSyndrome,
++    IN ULONG SystemControl
+=1 68 3
++HalpLogReturnToFirmware (
++    IN FIRMWARE_REENTRY Routine
+=1 168 5
 +// The builtin interrupt enables are the interrupt enable field of the
 +// system control and status register on the KN02, the system interrupt
 +// mask register of the IO Control ASIC on the KN02-BA and the KN03.

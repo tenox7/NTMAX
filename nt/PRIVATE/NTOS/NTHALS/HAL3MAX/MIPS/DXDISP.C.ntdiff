@@ -131,21 +131,39 @@
 +    Buffer = (PULONG)HalpVideoMemoryBase;
 +    Limit = (CFB_HORIZONTAL_RESOLUTION * CFB_VERTICAL_RESOLUTION) / sizeof(ULONG);
 =1 687 13
-=2 2043 25
+=2 2043 10
++    This routine displays a character string on the display screen, and
++    sends it to the serial log (dxlog.c).  Without a display, the string
++    goes to the serial log only.
+=1 1422 14
++    PUCHAR Text;
 +
 +    //
-+    // If there is no display, then return.
++    // If there is no display, then send the string to the serial log only.
 +    //
 +
 +    if (HalpDisplayControllerSetup == NULL) {
++        HalpLogString(String);
 =2 713 3 4
 +    //
 +    // Raise IRQL to the highest level.
 =1 1442 4
-=3 834 19
-+    // Lower IRQL to its previous level.
+=1 1459 3
++    // to the HAL.  The console line of the serial log is set up again too:
++    // the driver of the communications ports may have had it meanwhile.
+=1 1463 4
++        HalpLogSetup();
+=1 1468 6
++    Text = String;
++    while (*Text != 0) {
++        HalpDisplayCharacter(*Text++);
+=1 206 3
++    // Lower IRQL to its previous level, and send the string to the serial
++    // log.
 +    //
-=2 2131 40
+=1 1492 2
++    HalpLogString(String);
+=2 2133 38
 =1 1532 5
 +            RtlMoveMemory((PVOID)HalpVideoMemoryBase,
 +                          (PVOID)(HalpVideoMemoryBase + HalpScrollLine),
@@ -155,8 +173,16 @@
 =1 1542 20
 =3 867 48
 =2 2251 32
-=3 947 13
-=1 1655 42
+=1 1642 9
++
++    //
++    // The serial log cannot place its text: the text that follows starts a
++    // new line of the log.
++    //
++
++    HalpLogStartLine();
+=2 2292 39
+=1 1690 7
 +    Destination = (PUCHAR)(HalpVideoMemoryBase +
 =1 1698 10
 +            *Destination++ = (UCHAR)((FontValue >> 31) ^ 1);

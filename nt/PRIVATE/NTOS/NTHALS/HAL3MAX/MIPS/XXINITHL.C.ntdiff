@@ -81,7 +81,9 @@
 +            // data structures.
 +            //
 +
-=2 160 6
+=1 255 1
++            HalpLogSystem();
+=2 161 5
 =1 33 5
 =1 285 27
 +    // Capture the failed memory address, the check syndrome, and the system
@@ -90,6 +92,9 @@
 +    DumpBuffer->FailedAddress = READ_FAILED_ADDRESS();
 +    DumpBuffer->CheckSyndrome = READ_CHECK_SYNDROME();
 +    DumpBuffer->SystemControl = READ_SYSTEM_CONTROL();
++    HalpLogErrorRegisters(DumpBuffer->FailedAddress,
++                          DumpBuffer->CheckSyndrome,
++                          DumpBuffer->SystemControl);
 =1 545 3
 =1 39 8
 =1 346 30

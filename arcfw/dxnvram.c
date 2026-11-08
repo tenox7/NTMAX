@@ -31,6 +31,7 @@ Environment:
 --*/
 
 #include "fwp.h"
+#include "fwstring.h"
 
 //
 // Define the memory copy of the non-volatile configuration, whether its
@@ -153,7 +154,8 @@ Routine Description:
     at once.  A failed write is tried again, up to FW_NVRAM_WRITE_TRIES
     times: when the firmware gives the machine back to the console, it
     resets the SCSI bus first (FwRexResetScsiBus), and the first command
-    the boot device gets after the reset reports the reset.
+    the boot device gets after the reset reports the reset.  Each try and
+    its result are shown on the console.
 
 Arguments:
 
@@ -172,11 +174,16 @@ Return Value:
     FwNvramDeferred = FALSE;
     Status = ESUCCESS;
     if (FwNvramChanged != FALSE) {
-        for (Try = 0; Try < FW_NVRAM_WRITE_TRIES; Try += 1) {
+        for (Try = 1; Try <= FW_NVRAM_WRITE_TRIES; Try += 1) {
+            FwPrint(FW_NVRAM_WRITE_MSG, Try);
             Status = FwNvramFlush();
             if (Status == ESUCCESS) {
+                FwPrint(FW_OK_MSG);
+                FwPrint(FW_CRLF_MSG);
                 break;
             }
+
+            FwPrint(FW_NVRAM_FAILED_MSG);
         }
     }
 

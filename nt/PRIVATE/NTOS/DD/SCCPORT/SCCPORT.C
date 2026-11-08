@@ -64,6 +64,15 @@ Abstract:
     Each line is set up when a client connects it, and the lines no client
     has connected do not interrupt.
 
+    The printer line is the console line of the firmware, and the HAL sends
+    its log on it (dxlog.c of the HAL), polling the transmitter.  While no
+    client has connected the line, the port keeps its transmitter enabled,
+    at the speed and with the eight-bit characters the firmware set up,
+    where it disables the transmitter of any other line that no client has
+    connected: a character written while the transmitter is disabled stays
+    in the transmit buffer of the channel until the transmitter is enabled
+    again, and the log would stop.
+
 Environment:
 
     Kernel mode only.
@@ -1780,8 +1789,9 @@ Routine Description:
 
     This routine computes the value of the transmit parameter register of
     the channel of a line: the bits of a character, the transmit enable of
-    a connected line and the break, and on channel A the DTR and RTS of the
-    line of channel B.
+    a connected line and of the printer line (the console line, which the
+    HAL sends its log on), the break, and on channel A the DTR and RTS of
+    the line of channel B.
 
 Arguments:
 
@@ -1798,7 +1808,8 @@ Return Value:
     UCHAR Value;
 
     Value = Line->Parameters.TransmitParameters;
-    if (Line->Connected != FALSE) {
+    if ((Line->Connected != FALSE) ||
+        (Line->LineNumber == DZPORT_PRINTER_LINE)) {
         Value |= SCC_WR5_TRANSMIT_ENABLE;
     }
 

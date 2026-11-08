@@ -248,6 +248,20 @@ build/run.sh screen               # the same, with the frame buffer's ROM
 The serial console (DZ line 3) is the terminal; with `-X` the firmware's
 console is on the telnet port of the "DC7085 (main console)".
 
+The serial console is also the log of a start, on every model. The firmware
+shows what it found (the model, the processor and floating point ids, the
+memory and caches, the modules in the TURBOchannel slots, the ROM's boot
+arguments and console variables) and each program it starts. The HAL sends
+what NT displays to the same line (the start-up text, autochk, the text of
+a STOP) and adds its own lines (`arcfw/dxlog.c`,
+`nt/PRIVATE/NTOS/NTHALS/HAL3MAX/MIPS/DXLOG.C`): its model, the processor,
+the caches and the stall scale factor it measured; the error registers at a
+bug check; the return to the firmware. Then the firmware shows the steps of
+the restart (page zero, the SCSI reset, the write of its settings). COM2
+(dzserial, which starts after logon) can change the line, so the HAL sets
+it up again when it takes the screen back for a STOP and before it returns
+to the firmware.
+
 A new disk has no firmware settings: in the firmware's setup run
 "Initialize system", "Set default configuration" (with `-X`: the frame
 buffer must be in slot 0), "Set default environment" (SCSI hard disk 0,

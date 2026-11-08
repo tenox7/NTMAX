@@ -8,7 +8,16 @@
 +    CHAR BootFile[128];
 +    BOOLEAN DirectBoot;
 =2 1554 3
-=1 196 17
+=1 196 11
++#if defined(DECSTATION)
++
++    //
++    // Show what the firmware found on the system module.
++    //
++
++    FwPrintSystem();
+=2 1554 3
+=1 208 5
 +#if defined(DECSTATION)
 +
 +    //

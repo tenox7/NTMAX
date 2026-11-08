@@ -155,6 +155,7 @@ typedef enum _FW_SERIAL_TYPE {
 
 typedef struct _FW_SYSTEM {
     ULONG SystemType;                   // system module, REX_SYSTEM_*
+    PCHAR Name;                         // name of the system on the console
     PCHAR Identifier;                   // identifier of the configuration root
     PCHAR InternalBus;                  // identifier of its internal bus
     PCHAR VendorId;                     // vendor of the system identifier
@@ -317,6 +318,66 @@ VOID
 FwRexResetScsiBus (
     VOID
     );
+
+//
+// Define the routine of the serial driver that sets a line up for the
+// firmware console (9600 baud, eight bits, one stop bit, no parity), which
+// the firmware also calls before its first message.
+//
+
+VOID
+SerialBootSetup (
+    IN ULONG SP
+    );
+
+//
+// Define the routines of the serial driver for the return to the console:
+// set the line of the firmware console up again after a loaded program
+// ran, and wait until the line has sent its last characters.
+//
+
+VOID
+SerialConsoleSetup (
+    VOID
+    );
+
+VOID
+SerialConsoleDrain (
+    VOID
+    );
+
+//
+// Define the messages of the return to the console (fwusa.c), which show
+// on the firmware console how far it got.
+//
+
+extern PCHAR FW_REX_RETURN_MSG;
+extern PCHAR FW_REX_SCSI_RESET_MSG;
+extern PCHAR FW_NVRAM_WRITE_MSG;
+extern PCHAR FW_NVRAM_FAILED_MSG;
+extern PCHAR FW_REX_BOOT_MSG;
+extern PCHAR FW_REX_HALT_MSG;
+
+//
+// Define the routine that shows on the console what the firmware found on
+// the system module (dxlog.c), its messages, and the message that shows
+// the start of a loaded program (fwload.c).
+//
+
+VOID
+FwPrintSystem (
+    VOID
+    );
+
+extern PCHAR FW_SYSTEM_MSG;
+extern PCHAR FW_PROCESSOR_MSG;
+extern PCHAR FW_MEMORY_MSG;
+extern PCHAR FW_SLOT_MSG;
+extern PCHAR FW_SLOT_EMPTY_MSG;
+extern PCHAR FW_CONSOLE_ARGUMENTS_MSG;
+extern PCHAR FW_CONSOLE_VARIABLES_MSG;
+extern PCHAR FW_UNDEFINED_MSG;
+extern PCHAR FW_PROGRAM_START_MSG;
 
 //
 // Define the routines for the file the console boot command names

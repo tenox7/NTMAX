@@ -17,7 +17,12 @@
 +
 =1 50 5
 +
-=1 55 12
+=1 55 3
++    // Show the return on the serial log.
++    //
++
++    HalpLogReturnToFirmware(Routine);
+=1 56 11
 =2 147 4
 =2 92 6
 +        // Restart through the firmware.

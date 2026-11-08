@@ -8,9 +8,11 @@
 +                // configuration is written when the firmware gets control
 +                // back.  The system can also take page zero, where the
 +                // console keeps its work area: the page is saved, to be
-+                // put back before the console gets control again.
++                // put back before the console gets control again.  The
++                // console shows the program and where it starts.
 +                //
 +
++                FwPrint(FW_PROGRAM_START_MSG, TempPath, (ULONG)TransferRoutine);
 +                FwNvramDefer();
 +                FwRexSavePageZero();
 +#endif

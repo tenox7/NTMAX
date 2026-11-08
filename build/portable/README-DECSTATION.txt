@@ -32,7 +32,8 @@ You need:
    - Return to main menu > Manage startup > Add a boot selection: Enter at every question
      (\os\nt\osloader.exe, Yes, \winnt, Windows NT, debugger No).
    - Return to main menu > Exit: the machine resets, and NT starts.
-4. NT's first run, three boots; NT restarts by itself between them:
+4. NT's first run, three boots; NT restarts by itself between them. At a restart the screen keeps
+   NT's last picture and the pointer stops; the serial terminal shows the restart.
    - Boot 1 reads NT's first settings and restarts.
    - Boot 2: a box says that the domain list cannot be made: OK. NT restarts.
    - Boot 3 and later: that box, then "The system could not log you on": OK them until the Welcome
@@ -45,7 +46,13 @@ You need:
    start says that a service or driver failed (the CD-ROM drivers): OK.
 7. On another model, run Set default configuration again, on that model.
 
+The serial terminal also gets a log of each start: what the firmware found (model, processor, memory,
+caches, the modules in the TURBOchannel slots, the ROM's boot arguments), the program it starts, NT's
+start-up text and its HAL's line, the text of a blue screen (STOP), and each restart. Save the whole
+session to a file from the moment you power on (e.g. picocom -b 9600 --logfile ntmax.log /dev/ttyUSB0,
+or the log or capture option of your terminal program): the firmware's menus clear the screen.
+
 Please report the model, the memory, the slot of the frame buffer, the disk or emulator, and how far
-it got: what the serial terminal shows, and a photo of the screen if NT stops on a blue screen.
+it got, with that log file (and a photo of the screen if NT stops on a blue screen).
 
 NTMAX: https://github.com/tenox7/NTMAX

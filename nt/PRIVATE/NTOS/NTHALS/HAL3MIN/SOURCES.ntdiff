@@ -19,6 +19,7 @@
 +             mips\dxenvirv.c \
 +             mips\dxflshio.c \
 +             mips\dxhwsup.c  \
++             mips\dxlog.c    \
 +             mips\dxreturn.c \
 +             mips\dxsysint.c \
 +             mips\dxusage.c  \

@@ -26,9 +26,10 @@ Environment:
 
 //
 // Define the name of the description and what decdef.h does not define for
-// the module: the system type of the console, the identifiers of the
-// configuration, the vendor of the system identifier, the HAL, and the
-// error register that a bus error leaves its address in.
+// the module: the system type of the console, the name the console of the
+// firmware shows, the identifiers of the configuration, the vendor of the
+// system identifier, the HAL, and the error register that a bus error
+// leaves its address in.
 //
 // The 5000/200 keeps the HAL the system disk has as hal.dll.  The loader
 // loads the HAL of the other modules by the name the firmware gives it in
@@ -39,6 +40,7 @@ Environment:
 
 #define SYSTEM_DESCRIPTION FwSystemKn02
 #define SYSTEM_TYPE REX_SYSTEM_KN02
+#define SYSTEM_NAME "DECstation 5000/200 (KN02)"
 #define SYSTEM_IDENTIFIER "DEC-KN02"
 #define SYSTEM_INTERNAL_BUS "KN02-Internal Bus"
 #define SYSTEM_VENDOR_ID "DEC KN02"
@@ -49,6 +51,7 @@ Environment:
 
 #define SYSTEM_DESCRIPTION FwSystemKn02Ba
 #define SYSTEM_TYPE REX_SYSTEM_KN02_BA
+#define SYSTEM_NAME "DECstation 5000/1xx (KN02-BA)"
 #define SYSTEM_IDENTIFIER "DEC-KN02-BA"
 #define SYSTEM_INTERNAL_BUS "KN02-BA-Internal Bus"
 #define SYSTEM_VENDOR_ID "DEC KMIN"
@@ -59,6 +62,7 @@ Environment:
 
 #define SYSTEM_DESCRIPTION FwSystemKn03
 #define SYSTEM_TYPE REX_SYSTEM_KN03
+#define SYSTEM_NAME "DECstation 5000/240 (KN03)"
 #define SYSTEM_IDENTIFIER "DEC-KN03"
 #define SYSTEM_INTERNAL_BUS "KN03-Internal Bus"
 #define SYSTEM_VENDOR_ID "DEC KN03"
@@ -69,6 +73,7 @@ Environment:
 
 FW_SYSTEM SYSTEM_DESCRIPTION = {
     SYSTEM_TYPE,                        // SystemType
+    SYSTEM_NAME,                        // Name
     SYSTEM_IDENTIFIER,                  // Identifier
     SYSTEM_INTERNAL_BUS,                // InternalBus
     SYSTEM_VENDOR_ID,                   // VendorId

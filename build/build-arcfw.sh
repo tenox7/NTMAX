@@ -24,7 +24,7 @@ set -e
 cmd=$SHARE/build/arcfw.cmd
 
 # The firmware sources: C and assembler in arcfw/, the HAL modules in hal/.
-FW_C="dxboot dxdisk dxinit dxnvram dxserial fwentry fwio fwload fwprint fwtime fwusa
+FW_C="dxboot dxdisk dxinit dxlog dxnvram dxserial fwentry fwio fwload fwprint fwtime fwusa
 	jxboot jxconfig jxenvir jxmemory jxreboot jxsysid jxvendor jzboot jzcommon
 	jzconfig jzenvir jzgetpar jzmake jzsetup jzstubs jztime jzusa monitor stubs"
 FW_S="d3start d3cache fwtrap xxirql"
