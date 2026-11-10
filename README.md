@@ -8,13 +8,19 @@ port: the ARC firmware, the R3000 assembler of the kernel, the HAL, the
 frame buffer miniport and the drivers of the serial lines, the keyboard and
 the mouse.
 
-## Status (2026-11-02)
+## Status (2026-11-10)
 
 - NT boots to its graphical shell on the color frame buffer (PMAG-BA,
   1024 by 864, 8 bits a pixel).
 - The genuine developer first run (three boots: `registry.ini`, then
-  `winlogon.cmd` in a cmd console, then the logon) ends at the logon dialog
-  and Program Manager.
+  `winlogon.cmd` in a cmd console, then the logon) ends at Program Manager:
+  from the third boot on, Administrator (password `password`) logs on by
+  itself.
+- The network on the 5000/200's Ethernet (the PMAD-AA, a LANCE): TCP/IP
+  with DHCP, Windows Sockets, NetBIOS over TCP/IP and the LAN Manager
+  services (Workstation, Server, Computer Browser, Messenger): `net share`
+  and `net use` share folders and connect to them. Event Viewer, User
+  Manager and Registry Editor run.
 - The 5000/1xx and the 5000/240 do the same first run to Program Manager,
   with the keyboard and the mouse on their SCC lines; the programs below
   are tried on the 5000/200.
@@ -29,12 +35,12 @@ the mouse.
   tools of `PRIVATE\UTILS` run too (not built yet: format, mode and more).
 - The programs of `apps/`, as in [pint](https://github.com/tenox7/pint),
   run: the task manager, twelve more games, ntfetch, and TenoxVNC and
-  Internet Explorer 1.5 (without a network). The tools of
+  Internet Explorer 1.5. The tools of
   `PRIVATE\SDKTOOLS` that build for the R3000 are in `\SDKTOOLS`.
 - The 5000/200 has no sound hardware: Volume Control finds no device.
-- Not yet: networking; Event Viewer, User Manager and Registry Editor (their
-  NET UI DLLs do not build yet); ClipBook (it needs the NetDDE services),
-  Sound Recorder (OLE 2), Setup (the MIPS INF files), Mail and Schedule+.
+- Not yet: ClipBook (it needs the NetDDE services), Sound Recorder (OLE 2),
+  Setup and the Network control panel (the MIPS INF files), Mail and
+  Schedule+; the Ethernet of the 5000/1xx and the 5000/240.
 - Not part of the port: the Spooler (printing, Print Manager) and RAS. The
   hive has no Spooler service.
 
@@ -44,7 +50,7 @@ the mouse.
 |---|---|---|
 | DECstation and DECsystem 5000/200 | KN02 (3MAX), R3000 | Works in gxemul; not yet tried on a real machine |
 | DECstation 5000/120, 5000/125, 5000/133 | KN02-BA (3MIN), R3000 | Works in gxemul (first run, logon, keyboard, mouse); not yet tried on a real machine |
-| DECstation and DECsystem 5000/240, DECsystem 5900 | KN03 (3MAX+), R3000A | Works in gxemul (first run, logon, keyboard, mouse); not yet tried on a real machine |
+| DECstation and DECsystem 5000/240, DECsystem 5900 | KN03 (3MAX+), R3000A | Works in gxemul (first run, logon, keyboard, mouse); a real 5000/240 runs it to the desktop |
 | DECstation 5000/150 | KN04, R4000 | Not supported: the port is built for the R3000 |
 | DECstation and DECsystem 5000/260, DECsystem 5900/260 | KN05, R4400 | Not supported: the port is built for the R3000 |
 | Personal DECstation 5000/20, /25, /33, /50 (MAXINE) | KN02-CA, R3000 (/50: R4000) | Not supported: no drivers for its built-in frame buffer and its ACCESS.bus keyboard and mouse |
@@ -109,7 +115,12 @@ NTMAX/
                                          serial driver of DD\SERIAL over DZPORT
              PRIVATE\NTOS\DD\LK201       the keyboard port of KBDCLASS
              PRIVATE\NTOS\DD\VSXXX       the pointer port of MOUCLASS
+             PRIVATE\NTOS\NDIS\LANCE     the LANCE miniport on the PMAD-AA
+                                         (DECTC.C: the TURBOchannel option)
              PRIVATE\LSA\CRYPT\ENGINE    the LSA's encryption engine
+             PRIVATE\LSA\SERVER          DBINSTAL.C, and
+             PRIVATE\WINDOWS\USER\WINLOGON  REGINI.C: the first run in a
+                                         workgroup
              PRIVATE\SDKTOOLS\PERFMTR    perfmtrp.h (an include path)
              PUBLIC\OAK\BIN              SYSTEM.INI (the DECstation hive),
                                          SOFTWARE.INI (the task manager in
@@ -119,7 +130,9 @@ NTMAX/
            ldc1/sdc1, ll/sc, branch-likely)
   apps/    programs that are not part of NT, as in pint: taskman (an NT
            4-style task manager), games (the games of the Games group),
-           tenoxvnc (a VNC viewer), ie (Internet Explorer 1.5), ntfetch
+           tenoxvnc (a VNC viewer), ie (Internet Explorer 1.5), ntfetch;
+           net (pint's wshtcpip, icmp, ping, hostname, ipconfig and lmhsvc;
+           etc, the files of \winnt\system32\drivers\etc)
   build/   the build scripts (below), Dockerfile (image 3max-build)
   tools/   ntdiff.pl; grp.pl (the items of Program Manager's groups for \GAMES
            and \APPS); mkdecboot.pl (the DEC boot block); pe2bin.pl (a PE
@@ -228,7 +241,17 @@ that `build-image.sh` builds them from:
 | eventvwr, usrmgr, musrmgr, regedt32 | `PRIVATE/NET/UI/ADMIN/EVENTVWR/EVENTVWR`, `ADMIN/USER/USER`, `ADMIN/USER/MINIUSER`, `PRIVATE/UTILS/REGEDIT/SRC` |
 | taskman | `APPS/taskman` (`apps/taskman`) |
 | the games, in `\GAMES` (`DEST=games`) | `APPS/games/`NAME |
-| wsock32 (with the libraries of `LIBUEMUL`, `SOCKREG`, `SOCKUTIL`) | `PRIVATE/NET/SOCKETS/WINSOCK` |
+| wsock32 (with the libraries of `LIBUEMUL`, `SOCKREG`, `SOCKUTIL`), wshnetbs | `PRIVATE/NET/SOCKETS/WINSOCK`, `SOCKETS/WSHNETBS` |
+| ndis, lance, tdi, tcpip, afd | `PRIVATE/NTOS/NDIS/WRAPPER`, `NDIS/LANCE`, `NTOS/TDI/WRAPPER`, `TDI/TCPIP/TCP`, `NTOS/AFD` |
+| netbt, netbios, mup, rdr, srv | `PRIVATE/NTOS/NBT/NT`, `NTOS/NETBIOS`, `MUP/DAYTONA`, `RDR/DAYTONA`, `SRV/DAYTONA` |
+| wshtcpip, icmp, ping, hostname, ipconfig, lmhsvc | `APPS/net/`NAME (`apps/net`) |
+| dhcpcsvc | `PRIVATE/NET/SOCKETS/TCPCMD/DHCP/CLIENT/NEWNT` |
+| rpcltc3, rpclts3, rpcltc5, rpclts5, rpcdgc3, rpcdgs3 | `PRIVATE/RPC/RUNTIME/TRANS/WIN32/CLNTTCP`, `SVRTCP`, `CLNTNB`, `SVRNB`, `DGUDPC`, `DGUDPS` |
+| security, ntlmssps | `PRIVATE/NET/SVCDLLS/NTLMSSP/CLIENT`, `NTLMSSP/SERVER` |
+| xactsrv, srvsvc, wkssvc, browser, msgsvc, alrsvc, netlogon | `PRIVATE/NET/XACTSRV`, `SVCDLLS/SRVSVC/SERVER`, `SVCDLLS/WKSSVC/SERVER/DAYTONA`, `SVCDLLS/BROWSER/SERVER`, `SVCDLLS/MSGSVC/SERVER`, `SVCDLLS/ALRSVC`, `SVCDLLS/LOGONSRV/SERVER` |
+| net, net1, neth | `PRIVATE/NET/NETCMD/NETUSE`, `NETCMD/NETCMD`, `NETCMD/HELP` |
+| lmrepl, rpcns4, locator, rpcss | `PRIVATE/NET/SVCIMGS/LMREPL`, `PRIVATE/RPC/LOCATOR/CLIENT`, `LOCATOR/SERVER`, `RUNTIME/RPCEPMPR/SERVER` |
+| winstrm, perfctrs | `PRIVATE/NET/SOCKETS/WINSTRM`, `PRIVATE/SDKTOOLS/PERFCTRS` |
 | iexplore (with the libraries of `APPS/ie/shared`, `win32`, `bearssl`, `basic`), tenoxvnc, ntfetch, in `\APPS` (`DEST=apps`) | `APPS/ie/make`, `APPS/tenoxvnc/win32`, `APPS/ntfetch` |
 | the SDK tools, in `\SDKTOOLS` (`DEST=sdktools`) | `PRIVATE/SDKTOOLS/`... (`build-all.sh`, step 8) |
 
@@ -274,11 +297,11 @@ to the environment in memory, and writes them when NT restarts.
 
 Then the developer first run: boot 1 reads `\winnt\registry.ini` and
 restarts (a restart ends gxemul: start it again), boot 2 logs on and runs
-`winlogon.cmd` (a box says that the domain list cannot be made: OK, or it
-goes after two minutes), boot 3 shows the logon: log on as Administrator,
-with no password. From boot 3 on, the domain list box and then "The system
-could not log you on" (the automatic logon that `winlogon.cmd` set up) come
-before the logon: OK both.
+`winlogon.cmd`, which gives Administrator the password of `REGISTRY.INI`,
+`password`, and turns on the automatic logon. From boot 3 on, Administrator
+logs on by itself; Shift held down while NT starts shows the logon dialog.
+The machine is in the workgroup WORKGROUP (`REGISTRY.INI`: a `DomainId`
+would make it a member of a domain).
 `make-disk.sh` sets the disk up for a new first run; `KEEP=1 make-disk.sh`
 writes only the programs.
 
@@ -339,10 +362,31 @@ JPEG decoders under their own terms (`LICENSE.zlib`, `README.jpeg`).
 `\APPS\IEXPLORE.EXE` (Internet Explorer in the Main group) is Internet
 Explorer 1.5 (`apps/ie`, with BearSSL for HTTPS).
 
-Both import `wsock32.dll`, which is built for them, but the port has no
-network yet: no network adapter driver and no TCP/IP. Until then, Internet
-Explorer shows local folders (`iexplore c:\apps`), and TenoxVNC cannot reach
-a server.
+Both go through Windows Sockets (`wsock32.dll`) and TCP/IP (below):
+Internet Explorer opens web pages.
+
+## Network
+
+The 5000/200's Ethernet is the PMAD-AA, a LANCE, in TURBOchannel slot 6: NT
+3.5's LANCE miniport has its TURBOchannel part (`DECTC.C`). Over the NDIS
+wrapper run TCP/IP, NetBIOS over TCP/IP, the NetBIOS interface, Windows
+Sockets (AFD), the redirector and the server; in services.exe the DHCP
+client, the TCP/IP NetBIOS helper (LmHosts) and the LAN Manager services:
+Workstation, Server, Computer Browser and Messenger start with NT; Alerter,
+Net Logon and the Directory Replicator are there to start by hand.
+`SYSTEM.INI` has them as NT 3.5's network setup installs them on the
+adapter Lance01 (TCP/IP with DHCP, NetBIOS over TCP/IP, LAN Manager), bound
+as the Network control panel binds them, without the Route values of the
+bindings (their strings hold quotes, which REGINI cannot write). The
+programs of `apps/net` are pint's: the TCP/IP helper of Windows Sockets, the
+ICMP echo API, ping, hostname, ipconfig and the LmHosts service.
+
+In gxemul (its NAT), DHCP gives NT 10.0.0.1, with the gateway and the name
+server at 10.0.0.254; gxemul answers every ping itself. `net share
+pub=c:\pub` shares a folder and `net use x: \\decstation\pub` connects to
+it; the NAT lets no other machine reach NT. On a real network NT gets its
+address from the network's DHCP server, and names of machines on other
+networks go in `\winnt\system32\drivers\etc\lmhosts` (see `lmhosts.sam`).
 
 ## SDK tools
 

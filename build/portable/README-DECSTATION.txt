@@ -1,8 +1,8 @@
 Windows NT 3.5 for the DECstation 5000 (NTMAX): a disk image for real machines
 
 ntmax-disk.img is a 256 MB SCSI disk with NT 3.5 installed and never started. In gxemul it runs on the
-three models below, and on the 5000/200 also with that machine's own ROM; it has not run on a real
-machine yet: this image is for testing that.
+three models below, and on the 5000/200 also with that machine's own ROM. On a real machine it has run
+on a 5000/240, to the desktop; this image is for testing the others, and the network.
 
 Machines: DECstation 5000/200 (KN02), 5000/120, /125, /133 (KN02-BA), 5000/240 (KN03), all R3000.
 Not the 5000/150 or 5000/260 (R4000, R4400), the Personal DECstations or the DECstation 2100/3100.
@@ -35,16 +35,23 @@ You need:
 4. NT's first run, three boots; NT restarts by itself between them. At a restart the screen keeps
    NT's last picture and the pointer stops; the serial terminal shows the restart.
    - Boot 1 reads NT's first settings and restarts.
-   - Boot 2: a box says that the domain list cannot be made: OK. NT restarts.
-   - Boot 3 and later: that box, then "The system could not log you on": OK them until the Welcome
-     box comes, then log on as Administrator, with no password.
+   - Boot 2 logs on and finishes the setup in a command window (Administrator gets the password
+     password), then restarts.
+   - Boot 3 and later: Administrator logs on by itself. To get the Welcome box instead, hold Shift
+     down while NT starts.
    If the ROM stops at >> instead, type boot 5/rz0/osloader (or 3/rz0/osloader).
 5. Later: at >>, type boot. With setenv haltaction b, the ROM also boots NT by itself at power-on.
    boot 5/rz0 (or 3/rz0) shows the firmware's menu instead, for its setup or another boot selection.
 6. The keyboard: F11 is Esc (the LK201 has no Esc key), Compose is Alt, Ctrl+Alt+Del works.
    Set the date once in NT (Control Panel, Date/Time). Without a SCSI CD-ROM drive, a box at each
    start says that a service or driver failed (the CD-ROM drivers): OK.
-7. On another model, run Set default configuration again, on that model.
+7. The network, on the 5000/200: its Ethernet (the system board's, TURBOchannel slot 6) with TCP/IP,
+   NetBIOS and file sharing; NT gets its address from the network's DHCP server. It is the computer
+   DECSTATION of the workgroup WORKGROUP: net share pub=c:\pub shares a folder, net use x:
+   \\decstation\pub connects to it (tried in gxemul only, from NT itself). The 5000/1xx and the
+   5000/240 have no network yet (no driver for their Ethernet): there, the box at each start is also
+   about the network drivers.
+8. On another model, run Set default configuration again, on that model.
 
 The serial terminal also gets a log of each start: what the firmware found (model, processor, memory,
 caches, the modules in the TURBOchannel slots, the ROM's boot arguments), the program it starts, NT's

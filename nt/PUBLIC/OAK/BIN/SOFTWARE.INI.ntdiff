@@ -4,4 +4,24 @@
 +#if defined(_DECSTATION_)
 +                    Taskman=taskman.exe /tasklist
 +#endif // defined(_DECSTATION_)
-=1 1246 666
+=1 1246 526
++#if defined(_DECSTATION_)
++                ncacn_nb_tcp0 = REG_DWORD 0x00000000
++#endif // defined(_DECSTATION_)
+=1 1772 3
++#if defined(_DECSTATION_)
++                ncacn_ip_tcp=rpclts3.dll
++                ncadg_ip_udp=rpcdgs3.dll
++                ncacn_nb_tcp=rpclts5.dll
++#endif // defined(_DECSTATION_)
+=1 1775 3
++#if defined(_DECSTATION_)
++                ncacn_ip_tcp=rpcltc3.dll
++                ncadg_ip_udp=rpcdgc3.dll
++                ncacn_nb_tcp=rpcltc5.dll
++            SecurityService
++                DefaultProvider = security.dll
++                10 = security.dll
++                DefaultAuthLevel = REG_DWORD 0x00000000
++#endif // defined(_DECSTATION_)
+=1 1778 134

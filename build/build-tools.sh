@@ -37,6 +37,9 @@
 #			import library of the IMAGEHLP.DEF beside it (the machine's
 #			imagehlp.dll has its two functions); build-lib.sh gives it
 #			T:\NTOS\3MAX\out\binaries as the tree
+#	cp		the file copier of the build environment, which the
+#			makefile.inc of NET\UI\SHELL\BIN runs (ntlanman.def from
+#			ntlmnpx.def): cp.cmd runs the machine's copy
 #
 #  The programs go to T:\NTOS\3MAX\host, which build-lib.sh puts in the PATH.
 
@@ -86,6 +89,8 @@ mkdir -p "$SHARE/host/rcpp" "$SHARE/build"
 printf '%s\r\n' '@echo off' 'set A=' ':next' 'if "%1"=="" goto run' \
 	'if /i not "%1"=="-decorate" set A=%A% %1' 'shift' 'goto next' ':run' \
 	'%MSDevDir%\BIN\LINK.EXE %A%' > "$SHARE/host/link32.cmd"
+# cp FROM TO: the machine's copy
+printf '%s\r\n' '@echo off' 'copy %1 %2 > nul' > "$SHARE/host/cp.cmd"
 tools="gensrv hextract hsplit wcshdr listmung mapmsg solidpp uixport binplace mc rcpp"
 for t in $tools; do rm -f "$SHARE/host/$t.exe"; done
 vmrun 'T:\NTOS\3MAX\build\tools.cmd'

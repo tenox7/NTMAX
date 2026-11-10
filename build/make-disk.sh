@@ -15,7 +15,9 @@
 #				firmware names it),
 #				and the system in \winnt: the kernel in
 #				system32 (build-kernel.sh), the drivers in
-#				system32\drivers and the other images (the
+#				system32\drivers (with the database files
+#				of TCP/IP, apps/net/etc, in its etc) and
+#				the other images (the
 #				DLLs, ntdll.dll first) in system32
 #				(build-image.sh), the hives (system32\config:
 #				system, the one the OS loader loads, software
@@ -88,6 +90,12 @@ if [ -f obj/ntoskrnl.exe ] && [ -f obj/hal.dll ]; then
 	mcopy -o -i "$p" obj/ntoskrnl.exe ::/winnt/system32/ntoskrnl.exe
 	for f in obj/drivers/*.sys; do
 		[ ! -f "$f" ] || mcopy -o -i "$p" "$f" ::/winnt/system32/drivers/$(basename "$f")
+	done
+	# the database files of TCP/IP (hosts, networks, protocols, services and
+	# the sample of the NetBIOS name file), in system32\drivers\etc
+	mmd -D s -i "$p" ::/winnt/system32/drivers/etc 2>/dev/null || true
+	for f in apps/net/etc/*; do
+		mcopy -o -i "$p" "$f" ::/winnt/system32/drivers/etc/$(basename "$f" | tr A-Z a-z)
 	done
 	for f in obj/system32/*.dll obj/system32/*.drv obj/system32/*.acm obj/system32/*.exe \
 	    obj/system32/*.com obj/system32/*.cpl; do
@@ -201,6 +209,13 @@ if [ -f obj/ntoskrnl.exe ] && [ -f obj/hal.dll ]; then
 	mcopy -o -i "$p" /work/PRIVATE/MVDM/BIN86/PIFEDIT.HLP ::/winnt/system32/pifedit.hlp
 	# (the command list of help.exe, a text file: MSG_HELP_HELP_FILE_NAME)
 	mcopy -o -i "$p" /work/PRIVATE/UTILS/HELP/DOSHELP.HLP ::/winnt/system32/doshelp.hlp
+	# (the help text of the net command, which it reads as it is: NET HELP)
+	mcopy -o -i "$p" /work/PRIVATE/NET/NETCMD/HELP/NET.HLP ::/winnt/system32/net.hlp
+	# (the directories of the directory replicator, as the setup of the
+	# workstation makes them, OEMNSVWK.INF)
+	mmd -D s -i "$p" ::/winnt/system32/repl ::/winnt/system32/repl/export \
+		::/winnt/system32/repl/export/scripts ::/winnt/system32/repl/import \
+		::/winnt/system32/repl/import/scripts 2>/dev/null || true
 	for f in PERFC009 PERFH009; do
 		mcopy -o -i "$p" /work/PRIVATE/SDKTOOLS/CNTRTEXT/PERFINI/$f.DAT \
 			::/winnt/system32/$(echo $f | tr A-Z a-z).dat

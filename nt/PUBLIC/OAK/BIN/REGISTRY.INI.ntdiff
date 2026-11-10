@@ -1,24 +1,24 @@
 #ntdiff PUBLIC/OAK/BIN/REGISTRY.INI
 #crlf
 =1 1 11
-+// The R3000 port (the DECstation 5000/200): no network yet, and the        //
++// The R3000 port (the DECstation 5000/200): a workgroup, and the           //
 +// Password logs the first run on by itself.                                //
 =1 14 4
 =1 30 10
 =1 50 8
 +    DECSTATION
 =1 74 9
-+    Developer
++    Administrator
 +
 +;
-+;  The R3000 port: the password of that account.  The first run creates the
-+;  account with it and logs on to it by itself (winlogon.cmd sets
-+;  AutoAdminLogon and DefaultPassword); without a password winlogon.cmd
-+;  waits for a key.
++;  The R3000 port: the password of that account.  winlogon.cmd sets
++;  AutoAdminLogon and DefaultPassword: from the third boot on, NT logs the
++;  account on by itself (Shift held down while NT starts shows the Welcome
++;  box).  Without a password winlogon.cmd waits for a key.
 +;
 +
 +Password
-+    nt35
++    password
 =1 84 6
 +
 +Environment
@@ -26,8 +26,16 @@
 =1 183 14
 =1 221 37
 =1 424 21
-+;  The R3000 port: the LSA's developer install (DBINSTAL.C) needs both
-+;  (without DomainId it sets no account domain and SAM fails with
-+;  STATUS_INVALID_SID).  No network yet, so DisablePasswordChange (a
-+;  value of Netlogon, which the hive does not have) is left out.
-=1 444 21
++;  The R3000 port: the workgroup of the machine.  A DomainId would make
++;  it a member of the domain, which the first run joins (netjoin).
+=1 444 4
++    WORKGROUP
+=1 452 24
+=1 30 2
++;  The R3000 port: commands for winlogon.cmd, a ! puts one at its end.  In a
++;  workgroup winlogon.cmd runs ADDUSER, which only makes new accounts: NET USER
++;  gives the account above its password.
++;
++
++InsertScript
++    !net user Administrator password

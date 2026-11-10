@@ -1,0 +1,165 @@
+#ntdiff PRIVATE/NTOS/NDIS/LANCE/DECTC.C
+#crlf
+=1 1 35
++//
++// The memory and the interrupt of the network controller of the
++// TURBOchannel, as the firmware describes it in the hardware description
++// of the registry (System\TcAdapter\0\NetworkController\0): the address
++// space of its slot, and the number of the slot as its interrupt level
++// and vector.
++//
++
++typedef struct _LANCE_DECTC_RESOURCES {
++   BOOLEAN Memory;
++   BOOLEAN Interrupt;
++   ULONG BaseAddress;
++   ULONG InterruptVector;
++   ULONG InterruptRequestLevel;
++} LANCE_DECTC_RESOURCES, *PLANCE_DECTC_RESOURCES;
++
++
++static
++NTSTATUS
++LanceDecTcQueryController(
++   IN PVOID Context,
++   IN PUNICODE_STRING PathName,
++   IN INTERFACE_TYPE BusType,
++   IN ULONG BusNumber,
++   IN PKEY_VALUE_FULL_INFORMATION *BusInformation,
++   IN CONFIGURATION_TYPE ControllerType,
++   IN ULONG ControllerNumber,
++   IN PKEY_VALUE_FULL_INFORMATION *ControllerInformation,
++   IN CONFIGURATION_TYPE PeripheralType,
++   IN ULONG PeripheralNumber,
++   IN PKEY_VALUE_FULL_INFORMATION *PeripheralInformation
++   )
++/*++
++
++Routine Description:
++
++   IoQueryDeviceDescription calls this routine for each network controller
++   of the TURBOchannel.  It takes the memory and the interrupt of the first
++   one from its configuration data.
+=1 46 3
++   Context - The LANCE_DECTC_RESOURCES to fill in.
++
++   ControllerInformation - The identifier, the configuration data and the
++      component information of the controller.
++
++   The other arguments are not used.
+=1 51 3
++   STATUS_SUCCESS.
+=1 27 3
++{
++   PLANCE_DECTC_RESOURCES resources = (PLANCE_DECTC_RESOURCES)Context;
++   PKEY_VALUE_FULL_INFORMATION data;
++   PCM_FULL_RESOURCE_DESCRIPTOR fullDescriptor;
++   PCM_PARTIAL_RESOURCE_DESCRIPTOR partial;
++   ULONG index;
++   ULONG count;
++
++   data = ControllerInformation[IoQueryDeviceConfigurationData];
++
++   if (resources->Memory || resources->Interrupt || (data == NULL) ||
++       (data->DataLength < sizeof(CM_FULL_RESOURCE_DESCRIPTOR))) {
++      return STATUS_SUCCESS;
++   }
++
++   fullDescriptor = (PCM_FULL_RESOURCE_DESCRIPTOR)
++      ((PUCHAR)data + data->DataOffset);
++
++   //
++   // The partial descriptors that the data holds.
++   //
++
++   count = 1 + (data->DataLength - sizeof(CM_FULL_RESOURCE_DESCRIPTOR)) /
++      sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR);
++
++   if (count > fullDescriptor->PartialResourceList.Count) {
++      count = fullDescriptor->PartialResourceList.Count;
++   }
++
++   partial = fullDescriptor->PartialResourceList.PartialDescriptors;
++
++   for (index = 0; index < count; index++, partial++) {
++
++      switch (partial->Type) {
++
++      case CmResourceTypeMemory:
++         resources->BaseAddress = partial->u.Memory.Start.LowPart;
++         resources->Memory = TRUE;
++         break;
++
++      case CmResourceTypeInterrupt:
++         resources->InterruptVector = partial->u.Interrupt.Vector;
++         resources->InterruptRequestLevel = partial->u.Interrupt.Level;
++         resources->Interrupt = TRUE;
++         break;
++
++      default:
++         break;
+=1 181 3
++   return STATUS_SUCCESS;
++}
+=1 34 11
++   extracts configuration information from the configuration data base,
++   and what that does not give from the hardware description: the setup of
++   the network card writes only its card type.
+=1 46 32
++   ULONG csFound = 0;
+=1 78 38
++         csFound |= 1 << csIndex;
+=1 116 23
++   // The entries that the configuration database does not have are those
++   // of the network controller of the TURBOchannel in the hardware
++   // description.  A system without one there (its LANCE is not on the
++   // TURBOchannel) has no adapter of this card type.
++   //
++
++   if (csCount < CS_NUM_OF_ENTRIES) {
++
++      INTERFACE_TYPE busType = TurboChannel;
++      ULONG busNumber = 0;
++      CONFIGURATION_TYPE controllerType = NetworkController;
++      LANCE_DECTC_RESOURCES resources;
++
++      NdisZeroMemory(&resources, sizeof(resources));
++
++      IoQueryDeviceDescription(
++         &busType,
++         &busNumber,
++         &controllerType,
++         NULL,
++         NULL,
++         NULL,
++         LanceDecTcQueryController,
++         &resources
++         );
++
++      if (resources.Interrupt) {
++
++         if (!(csFound & (1 << INTERRUPT_VECTOR))) {
++            PAdapter->InterruptNumber = (CCHAR)resources.InterruptVector;
++            csFound |= 1 << INTERRUPT_VECTOR;
++            csCount++;
++         }
++
++         if (!(csFound & (1 << IRQL))) {
+=1 105 1
++               (CCHAR)resources.InterruptRequestLevel;
++            csFound |= 1 << IRQL;
++            csCount++;
++         }
+=1 133 3
++      if (resources.Memory && !(csFound & (1 << BASE_ADDR))) {
++         PAdapter->HardwareBaseAddr = (PVOID)resources.BaseAddress;
++         csFound |= 1 << BASE_ADDR;
++         csCount++;
++      }
++
+=1 143 1
++         status = NDIS_STATUS_SUCCESS;
++      }
++
++   }
+=1 137 165

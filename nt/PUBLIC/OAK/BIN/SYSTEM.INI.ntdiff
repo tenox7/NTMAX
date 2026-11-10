@@ -23,21 +23,54 @@
 +#ifdef _HIVE_DECSTATION_
 +#define DECSTATION 1
 +#define NCR53C9X 1
++#define LANCE 1
 +#define PMAGBA 1
 =1 116 3
 +#define CDFS 1
 +#endif // _HIVE_DECSTATION_
-=1 173 1034
-=1 1220 136
-+#elif defined(_HIVE_DECSTATION_)
+=1 173 839
++#if defined(NETWORK) || defined(_HIVE_DECSTATION_)
+=1 1013 3
++#if defined(_HIVE_DECSTATION_)
 +            //
-+            // The R3000 port: no network yet.  The developer's first run keeps
-+            // the domain of the machine in the Parameters of LanmanWorkstation:
-+            // winlogon writes Domain and AccountDomainId there from registry.ini
-+            // and the LSA's database install reads them (the account domain).
++            // The name space provider of Windows Sockets (GetAddressByName,
++            // and gethostbyname through it): TCP/IP, with the host file, the
++            // DNS and the NetBIOS names of wsock32.
 +            //
-+            LanmanWorkstation
-=1 1354 294
++            ServiceProvider
++                Order
++                    ExcludedProviders = REG_MULTI_SZ ""
++                    ProviderOrder = REG_MULTI_SZ "Tcpip"
++#endif // defined(_HIVE_DECSTATION_)
+=1 1015 192
+=1 1220 235
++#if defined(_HIVE_DECSTATION_)
++                  Replicator
+=1 1494 2
++#endif // defined(_HIVE_DECSTATION_)
+=1 1455 34
++#if defined(_HIVE_DECSTATION_)
+=1 1490 9
++                  Browser
+=1 1503 2
++                  DHCP
++                    EventMessageFile = REG_EXPAND_SZ %SystemRoot%\System32\dhcpcsvc.dll
+=1 1526 1
+=1 1513 4
++                  LmHosts
+=1 1503 2
+=1 1527 3
++                  NetBT
+=1 1537 5
+=1 1523 2
+=1 1526 1
+=1 1544 4
+=1 1517 3
+=1 1551 3
+=1 1557 3
+=1 1520 3
++#endif // defined(_HIVE_DECSTATION_)
+=1 1489 159
 +#if defined(DECSTATION)
 +                  4mmdat
 +                    EventMessageFile = REG_EXPAND_SZ %SystemRoot%\System32\IoLogMsg.dll;%SystemRoot%\System32\drivers\4mmdat.sys
@@ -131,7 +164,300 @@
 +#if !defined(DECSTATION)
 =1 2823 161
 +#endif // !defined(DECSTATION)
-=1 2984 213
+=1 2984 122
++#if defined(_HIVE_DECSTATION_)
+=1 1212 1
+=1 2401 2
++#endif // defined(_HIVE_DECSTATION_)
+=1 3107 11
++#if defined(_HIVE_DECSTATION_)
++                    //
++                    // The network controller of the 5000/200, the PMAD-AA
++                    // of TURBOchannel slot 6: card type 4 (DECTC), as the
++                    // setup of the network card writes it.  The driver
++                    // takes the memory and the interrupt of the controller
++                    // from the hardware description of the firmware.
++                    //
+=1 3042 1
++                    BusType = REG_DWORD 0x00000004
+=1 3039 1
++                    CardType = REG_DWORD 0x00000004
++                    //
++                    // TCP/IP on the controller, with the address, the network,
++                    // the gateway and the name server that DHCP gives it (the
++                    // NAT of the emulator gives its machine 10.0.0.1 of the
++                    // network 10.0.0.0/8, whose gateway and name server are
++                    // 10.0.0.254).
++                    //
++                    Tcpip
++                        EnableDHCP = REG_DWORD 0x00000001
++                        IPAddress = REG_MULTI_SZ "0.0.0.0"
++                        SubnetMask = REG_MULTI_SZ "0.0.0.0"
++                        DefaultGateway = REG_MULTI_SZ 
++                        UseZeroBroadcast = REG_DWORD 0x00000000
++                        LLInterface = 
++#endif // defined(_HIVE_DECSTATION_)
+=1 3118 3
++#if defined(_HIVE_DECSTATION_)
++            //
++            // The network as the network setup of NT 3.5 installs it on the
++            // controller (adapter Lance01): TCP/IP with DHCP and NetBIOS over
++            // TCP/IP (OEMNXPTC.INF), Windows Sockets, the NetBIOS interface and
++            // the services of LAN Manager (NTLANMAN.INF): workstation, server,
++            // browser, messenger, alerter, netlogon, directory replicator, the
++            // LmHosts service of NetBIOS over TCP/IP, the NT LM security support
++            // provider and the RPC services, bound as the network control panel
++            // binds them.  Without the Route values of the bindings, whose
++            // strings hold quotes, which REGINI cannot write, and, as in the
++            // network of the developer hives, without the Security values of
++            // the services: the service controller gives them its default.
++            //
+=1 3560 3
+=1 1215 1
++                ImagePath = REG_EXPAND_SZ \SystemRoot\System32\drivers\afd.sys
++                DisplayName = AFD Networking Support Environment
++                Parameters
+=1 1334 5
+=1 3300 1
++                DisplayName = Alerter
+=1 1290 3
++                    AlertNames = REG_MULTI_SZ 
+=1 1297 3
+=1 1255 2
+=1 3300 1
++                DisplayName = Computer Browser
++                DependOnService = REG_MULTI_SZ "LanmanWorkstation" "LanmanServer" "LmHosts"
+=1 1304 5
++            DHCP
+=1 1254 3
+=1 3300 1
++                DisplayName = DHCP Client
++                Group = TDI
++                DependOnService = REG_MULTI_SZ "Tcpip" "Afd" "NetBT"
+=1 1217 2
++                    Options
++                        3
++                            RegLocation = System\CurrentControlSet\Services\?\Parameters\Tcpip\DhcpDefaultGateway
++                            KeyType = REG_DWORD 0x00000007
++                        6
++                            RegLocation = System\CurrentControlSet\Services\Tcpip\Parameters\DhcpNameServer
++                            KeyType = REG_DWORD 0x00000001
++                        44
++                            RegLocation = System\CurrentControlSet\Services\NetBT\Adapters\?\DhcpNameServer
++                            KeyType = REG_DWORD 0x00000001
++                        46
++                            RegLocation = System\CurrentControlSet\Services\NetBT\Parameters\DhcpNodeType
++                            KeyType = REG_DWORD 0x00000004
++                        47
++                            RegLocation = System\CurrentControlSet\Services\NetBT\Parameters\DhcpScopeID
++                            KeyType = REG_DWORD 0x00000001
+=1 1266 3
+=1 1255 2
+=1 3300 1
++                DisplayName = Server
+=1 3514 1
+=1 1217 1
++                AutotunedParameters
++                Linkage
++                    Bind = REG_MULTI_SZ "\Device\NetBT_Lance01"
++                    Export = REG_MULTI_SZ "\Device\LanmanServer\NetBT_Lance01"
++                Parameters
++                    NullSessionPipes = REG_MULTI_SZ "COMNAP" "COMNODE" "SQL\QUERY" "SPOOLSS"
++                    NullSessionShares = REG_MULTI_SZ "COMCFG" "DFS$"
++                    Size = REG_DWORD 0x00000001
++                    Lmannounce = REG_DWORD 0x00000000
++                Shares
++                    Security
++
++            //
++            // (the developer's first run writes the domain of the machine and
++            // its AccountDomainId in the Parameters of LanmanWorkstation from
++            // registry.ini, where the LSA's database install reads them)
+=1 1252 5
+=1 3300 1
++                DisplayName = Workstation
++                Group = NetworkProvider
+=1 1260 1
+=1 3514 1
+=1 1217 1
++                Linkage
++                    OtherDependencies = REG_MULTI_SZ "Mup"
++                    Bind = REG_MULTI_SZ "\Device\NetBT_Lance01"
++                    Export = REG_MULTI_SZ "\Device\LanmanWorkstation\NetBT_Lance01"
+=1 1262 4
++                Parameters
++
++            LmHosts
+=1 1254 3
+=1 3300 1
++                DisplayName = TCP/IP NetBIOS Helper
++                DependOnGroup = REG_MULTI_SZ "NetworkProvider"
+=1 1217 3
++            Messenger
+=1 1254 3
+=1 3300 1
++                DisplayName = Messenger
++                DependOnService = REG_MULTI_SZ "LanmanWorkstation" "Netbios"
+=1 1217 3
+=1 3516 2
+=1 1269 2
++                ImagePath = REG_EXPAND_SZ \SystemRoot\System32\drivers\mup.sys
++                DisplayName = Mup
++                Group = Network
++                Parameters
++
++            NetBIOS
+=1 3523 2
+=1 1215 1
++                ImagePath = REG_EXPAND_SZ \SystemRoot\System32\drivers\netbios.sys
++                DisplayName = NetBIOS Interface
++                Group = NetBIOSGroup
+=1 3514 1
++                Linkage
++                    Bind = REG_MULTI_SZ "\Device\NetBT_Lance01"
++                    Export = REG_MULTI_SZ "\Device\Netbios\NetBT_Lance01"
++                    //
++                    // (a byte pair for each export: enumerated, LANA 0)
++                    //
++                    LanaMap = REG_BINARY 2 0x00000001
++                Parameters
++                    Winsock
++                        HelperDllName = REG_EXPAND_SZ %SystemRoot%\system32\wshnetbs.dll
++                        MaxSockAddrLength = REG_DWORD 0x00000014
++                        MinSockAddrLength = REG_DWORD 0x00000014
++                        Mapping = REG_BINARY 32 \
++                            0x00000002 0x00000003 0x00000011 0x00000005 0x00000000 \
++                            0x00000011 0x00000002 0x00000000
+=1 3547 6
++                    Disabled
++                Parameters
++                    MaxLana = REG_DWORD 0x00000000
++
++            NetBT
+=1 2802 3
++                ImagePath = REG_EXPAND_SZ \SystemRoot\System32\drivers\netbt.sys
++                DisplayName = WINS Client(TCP/IP)
++                Group = TDI
++                DependOnService = REG_MULTI_SZ "Tcpip"
+=1 3481 1
++                Adapters
++                    Lance01
++                Linkage
++                    OtherDependencies = REG_MULTI_SZ "Tcpip"
++                    Bind = REG_MULTI_SZ "\Device\Lance01"
++                    Export = REG_MULTI_SZ "\Device\NetBT_Lance01"
++                Parameters
++                    NbProvider = _tcp
++                    NameServerPort = REG_DWORD 0x00000089
++                    EnableLMHOSTS = REG_DWORD 0x00000001
++                    EnableProxy = REG_DWORD 0x00000000
++                    EnableDNS = REG_DWORD 0x00000000
++                    CacheTimeout = REG_DWORD 0x000927c0
++                    BcastNameQueryCount = REG_DWORD 0x00000003
++                    BcastQueryTimeout = REG_DWORD 0x000002ee
++                    NameSrvQueryCount = REG_DWORD 0x00000003
++                    NameSrvQueryTimeout = REG_DWORD 0x000005dc
++                    Size/Small/Medium/Large = REG_DWORD 0x00000001
++                    SessionKeepAlive = REG_DWORD 0x0036ee80
++                    ScopeID = 
++                    TransportBindName = \Device\ // (the comment keeps RCPP from joining the next line)
++                Performance
++                    Library = Perfctrs.dll
++                    Open = OpenNbtPerformanceData
++                    Collect = CollectNbtPerformanceData
++                    Close = CloseNbtPerformanceData
+=1 1280 3
+=1 1269 2
++                ImagePath = REG_EXPAND_SZ %SystemRoot%\System32\lsass.exe
++                DisplayName = Net Logon
++                Group = RemoteValidation
++                DependOnService = REG_MULTI_SZ "LanmanWorkstation" "LmHosts"
+=1 1291 4
++                    DBFlag = 0
++
++            NtLmSsp
+=1 3297 4
++                DisplayName = NT LM Security Support Provider
+=1 1217 3
+=1 3522 3
+=1 1215 1
++                ImagePath = REG_EXPAND_SZ \SystemRoot\System32\drivers\rdr.sys
++                DisplayName = Rdr
++                Group = Network
+=1 1342 4
+=1 1269 2
++                ImagePath = REG_EXPAND_SZ %SystemRoot%\System32\lmrepl.exe
++                DisplayName = Directory Replicator
+=1 1303 2
++                Exports
++                Imports
++                Parameters
++                    Replicate = REG_DWORD 0x00000002
++                    ImportPath = REG_EXPAND_SZ %SystemRoot%\System32\Repl\Import
++                    ExportPath = REG_EXPAND_SZ %SystemRoot%\System32\Repl\Export
+=1 1325 5
++                ImagePath = REG_EXPAND_SZ %SystemRoot%\System32\locator.exe
++                DisplayName = Remote Procedure Call (RPC) Locator
+=1 1217 2
++                    ExpirationAge = REG_DWORD 0x00000e10
+=1 1317 5
++                ImagePath = REG_EXPAND_SZ %SystemRoot%\System32\rpcss.exe
++                DisplayName = Remote Procedure Call (RPC) Service
+=1 1217 3
+=1 3509 2
+=1 1269 2
++                ImagePath = REG_EXPAND_SZ \SystemRoot\System32\drivers\srv.sys
++                DisplayName = Srv
++                Group = Network
++                Parameters
++
++            Tcpip
+=1 2802 3
+=1 3294 1
++                DisplayName = TCP/IP Service
+=1 3481 2
++                    Bind = REG_MULTI_SZ "\Device\Lance01"
++                    Export = REG_MULTI_SZ "\Device\Tcpip\Lance01"
++                Parameters
++                    DataBasePath = REG_EXPAND_SZ %SystemRoot%\System32\drivers\etc
++                    Domain = 
++                    Hostname = decstation
++                    NameServer = 
++                    ForwardBroadcasts = REG_DWORD 0x00000000
++                    IPEnableRouter = REG_DWORD 0x00000000
++                    SearchList = 
++                    Winsock
++                        HelperDllName = REG_EXPAND_SZ %SystemRoot%\System32\wshtcpip.dll
++                        MaxSockAddrLength = REG_DWORD 0x00000010
++                        MinSockAddrLength = REG_DWORD 0x00000010
++                        Mapping = REG_BINARY 128 \
++                            0x0000000A 0x00000003 0x00000002 0x00000001 0x00000006 \
++                            0x00000002 0x00000001 0x00000000 0x00000002 0x00000000 \
++                            0x00000006 0x00000000 0x00000000 0x00000006 0x00000000 \
++                            0x00000001 0x00000006 0x00000002 0x00000002 0x00000011 \
++                            0x00000002 0x00000002 0x00000000 0x00000002 0x00000000 \
++                            0x00000011 0x00000000 0x00000000 0x00000011 0x00000000 \
++                            0x00000002 0x00000011
++                Performance
++                    Library = Perfctrs.dll
++                    Open = OpenTcpIpPerformanceData
++                    Collect = CollectTcpIpPerformanceData
++                    Close = CloseTcpIpPerformanceData
++                ServiceProvider
++                    Class = REG_DWORD 0x00000008
++                    DnsPriority = REG_DWORD 0x000007D0
++                    HostsPriority = REG_DWORD 0x000001F4
++                    LocalPriority = REG_DWORD 0x000001F3
++                    NetbtPriority = REG_DWORD 0x000007D1
++                    Name = TCP/IP
++                    ProviderPath = REG_EXPAND_SZ %SystemRoot%\System32\wsock32.dll
++
++            WinSock
+=1 3034 3
++                Parameters
++                    Transports = REG_MULTI_SZ "Tcpip" "NetBIOS"
++#endif // defined(_HIVE_DECSTATION_)
+=1 3120 77
 +#if !defined(DECSTATION)
 =1 3197 28
 +#endif // !defined(DECSTATION)

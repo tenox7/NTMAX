@@ -7,7 +7,7 @@
 #
 #	1  the tools of the MIPS NT machine (dbgrun, the tree's tools, MIDL),
 #	   the header pass and the MIDL pass 0 (the RPC interfaces of the
-#	   Win32 core, the tables of USER, NET)
+#	   Win32 core, the tables of USER, NET, the RPC locator)
 #	2  the C run-times: libcntpr.lib, libc.lib, libcmt.lib and the
 #	   libraries of crtdll
 #	3  the firmware, the OS loader, the kernel and the HAL
@@ -91,6 +91,7 @@ step build-midl0.sh PRIVATE/WINDOWS/USER
 step build-midl0.sh PRIVATE/NET PRIVATE/NET/SVCDLLS/SRVSVC PRIVATE/NET/SVCDLLS/WKSSVC \
 	PRIVATE/NET/SVCDLLS/BROWSER PRIVATE/NET/SVCDLLS/REPL PRIVATE/NET/SVCDLLS/MSGSVC \
 	PRIVATE/NET/SVCDLLS/AT PRIVATE/NET/SVCDLLS/LOGONSRV PRIVATE/NET/SVCDLLS/RPL
+step build-midl0.sh PRIVATE/RPC/LOCATOR
 
 # 2. the C run-times
 step build-crt.sh
@@ -124,6 +125,22 @@ images NTOS/DD/SCSIPORT NTOS/DD/SCSIDISK NTOS/MINIPORT/NCR53C94 NTOS/FASTFAT NTO
 	NTOS/DD/LK201 NTOS/DD/KBDCLASS NTOS/DD/VSXXX NTOS/DD/MOUCLASS NTOS/DD/SCSICDRM NTOS/CDFS
 step build-lib.sh PRIVATE/NTOS/DD/SCSITAPE/CLASS
 images NTOS/DD/SCSITAPE/4MMDAT NTOS/DD/SCSITAPE/DLTTAPE
+# (the network: the NDIS wrapper and the LANCE miniport, of the PMAD-AA of
+# the 5000/200; the TDI wrapper, TCP/IP, which links the IP library and the
+# import libraries of both, and AFD, the kernel half of Windows Sockets)
+images NTOS/NDIS/WRAPPER NTOS/NDIS/LANCE NTOS/TDI/WRAPPER
+step build-lib.sh PRIVATE/NTOS/TDI/TCPIP/IP
+images NTOS/TDI/TCPIP/TCP NTOS/AFD
+# (NetBIOS over TCP/IP, which links its library, and the NetBIOS interface;
+# the multiple UNC provider, the redirector, which links the datagram
+# receiver of the browser, and the server of LAN Manager, both with the SMB
+# trace library)
+step build-lib.sh PRIVATE/NTOS/NBT/NBT
+images NTOS/NBT/NT NTOS/NETBIOS
+for d in SMBTRSUP BOWSER; do
+	step build-lib.sh PRIVATE/NTOS/$d
+done
+images NTOS/MUP/DAYTONA NTOS/RDR/DAYTONA NTOS/SRV/DAYTONA
 
 # 5. the libraries of the user-mode images (the client libraries of SC and
 # WINREG have the names of the server ones: advapi32 takes them from their
@@ -224,8 +241,9 @@ images NET/UI/ADMIN/EVENTVWR/EVENTVWR NET/UI/ADMIN/USER/USER NET/UI/ADMIN/USER/M
 	UTILS/REGEDIT/SRC
 
 # 7. the programs of apps/ (APPS/DIR): the task manager, in system32; the
-# games, in \GAMES; wsock32 (the libraries of SOCKETS, then the DLL); the
-# libraries of Internet Explorer, then the programs of \APPS
+# games, in \GAMES; wsock32 (the libraries of SOCKETS, then the DLL) and its
+# NetBIOS helper; the network; the libraries of Internet Explorer, then the
+# programs of \APPS
 step build-image.sh APPS/taskman
 for d in 2048 breakout bubbles lander missile ntrigue riscoban riscque snake sokoban tankz wintown; do
 	step DEST=games build-image.sh APPS/games/$d
@@ -233,7 +251,54 @@ done
 for d in LIBUEMUL SOCKREG SOCKUTIL; do
 	step build-lib.sh PRIVATE/NET/SOCKETS/$d
 done
-images NET/SOCKETS/WINSOCK
+images NET/SOCKETS/WINSOCK NET/SOCKETS/WSHNETBS
+# (the TCP/IP helper of wsock32, the ICMP echo API, ping and hostname, of
+# apps/net, in system32)
+for d in wshtcpip icmp ping hostname; do
+	step build-image.sh APPS/net/$d
+done
+# (the DHCP client: its library, the message file of the service, which
+# makes the header of the client library, the client library, then the
+# service, dhcpcsvc.dll, which runs in services.exe; ipconfig, which links
+# its import library, and the LmHosts service of apps/net)
+D=NET/SOCKETS/TCPCMD/DHCP
+for d in $D/LIB $D/CLIENT/NEWNT $D/CLIENT/DHCP; do
+	step build-lib.sh PRIVATE/$d
+done
+images $D/CLIENT/NEWNT
+for d in ipconfig lmhsvc; do
+	step build-image.sh APPS/net/$d
+done
+# (the RPC transports over TCP/IP, NetBIOS and UDP; the NT LM security
+# support provider, security.dll, and its service, ntlmssps.dll; the LAN
+# Manager services: the transaction server, which links the DOS print
+# library and imports from the browser, which imports from it and from the
+# server (the import library of the browser comes first), then server,
+# workstation, browser, messenger, alerter and netlogon; the net command,
+# net.exe and net1.exe, and its help, neth.dll)
+for d in CLNTTCP SVRTCP CLNTNB SVRNB DGUDPC DGUDPS; do
+	images RPC/RUNTIME/TRANS/WIN32/$d
+done
+step build-lib.sh PRIVATE/NET/SVCDLLS/NTLMSSP/COMMON
+images NET/SVCDLLS/NTLMSSP/CLIENT NET/SVCDLLS/NTLMSSP/SERVER
+step implib PRIVATE/NET/SVCDLLS/BROWSER/SERVER
+step build-lib.sh PRIVATE/NET/DOSPRINT
+images NET/XACTSRV NET/SVCDLLS/SRVSVC/SERVER NET/SVCDLLS/WKSSVC/SERVER/DAYTONA \
+	NET/SVCDLLS/BROWSER/SERVER NET/SVCDLLS/MSGSVC/SERVER NET/SVCDLLS/ALRSVC \
+	NET/SVCDLLS/LOGONSRV/SERVER
+for d in COMMON MAP32; do
+	step build-lib.sh PRIVATE/NET/NETCMD/$d
+done
+images NET/NETCMD/NETUSE NET/NETCMD/NETCMD NET/NETCMD/HELP
+# (the directory replicator, lmrepl.exe, which links the library of its
+# service; the RPC name service, rpcns4.dll, and its locator; the endpoint
+# mapper, rpcss.exe; the performance counters of TCP/IP and NetBIOS over
+# TCP/IP, perfctrs.dll, which links the SNMP library of the agent and
+# imports the Streams API, winstrm.dll)
+step build-lib.sh PRIVATE/NET/SVCDLLS/REPL/SERVER
+images NET/SVCIMGS/LMREPL RPC/LOCATOR/CLIENT RPC/LOCATOR/SERVER RPC/RUNTIME/RPCEPMPR/SERVER
+step build-lib.sh PRIVATE/NET/SNMP/AGENT/COMMON
+images NET/SOCKETS/WINSTRM SDKTOOLS/PERFCTRS
 for d in shared win32 bearssl basic; do
 	step build-lib.sh APPS/ie/$d
 done

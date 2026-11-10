@@ -138,6 +138,17 @@ vmrun() {
 			sleep 5
 			continue
 		}
+		# (a file that the share's client still kept open, as it does for
+		# a while after it wrote it, the .cmd of build-lib.sh: when that
+		# message is all of the answer, again)
+		_a=$(grep -v '^vmrun-start\|^vmrun-end' "$_f" 2> /dev/null | tr -d '\r' | sed 's/ *$//' | grep -v '^$' || :)
+		if [ "$_a" = "The process cannot access the file because
+it is being used by another process." ] && [ $_i -lt 3 ]; then
+			_i=$((_i + 1))
+			printf 'vmrun: a file was in use, again (%s): %s\n' $_i "$1" >&2
+			sleep 5
+			continue
+		fi
 		break
 	done
 	# (the rsh error of a command that did not start)

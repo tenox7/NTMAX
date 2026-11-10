@@ -1,0 +1,46 @@
+#ntdiff PRIVATE/NTOS/NDIS/LANCE/LANCE.C
+#crlf
+=1 1 982
++#ifndef i386
++            (Adapter->LanceCard == LANCE_DECTC) ?
++                NdisInterfaceTurboChannel :
++#endif
+=1 983 62
++        //
++        // The registers and the station address ROM of the TURBOchannel
++        // option are at their offsets from the mapped register base.
++        //
++
++        Adapter->RAP = Adapter->Nicsr + LANCE_DECTC_RAP_OFFSET;
++        Adapter->RDP = Adapter->Nicsr + LANCE_DECTC_RDP_OFFSET;
++        Adapter->NetworkHardwareAddress = Adapter->Nicsr + LANCE_DECTC_NETWORK_OFFSET;
+=1 1048 1009
++#ifndef i386
++
++    //
++    // The TURBOchannel option has no interrupt mask of its own (and no
++    // NICSR): the interrupt enable of the LANCE masks its interrupt.  CSR0
++    // is selected, as the interrupt service routine has it, and zero
++    // changes nothing else in it: its command bits do nothing as zeros, and
++    // only ones clear its interrupt bits.
++    //
+=1 1498 3
++        LOG(PEND);
++
++        LANCE_ISR_WRITE_RDP(Adapter, 0);
+=1 1854 5
++#endif
+=1 2056 35
++#ifndef i386
++
++    //
++    // The TURBOchannel option: the interrupt enable of the LANCE (see
++    // LanceDisableInterrupt).
++    //
+=1 1498 3
++        LOG(UNPEND);
++
++        LANCE_ISR_WRITE_RDP(Adapter, LANCE_CSR0_INTERRUPT_ENABLE);
+=1 1854 5
++#endif
+=1 2090 3145

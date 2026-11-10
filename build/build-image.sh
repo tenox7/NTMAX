@@ -114,7 +114,7 @@ ntcopytop PUBLIC/SDK/LIB	# (coffbase.txt)
 vars=$(ntsources "$DIR" TARGETNAME TARGETTYPE TARGETEXT NTTARGETFILES TARGETLIBS LINKLIBS DLLDEF DLLENTRY DLLBASE \
 	MIPS_DLLLIBOBJECTS UMTYPE USE_CRTDLL USE_LIBCMT NTPROFILEINPUT DRIVER_ALIGNMENT NTDEBUGTYPE GPSIZE \
 	UMAPPL UMTEST UMAPPLEXT UMLIBS UMRES UMOBJS UMENTRY UMBASE COFFBASE LNKFLAGS CRTLIBS EXEPROFILEINPUT TARGETPATH \
-	SOURCES MIPS_SOURCES)
+	SOURCES MIPS_SOURCES NTTARGETFILE0)
 var() { printf '%s\n' "$vars" | sed -n "s/^$1=//p" | sed 's/^ *//; s/ *$//'; }
 NAME=$(var TARGETNAME)
 TYPE=$(var TARGETTYPE)
@@ -145,6 +145,10 @@ esac
 lib() {
 	p=$(printf "%s\n" "$1" | tr '\\' /)
 	n=$(basename "$p" .lib | tr A-Z a-z)
+	# (libcx32, the C++ helpers of cfront, which the tree has only as a
+	# library of the R4000 in PUBLIC\SDK\LIB\MIPS, is left out: rpcss names
+	# it and uses none of them; an image that did would not link)
+	[ "$n" != libcx32 ] || return 0
 	case $p in
 	*/[oO][bB][jJ]/\*/*|[oO][bB][jJ]/\*/*)
 		d=$(ntpath "$(dirname "$(dirname "$(dirname "$p")")")")
@@ -156,6 +160,13 @@ lib() {
 		# UMLIBS, and links its .res by UMRES)
 		[ "$d" != "$DIR" ] || [ "$TYPE" != LIBRARY ] ||
 			[ -n "$(printf '%s\n' $(var SOURCES) $(var MIPS_SOURCES) | grep -v -i '\.rc$')" ] || return 0 ;;
+	.*/\*/*)
+		# (a library of another TARGETPATH of the tree, such as ..\bin,
+		# where build-lib.sh puts it too: the acledit.lib of ACLEDIT\BIN)
+		d=$(ntpath "$(dirname "$(dirname "$p")")")
+		f=$(ls "$SHARE/NT/$d/mips" 2>/dev/null | grep -ix "$(basename "$p")" | head -1)
+		[ -z "$d" ] || [ -z "$f" ] ||
+			{ printf '%s\n' "%NT%\\$(printf "%s\n" "$d" | tr / '\\')\\mips\\$f"; return; } ;;
 	esac
 	# (img/NAME.EXT: the import library of a DLL of another extension,
 	# winspool.drv; a DLL of the name, msacm32.dll, comes first)
@@ -205,6 +216,11 @@ obj() {
 			m=$(ls "$SHARE/NT/$d/obj/mips" 2>/dev/null | grep -ix "$f" | head -1)
 			[ -z "$m" ] || { printf '%s\n' "%NT%\\$(printf "%s\n" "$d" | tr / '\\')\\obj\\mips\\$m"; return; } ;;
 		esac
+	fi
+	# (an object of this directory that the UMLIBS of a program names and
+	# SOURCES does not compile: build-lib.sh made it with the programs)
+	if [ "$d" = "$DIR" ] && [ ! -f "$SHARE/out/$t/$f" ] && [ -f "$SHARE/out/$t/um/$f" ]; then
+		printf '%s\n' "%L%\\$t\\um\\$f"; return
 	fi
 	[ -n "$t" ] && [ -f "$SHARE/out/$t/$f" ] ||
 		{ echo "build-image: $DIR: no object $1 (build-lib.sh $d)" >&2; exit 1; }
@@ -406,7 +422,15 @@ if [ -n "$EXT" ]; then
 		# A DLLDEF that the tree does not have is made by the preprocessor
 		# from the .src (or .def) of its name in the directory above or
 		# this one, as the inference rules of makefile.def take it
-		# (kernel32: ..\kernel32.src).
+		# (kernel32: ..\kernel32.src).  One that an NTTARGETFILE0 rule
+		# made (the ntlanman.def of SHELL\BIN) the share shows here a few
+		# seconds late.
+		case " $(var NTTARGETFILE0 | tr A-Z a-z) " in *" $(printf "%s\n" "$def" | tr A-Z a-z) "*)
+			i=0
+			while [ ! -f "$SHARE/NT/$DIR/$(printf "%s\n" "$def" | tr '\\' /)" ] && [ $i -lt 20 ]; do
+				sleep 1; i=$((i + 1))
+			done ;;
+		esac
 		src=
 		if [ ! -f "$SHARE/NT/$DIR/$(printf "%s\n" "$def" | tr '\\' /)" ]; then
 			b=$(basename "$(printf "%s\n" "$def" | tr '\\' /)" .def)

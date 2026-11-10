@@ -51,7 +51,11 @@
 #  NTTARGETFILES names (obj\*\NAME.lib) is made there after it by the rule
 #  of makefile.inc, of the libraries of obj\mips directories (LSA\CRYPT\DLL:
 #  sys003.lib, of its crypt.lib and the engine.lib of ..\ENGINE), and goes
-#  to T:\NTOS\3MAX\out\NAME as NAME.lib.
+#  to T:\NTOS\3MAX\out\NAME as NAME.lib.  So does the library of the
+#  comblib target of NET UI's makefile.inc, which combines the libraries of
+#  other directories (MISC\BIN, with no sources of its own: uimisc.lib):
+#  the COMBINE_TARGETLIB of the directory's makefile.inc, obj\*\NAME.lib or
+#  a library of the SDK ($(BASEDIR)\public\sdk\lib\*\uiadmin.lib).
 
 set -e
 . "$(dirname "$0")/vm.sh"
@@ -211,6 +215,22 @@ for u in $(var UMAPPL | tr '*' ' ') $([ "$UMTEST" != 1 ] || var UMTEST | tr '*' 
 	done
 	UMSRCS="$UMSRCS $(ntsrc "$u.c")"
 done
+# The objects of this directory that the UMLIBS of the programs name and
+# SOURCES does not compile (nltest of LOGONSRV\SERVER, obj\*\nltest1.obj):
+# the inference rules of makefile.def make them from the source of their
+# name; they go with the programs.
+if [ -n "$(var UMAPPL)" ]; then
+	for l in $(var UMLIBS | sed 's/\*/mips/g'); do
+		case $l in [oO][bB][jJ]\\[mM][iI][pP][sS]\\*.[oO][bB][jJ]) ;; *) continue ;; esac
+		b=$(basename "$(printf "%s\n" "$l" | tr '\\' /)"); b=${b%.*}
+		for s in $SRCS $UMSRCS; do
+			x=$(basename "$(printf "%s\n" "$s" | tr '\\' /)")
+			[ "$(printf "%s\n" "${x%.*}" | tr A-Z a-z)" != "$(printf "%s\n" "$b" | tr A-Z a-z)" ] || continue 2
+		done
+		s=$(ntsrc "$b.c")
+		! ntfile "$s" || UMSRCS="$UMSRCS $s"
+	done
+fi
 
 # Copy the include directories and the directories of the sources.
 INC='-Imips\ -I.'	# (makefile.def: -Imips\ -I. first, for C and the assembler)
@@ -247,10 +267,23 @@ while [ -n "$scan" ]; do
 done
 ntcopy PUBLIC/SDK/INC PUBLIC/OAK/INC
 
-# The libraries of NTTARGETFILES (obj\mips\NAME.lib)
+# The libraries of NTTARGETFILES (obj\mips\NAME.lib), each made by the rule
+# of its name, and the COMBINE_TARGETLIB of makefile.inc, made by its comblib
+# rule (RULE=LIBRARY)
 LIBTARGETS=
 for t in $(var NTTARGETFILES | sed 's/\*/mips/g'); do
-	case $t in [oO][bB][jJ]\\mips\\*.[lL][iI][bB]) LIBTARGETS="$LIBTARGETS $t" ;; esac
+	case $t in
+	[oO][bB][jJ]\\mips\\*.[lL][iI][bB]) LIBTARGETS="$LIBTARGETS $t" ;;
+	[cC][oO][mM][bB][lL][iI][bB])
+		for m in "$(ovl "$DIR")" "$nt35/$DIR"; do
+			f=$(ls "$m" 2>/dev/null | grep -ix makefile.inc | head -1)
+			[ -n "$f" ] || continue
+			c=$(tr -d '\r' < "$m/$f" | sed -n 's/^COMBINE_TARGETLIB *= *//p' |
+				sed 's/ *$//; s/\*/mips/g; s/\$(BASEDIR)/%NT%/')
+			[ -z "$c" ] || LIBTARGETS="$LIBTARGETS comblib=$c"
+			break
+		done ;;
+	esac
 done
 
 # only B: true if the source file B is to be compiled (all without ONLY)
@@ -318,14 +351,24 @@ cmd=$SHARE/build/$OF.cmd
 	esac
 	if [ -n "$MKLIB" ]; then
 		printf '%s\n' 'cd /d %O%' "%MSDevDir%\\BIN\\LIB.EXE -nologo -machine:mips -out:$NAME.lib *.obj > lib.log 2>&1"
+		# (a library of a TARGETPATH in the tree, obj or ..\bin, also goes
+		# to TARGETPATH\mips, where build.exe puts it: the images take it
+		# from there, as the acledit.lib of ACLEDIT\ACLEDIT, in ..\bin, has
+		# the name of the DLL of ACLEDIT\BIN, whose build empties
+		# out\acledit)
 		case $(var TARGETTYPE) in DYNLINK|EXPORT_DRIVER) ;; *)
-			[ "$(var TARGETPATH)" != obj ] || printf '%s\n' "copy $NAME.lib %NT%\\$WDIR\\obj\\mips > nul" ;;
+			tp=$(var TARGETPATH)
+			case $tp in ''|[\\/\$]*|*:*) ;; *)
+				printf '%s\n' "if not exist %NT%\\$WDIR\\$tp\\mips\\nul mkdir %NT%\\$WDIR\\$tp\\mips" \
+					"copy $NAME.lib %NT%\\$WDIR\\$tp\\mips > nul" ;;
+			esac ;;
 		esac
 	fi
 	for t in $LIBTARGETS; do
+		r=${t%%=*}; t=${t#*=}
 		n=$(basename "$(printf "%s\n" "$t" | tr '\\' /)" .lib)
-		printf '%s\n' "cd /d %NT%\\$WDIR" "%MKINC% $t > %TOP%\\out\\$n\\$n.log 2>&1" \
-			"copy $t %TOP%\\out\\$n\\$n.lib > nul"
+		printf '%s\n' "cd /d %NT%\\$WDIR" "md ${t%\\*} > nul 2>&1" \
+			"%MKINC% $r > %TOP%\\out\\$n\\$n.log 2>&1" "copy $t %TOP%\\out\\$n\\$n.lib > nul"
 	done
 } | sed 's/$/\r/' > "$cmd"
 
@@ -344,6 +387,7 @@ else
 	rm -rf "$SHARE/out/$ON/um"; rm -f "$SHARE/out/$ON/"*
 fi
 for t in $LIBTARGETS; do
+	t=${t#*=}
 	n=$(basename "$(printf "%s\n" "$t" | tr '\\' /)" .lib)
 	mkdir -p "$SHARE/out/$n"; rm -f "$SHARE/out/$n/"*
 done
@@ -417,6 +461,7 @@ else
 	echo "build-lib: $fail failed, no library ($(var TARGETTYPE))"
 fi
 for t in $LIBTARGETS; do
+	t=${t#*=}
 	n=$(basename "$(printf "%s\n" "$t" | tr '\\' /)" .lib)
 	i=0
 	while [ ! -f "$SHARE/out/$n/$n.lib" ] && [ $i -lt 20 ]; do sleep 1; i=$((i + 1)); done
