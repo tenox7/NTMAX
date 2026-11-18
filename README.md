@@ -1,11 +1,9 @@
 # NTMAX — Windows NT 3.5 on the DECstation 5000/200
 
-[![Windows NT on a DECstation 5000/200 in 1992 (video)](https://i.ytimg.com/vi/bMJIhN4xCro/hqdefault.jpg)](https://youtu.be/bMJIhN4xCro?t=4948)
-
 Based on a true story: in 1992 Alexandre Bronstein showed Windows NT running
-on a DECstation 5000/200, in his talk "Windows NT: what is it
-technologically/strategically?" (Computer History Museum; the demo is at
-1:22:28).
+on a DECstation 5000/200, in his talk
+[Windows NT: what is it technologically/strategically?](https://youtu.be/bMJIhN4xCro?t=4948)
+(Computer History Museum, on YouTube; the demo starts at 1:22:28).
 
 A port of Windows NT 3.5 (build 782) to the DECstation 5000 (MIPS R3000,
 TURBOchannel), built from the NT 3.5 source tree. Written for the port: the
