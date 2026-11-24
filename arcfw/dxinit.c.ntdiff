@@ -350,6 +350,34 @@
 +    FwPrint(FW_REX_SCSI_RESET_MSG, Status, Interrupt);
 =1 2393 3
 +VOID
++FwRexStopEthernet (
+=1 2261 7
++    This routine stops the LANCE of the system slot of the 5000/1xx and the
++    5000/240 after a loaded program ran.  The LANCE moves the frames it
++    receives into memory through the Ethernet channel of the IO Control
++    ASIC, and the network driver of the system that the program started
++    leaves it receiving into the memory of the system, which the console
++    takes again for its work and for the boot program it loads.  So the
++    routine clears the enables of the LANCE and of its DMA in the system
++    support register of the ASIC, which holds the LANCE in reset, as at
++    power-up.
++
++    The LANCE of the PMAD-AA of the 5000/200 keeps its frames in the memory
++    of the module, and the routine leaves it as it is.
+=1 658 10
++
++{
++    volatile ULONG *SystemSupport;
++
++    if (FwSystem->SystemSupportRegister != 0) {
++        SystemSupport =
++            (volatile ULONG *)(KSEG1_BASE | FwSystem->SystemSupportRegister);
++
++        *SystemSupport &= ~FwSystem->EthernetEnable;
++    }
++
+=1 2393 3
++VOID
 +FwRexRelease (
 +    IN ULONG Command
 =1 2262 6
@@ -357,19 +385,21 @@
 +    calls it on the firmware stack, with interrupts disabled and the
 +    exceptions on the bootstrap vectors of the console.
 +
-+    If the firmware invoked a program, the routine first puts back page
-+    zero as it was then: the system that the program started has kept its
-+    exception vectors, its first processor control block and its idle
-+    thread in the page, over the work area of the console, and the boot
-+    write service of the console, which writes the non-volatile
-+    configuration, would take its own data from the page.  The page is
-+    written through KSEG1, then both caches are swept, so no cached line
-+    of the system's page is left.  The serial line of the firmware console
-+    is set up again, as the system's serial drivers can have changed it,
-+    and each step from there on is shown on it, so a terminal on the line
-+    shows how far the return to the console got.  The SCSI bus is reset,
-+    so the devices the system's SCSI driver left in synchronous transfers
-+    return to the asynchronous transfers of the console's boot driver.
++    If the firmware invoked a program, the routine first stops the LANCE
++    of the system slot (FwRexStopEthernet), which the system's network
++    driver leaves receiving into memory, then puts back page zero as it
++    was then: the system that the program started has kept its exception
++    vectors, its first processor control block and its idle thread in the
++    page, over the work area of the console, and the boot write service
++    of the console, which writes the non-volatile configuration, would
++    take its own data from the page.  The page is written through KSEG1,
++    then both caches are swept, so no cached line of the system's page is
++    left.  The serial line of the firmware console is set up again, as
++    the system's serial drivers can have changed it, and each step from
++    there on is shown on it, so a terminal on the line shows how far the
++    return to the console got.  The SCSI bus is reset, so the devices the
++    system's SCSI driver left in synchronous transfers return to the
++    asynchronous transfers of the console's boot driver.
 +
 +    Then the non-volatile configuration is written, if a loaded program,
 +    or the system it started, changed it, and the console command service
@@ -386,6 +416,7 @@
 +    PULONG PageZero;
 +
 +    if (FwRexPageZeroSaved != FALSE) {
++        FwRexStopEthernet();
 +        PageZero = (PULONG)KSEG1_BASE;
 +        for (Index = 0; Index < (PAGE_SIZE / sizeof(ULONG)); Index += 1) {
 +            PageZero[Index] = FwRexPageZero[Index];

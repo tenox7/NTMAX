@@ -174,9 +174,13 @@ typedef struct _FW_SYSTEM {
     ULONG ScsiVector;
     ULONG ScsiChannel;
     PCHAR EthernetIdentifier;           // the network controller
-    BOOLEAN EthernetTurboChannel;       // a TURBOchannel slot, or the system slot
-    ULONG EthernetPhysicalBase;
-    ULONG EthernetVector;
+    BOOLEAN EthernetSystemSlot;         // the LANCE of the system slot, or a slot's PMAD-AA
+    ULONG EthernetPhysicalBase;         // the slot, or the registers of the LANCE
+    ULONG EthernetVector;               // the slot, or the channel of the LANCE
+    ULONG EthernetRomPhysicalBase;      // the station address ROM of the LANCE
+    ULONG EthernetChannel;              // the DMA channel of the LANCE
+    ULONG SystemSupportRegister;        // the IO Control ASIC's, 0 on the 5000/200
+    ULONG EthernetEnable;               // its enables of the LANCE and of its DMA
 } FW_SYSTEM, *PFW_SYSTEM;
 
 extern PFW_SYSTEM FwSystem;
@@ -320,6 +324,17 @@ FwRexResetScsiBus (
     );
 
 //
+// Define the routine that stops the LANCE of the system slot of the
+// 5000/1xx and the 5000/240 after a loaded program ran, before the console
+// has the machine again.
+//
+
+VOID
+FwRexStopEthernet (
+    VOID
+    );
+
+//
 // Define the routine of the serial driver that sets a line up for the
 // firmware console (9600 baud, eight bits, one stop bit, no parity), which
 // the firmware also calls before its first message.
@@ -377,6 +392,11 @@ extern PCHAR FW_SLOT_EMPTY_MSG;
 extern PCHAR FW_CONSOLE_ARGUMENTS_MSG;
 extern PCHAR FW_CONSOLE_VARIABLES_MSG;
 extern PCHAR FW_UNDEFINED_MSG;
+extern PCHAR FW_ETHERNET_MSG;
+extern PCHAR FW_ETHERNET_ROM_VALID_MSG;
+extern PCHAR FW_ETHERNET_ROM_INVALID_MSG;
+extern PCHAR FW_ETHERNET_NO_ROM_MSG;
+extern PCHAR FW_SYSTEM_SUPPORT_MSG;
 extern PCHAR FW_PROGRAM_START_MSG;
 
 //

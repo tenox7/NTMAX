@@ -1,0 +1,24 @@
+#ntdiff PRIVATE/NTOS/NDIS/LANCE/DECTC.H
+#crlf
+=1 1 11
++//
++// The LANCE of the system slot of the DECstation 5000/1xx and 5000/240
++// (LANCE_DECST): the RDP and the RAP at the start of its registers, a byte
++// of the station address in the low byte of each longword of its station
++// address ROM, and the memory the LANCE addresses (see lancehrd.h), in a
++// window of main memory twice its size.
++//
++
++#define LANCE_DECST_REGISTER_MAPSIZE (0x8)
++#define LANCE_DECST_RAP_OFFSET       (0x4)
++#define LANCE_DECST_RDP_OFFSET       (0x0)
++#define LANCE_DECST_ROM_MAPSIZE      (0x80)
++#define LANCE_DECST_HARDWARE_MEMORY  (0x10000)
++#define LANCE_DECST_WINDOW_SIZE      (2 * LANCE_DECST_HARDWARE_MEMORY)
+=1 11 18
++NDIS_STATUS
++LanceDecStAllocateMemory(
+=1 16 3
++VOID
++LanceDecStFreeMemory(
+=1 26 4

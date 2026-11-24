@@ -102,14 +102,15 @@
 +
 +    //
 +    // Disable all I/O interrupts, clear the DMA events of the system
-+    // interrupt register, and stop the SCSI DMA.
++    // interrupt register, and stop the SCSI and the Ethernet DMA.
 +    //
 +    // The enables of the devices of the system slot in the system support
 +    // register, which the console set up, are kept.
 =1 183 6
 +    HalpWriteInterruptMask();
 +    WRITE_REGISTER_ULONG(SYSTEM_INTERRUPT, 0);
-+    HalpWriteSystemSupport(SSR_SCSI_DMA_ENABLE | SSR_SCSI_DMA_DIRECTION, 0);
++    HalpWriteSystemSupport(SSR_SCSI_DMA_ENABLE | SSR_SCSI_DMA_DIRECTION |
++                           SSR_LANCE_DMA_ENABLE, 0);
 =1 177 4
 +    // Connect the stall interrupt routine to the interval clock interrupt.
 +    // The real clock interrupt routine is connected when the stall execution

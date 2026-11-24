@@ -1,0 +1,14 @@
+#ntdiff PRIVATE/NTOS/NDIS/LANCE/SEND.C
+#crlf
+=1 1 312
++                    Adapter,
+=1 313 21
++                LANCE_ZERO_BUFFER_FOR_HARDWARE(
++                    Adapter,
+=1 335 26
++            LANCE_ZERO_MEMORY_FOR_HARDWARE(Adapter, (PUCHAR)CurrentRingElement,
+=1 362 4
+=1 372 2 -4
+=1 367 20
++              Adapter,
+=1 387 51

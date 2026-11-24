@@ -27,6 +27,11 @@
 +PCHAR FW_CONSOLE_ARGUMENTS_MSG = " Console boot arguments:";
 +PCHAR FW_CONSOLE_VARIABLES_MSG = " Console variables: console %.80s, osconsole %.80s.\r\n";
 +PCHAR FW_UNDEFINED_MSG = "none";
++PCHAR FW_ETHERNET_MSG = " Ethernet: %s, station address %02x-%02x-%02x-%02x-%02x-%02x, %s.\r\n";
++PCHAR FW_ETHERNET_ROM_VALID_MSG = "address ROM checked";
++PCHAR FW_ETHERNET_ROM_INVALID_MSG = "address ROM without its copies and test pattern";
++PCHAR FW_ETHERNET_NO_ROM_MSG = " Ethernet: %s, station address ROM not readable.\r\n";
++PCHAR FW_SYSTEM_SUPPORT_MSG = " System support register: %08lx.\r\n";
 +PCHAR FW_PROGRAM_START_MSG = " Starting %.200s at %08lx.\r\n";
 +
 +#endif

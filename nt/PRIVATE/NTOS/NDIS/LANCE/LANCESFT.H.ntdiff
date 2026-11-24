@@ -1,0 +1,42 @@
+#ntdiff PRIVATE/NTOS/NDIS/LANCE/LANCESFT.H
+#crlf
+=1 1 411
++    // The LANCE of the system slot of a DECstation 5000/1xx or 5000/240
++    // (LANCE_DECST): the physical address of its station address ROM, the
++    // DMA channel that gives it its memory, and the physical address of
++    // the memory, a window of main memory (see lancehrd.h).
++    //
++    ULONG StationAddressRomAddress;
++    UINT DmaChannel;
++    NDIS_PHYSICAL_ADDRESS WindowPhysicalAddress;
++
++    //
++    // The first receive buffer of a packet of the LANCE of the system slot,
++    // which is not contiguous in the window, copied to indicate the packet.
++    //
++    UCHAR ReceiveCopy[LANCE_128K_SIZE_OF_RECEIVE_BUFFERS];
+=1 410 331
++// at least 16 byte aligned: a buffer of the LANCE of the system slot
++// of a DECstation starts at 16 bytes (see lancehrd.h).
+=1 742 4
++    UINT _Size = (((S) + 15)/16)*16; \
+=1 747 165
++VOID
++LanceZeroHardwareMemory(
+=1 920 1
++    IN PVOID Destination,
++    IN UINT Length,
++    IN BOOLEAN Buffer
+=1 916 3
++LanceMoveToHardwareBuffer(
+=1 920 1
++    IN PVOID Destination,
++    IN PVOID Source,
++    IN UINT Length
+=1 916 3
++LanceMoveFromHardwareBuffer(
+=1 920 1
++    IN PVOID Destination,
++    IN PVOID Source,
++    IN UINT Length
+=1 910 53

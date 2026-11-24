@@ -11,21 +11,22 @@ ARC firmware, the R3000 kernel code, the HAL, and the drivers of the frame
 buffer, the serial lines, the keyboard and the mouse. It runs in gxemul and
 on real machines.
 
-## Status (2026-11-10)
+## Status (2026-11-24)
 
 - NT boots to Program Manager on the PMAG-BA color frame buffer (1024 by
   864, 8 bits). The first run takes three boots; from then on Administrator
   (password `password`) logs on by itself.
 - The LK201 keyboard, the VSXXX mouse, SCSI disks, CD-ROM and tape drives,
   and COM1 and COM2 (DZ lines 2 and 3) work.
-- Network on the 5000/200's Ethernet (PMAD-AA): TCP/IP with DHCP, NetBIOS
-  and file sharing (`net share`, `net use`).
+- Network on the Ethernet of the system board (the PMAD-AA of the 5000/200,
+  the LANCE of the 5000/1xx and the 5000/240): TCP/IP with DHCP, NetBIOS and
+  file sharing (`net share`, `net use`).
 - The programs of Program Manager's groups run, and those of `apps/` (as in
   [pint](https://github.com/tenox7/pint)): a task manager, more games,
   ntfetch, a VNC viewer and Internet Explorer 1.5. The SDK tools are in
   `\SDKTOOLS`.
 - Not yet: ClipBook, Sound Recorder, Setup and the Network control panel,
-  Mail and Schedule+; the Ethernet of the 5000/1xx and the 5000/240.
+  Mail and Schedule+.
 - Not part of the port: printing (the Spooler) and RAS.
 
 ## DECstation models
@@ -34,7 +35,7 @@ on real machines.
 |---|---|---|
 | DECstation and DECsystem 5000/200 | KN02 (3MAX), R3000 | Works in gxemul; not yet tried on a real machine |
 | DECstation 5000/120, 5000/125, 5000/133 | KN02-BA (3MIN), R3000 | Works in gxemul; not yet tried on a real machine |
-| DECstation and DECsystem 5000/240, DECsystem 5900 | KN03 (3MAX+), R3000A | Works in gxemul; a real 5000/240 runs it to the desktop |
+| DECstation and DECsystem 5000/240, DECsystem 5900 | KN03 (3MAX+), R3000A | Works in gxemul; a real 5000/240 runs it to the desktop, with the network |
 | DECstation 5000/150 | KN04, R4000 | Not supported: the port is built for the R3000 |
 | DECstation and DECsystem 5000/260, DECsystem 5900/260 | KN05, R4400 | Not supported: the port is built for the R3000 |
 | Personal DECstation 5000/20, /25, /33, /50 (MAXINE) | KN02-CA, R3000 (/50: R4000) | Not supported: no drivers for its frame buffer, keyboard and mouse |

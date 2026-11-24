@@ -28,6 +28,22 @@
 +
 +PADAPTER_OBJECT HalpScsiAdapter;
 +
++#if !defined(KN02_AA)
++
++//
++// The following are the adapter object of the Ethernet channel of the IO
++// Control ASIC, the DMA of the LANCE of the system slot, the pool
++// allocation and the physical address of the window of the channel, the
++// memory of the LANCE, and the number of interrupts of the LANCE since the
++// window was allocated, which the dispatch of the interrupts of the ASIC
++// counts (dxdmadsp.s) for the serial log.
++//
++
++PADAPTER_OBJECT HalpEthernetAdapter;
++PVOID HalpEthernetPool;
++ULONG HalpEthernetWindow;
++ULONG HalpEthernetInterrupts;
+=1 41 3
 +//
 +// Define the descriptor of a common buffer of a bus master that is not
 +// cached. The buffer is allocated from nonpaged pool and addressed through
@@ -79,7 +95,9 @@
 +    buffer of a bus master, and of the SCSI channel of the KN02-BA and the
 +    KN03, whose map registers are the few pages of a transfer, is
 +    physically contiguous memory, which the processor addresses through
-+    KSEG1 if it is not cached.
++    KSEG1 if it is not cached. The common buffer of the Ethernet channel of
++    the KN02-BA and the KN03 is the window of the memory of the LANCE of
++    the system slot (halp.h).
 =1 330 20
 +    PCOMMON_BUFFER_ENTRY Entry;
 +
@@ -91,6 +109,49 @@
 +    PHYSICAL_ADDRESS MaximumAddress;
 +    PVOID PoolAddress;
 +
++#if !defined(KN02_AA)
++
++    //
++    // The common buffer of the Ethernet channel is its window, the memory of
++    // the LANCE of the system slot, of which the channel has one. The window
++    // is allocated from contiguous memory with room to align it to its size.
++    // The memory is not cached. The Ethernet DMA pointer is loaded with the
++    // address of the window, and the LANCE and its DMA are enabled: the
++    // console can leave the LANCE held in reset, and the driver first
++    // addresses the LANCE once its window is in place. The serial log gets
++    // the address of the window and the registers of the ASIC.
++    //
++
++    if (AdapterObject == HalpEthernetAdapter) {
++        if ((Length > ETHERNET_WINDOW_SIZE) || (HalpEthernetPool != NULL)) {
+=1 830 3
++        MaximumAddress.LowPart = MAXIMUM_TURBOCHANNEL_ADDRESS;
++        MaximumAddress.HighPart = 0;
++        PoolAddress = MmAllocateContiguousMemory((2 * ETHERNET_WINDOW_SIZE) - PAGE_SIZE,
++                                                 MaximumAddress);
++
++        if (PoolAddress == NULL) {
+=1 830 3
++        HalpEthernetPool = PoolAddress;
++        HalpEthernetWindow = (MmGetPhysicalAddress(PoolAddress).LowPart +
++                              ETHERNET_WINDOW_SIZE - 1) & ~(ETHERNET_WINDOW_SIZE - 1);
++
++        IOCTL_WRITE(EthernetIoSlotRegister, ETHERNET_DMA_SLOT_REGISTER_VALUE);
++        IOCTL_WRITE(EthernetDmaPointer, IOCTL_DMA_POINTER(HalpEthernetWindow));
++        HalpWriteSystemSupport(0, SSR_LANCE_ENABLE | SSR_LANCE_DMA_ENABLE);
++        HalpEthernetInterrupts = 0;
++        HalpLogPrint("HAL: Ethernet window of the LANCE at %08lx: system"
++                     " support %08lx, interrupt %08lx, mask %08lx.\n",
++                     HalpEthernetWindow,
++                     IOCTL_READ(SystemSupportRegister),
++                     READ_REGISTER_ULONG(SYSTEM_INTERRUPT),
++                     READ_REGISTER_ULONG(SYSTEM_INTERRUPT_MASK));
++
++        LogicalAddress->LowPart = HalpEthernetWindow;
++        LogicalAddress->HighPart = 0;
++        return((PVOID)(KSEG1_BASE | HalpEthernetWindow));
++    }
+=1 41 3
 +#if defined(KN02_AA)
 +
 +    //
@@ -162,6 +223,49 @@
 +    PLIST_ENTRY NextEntry;
 +    ULONG Offset;
 +
++#if !defined(KN02_AA)
++
+=1 2851 1
++
++    //
++    // Free the window of the Ethernet channel. The serial log first gets the
++    // number of interrupts of the LANCE, its CSR0, which the driver selected
++    // last, and the registers of the ASIC: when the driver could not start
++    // the LANCE, they show how far the LANCE got. The DMA of the LANCE is
++    // disabled, and the data cache of the memory of the allocation, which
++    // can hold data that the memory no longer holds, is purged. The LANCE
++    // stays enabled: the driver addresses it once more after it frees the
++    // window.
++    //
++
++    if (AdapterObject == HalpEthernetAdapter) {
++        if (HalpEthernetPool == NULL) {
+=3 2502 3 4
++        HalpLogPrint("HAL: Ethernet window of the LANCE freed after %lu"
++                     " interrupts: CSR0 %04x, system support %08lx,"
++                     " interrupt %08lx, mask %08lx.\n",
++                     HalpEthernetInterrupts,
++                     READ_REGISTER_USHORT((PUSHORT)(KSEG1_BASE |
++                                                    ETHERNET_PHYSICAL_BASE)),
++                     IOCTL_READ(SystemSupportRegister),
++                     READ_REGISTER_ULONG(SYSTEM_INTERRUPT),
++                     READ_REGISTER_ULONG(SYSTEM_INTERRUPT_MASK));
++
++        HalpWriteSystemSupport(SSR_LANCE_DMA_ENABLE, 0);
++        PhysicalAddress = MmGetPhysicalAddress(HalpEthernetPool).LowPart;
++        for (Offset = 0;
++             Offset < ((2 * ETHERNET_WINDOW_SIZE) - PAGE_SIZE);
++             Offset += PAGE_SIZE) {
++            HalPurgeDcachePage((PVOID)((PUCHAR)HalpEthernetPool + Offset),
++                               (PhysicalAddress + Offset) >> PAGE_SHIFT,
++                               PAGE_SIZE);
++        }
++
++        MmFreeContiguousMemory(HalpEthernetPool);
++        HalpEthernetPool = NULL;
+=3 2502 3
++#endif
++
 +#if defined(KN02_AA)
 +
 +    //
@@ -216,7 +320,9 @@
 +
 +    The DMA channel of the system is the SCSI channel, an internal channel. A
 +    bus master of the system or a TURBOchannel slot is given an adapter object
-+    of its own.
++    of its own. The LANCE of the system slot of the KN02-BA and the KN03, a
++    bus master of the TURBOchannel, is given the adapter object of the
++    Ethernet channel of the IO Control ASIC, its DMA.
 =1 755 16
 =1 772 6
 =1 499 4
@@ -224,7 +330,28 @@
 =1 857 4
 +    if ((DeviceDescription->InterfaceType != Internal) &&
 +        (DeviceDescription->InterfaceType != TurboChannel)) {
-=1 499 4
+=1 499 3
++#if !defined(KN02_AA)
++
++    //
++    // If this is the LANCE of the system slot, a master of the Ethernet
++    // channel, then return the adapter of the channel, which is allocated
++    // once.
++    //
++
++    if (DeviceDescription->Master &&
++        (DeviceDescription->InterfaceType == TurboChannel) &&
++        (DeviceDescription->BusNumber == 0) &&
++        (DeviceDescription->DmaChannel == ETHERNET_CHANNEL)) {
++
++        if (HalpEthernetAdapter == NULL) {
++            HalpEthernetAdapter = HalpAllocateAdapter(NULL, TRUE);
++        }
++
++        return(HalpEthernetAdapter);
++    }
+=1 41 3
++    //
 +    // If this is a master controller, then create an adapter object for it.
 =1 802 3 -4
 +        return(HalpAllocateAdapter(NULL, TRUE));

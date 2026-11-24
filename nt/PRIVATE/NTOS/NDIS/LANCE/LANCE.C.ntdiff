@@ -1,8 +1,14 @@
 #ntdiff PRIVATE/NTOS/NDIS/LANCE/LANCE.C
 #crlf
-=1 1 982
+=1 1 978
++    //
++    // The LANCE of the system slot of a DECstation is a bus master of the
++    // TURBOchannel, whose memory is shared memory (see dectc.c).
++    //
+=1 978 4
++            (BOOLEAN)(Adapter->LanceCard == LANCE_DECST),
 +#ifndef i386
-+            (Adapter->LanceCard == LANCE_DECTC) ?
++            (Adapter->LanceCard & (LANCE_DECTC | LANCE_DECST)) ?
 +                NdisInterfaceTurboChannel :
 +#endif
 =1 983 62
@@ -14,17 +20,137 @@
 +        Adapter->RAP = Adapter->Nicsr + LANCE_DECTC_RAP_OFFSET;
 +        Adapter->RDP = Adapter->Nicsr + LANCE_DECTC_RDP_OFFSET;
 +        Adapter->NetworkHardwareAddress = Adapter->Nicsr + LANCE_DECTC_NETWORK_OFFSET;
-=1 1048 1009
++
++    } else if (Adapter->LanceCard == LANCE_DECST) {
++
++        //
++        // The registers of the LANCE of the system slot, and its station
++        // address ROM.
++        //
+=1 993 5
++                     LANCE_DECST_REGISTER_MAPSIZE
++                     );
++
++        Adapter->RAP = Adapter->Nicsr + LANCE_DECST_RAP_OFFSET;
++        Adapter->RDP = Adapter->Nicsr + LANCE_DECST_RDP_OFFSET;
+=1 674 3
+=1 994 1 4
++                         (PVOID *)(&(Adapter->NetworkHardwareAddress)),
+=1 980 1 13
++                         Adapter->StationAddressRomAddress,
++                         LANCE_DECST_ROM_MAPSIZE
+=1 1593 4 4
+=1 1313 3 8
++                    LANCE_DECST_REGISTER_MAPSIZE,
+=1 1326 5 8
+=1 616 6
+=1 1053 276
++#ifndef i386
++
++    } else if (Adapter->LanceCard == LANCE_DECTC) {
+=1 1312 3
+=1 1041 1 -9
++            LANCE_DECTC_REGISTER_MAPSIZE,
+=1 1317 3
++    } else if (Adapter->LanceCard == LANCE_DECST) {
+=1 1312 4
++            LANCE_DECST_REGISTER_MAPSIZE,
+=1 1317 3
+=1 1313 2
++            Adapter->StationAddressRomAddress,
++            LANCE_DECST_ROM_MAPSIZE,
++            (PVOID)(Adapter->NetworkHardwareAddress)
++            );
+=1 47 3
+=1 1329 65
 +#ifndef i386
 +
 +    //
-+    // The TURBOchannel option has no interrupt mask of its own (and no
-+    // NICSR): the interrupt enable of the LANCE masks its interrupt.  CSR0
-+    // is selected, as the interrupt service routine has it, and zero
-+    // changes nothing else in it: its command bits do nothing as zeros, and
-+    // only ones clear its interrupt bits.
++    // The memory of the LANCE of the system slot is shared memory.
 +    //
-=1 1498 3
++
++    if (Adapter->LanceCard == LANCE_DECST) {
++
++        LanceDecStFreeMemory(Adapter);
+=1 1505 3
+=1 1392 31
++#ifndef i386
++
++    } else if (Adapter->LanceCard == LANCE_DECTC) {
+=1 1406 3
+=1 1041 1 -9
++            LANCE_DECTC_REGISTER_MAPSIZE,
+=1 1317 3
++    } else if (Adapter->LanceCard == LANCE_DECST) {
+=1 1406 4
++            LANCE_DECST_REGISTER_MAPSIZE,
+=1 1317 3
+=1 1407 2
++            Adapter->StationAddressRomAddress,
++            LANCE_DECST_ROM_MAPSIZE,
++            (PVOID)(Adapter->NetworkHardwareAddress)
++            );
+=1 47 3
+=1 1423 128
++    if (((Adapter->LanceCard & (LANCE_DECTC | LANCE_DECST)) &&
+=1 1552 33
++#ifndef i386
++
++        //
++        // The memory of the LANCE of the system slot of a DECstation is a
++        // window of main memory, shared memory that the driver allocates.
++        //
++
++        if (Adapter->LanceCard == LANCE_DECST) {
++
++            Status = LanceDecStAllocateMemory(Adapter);
++
++        } else
+=1 1508 5
+=1 1585 10
++        }
+=1 1594 49
++#ifndef i386
++
++            if (Adapter->LanceCard == LANCE_DECST) {
++
++                LanceDecStFreeMemory(Adapter);
++
++            } else
+=1 47 3
+=1 1700 6
+=1 1643 57
++#ifndef i386
++
++            if (Adapter->LanceCard == LANCE_DECST) {
++
++                LanceDecStFreeMemory(Adapter);
++
++            } else
+=1 47 3
+=1 1700 20
++#ifndef i386
++
++            if (Adapter->LanceCard == LANCE_DECST) {
++
++                LanceDecStFreeMemory(Adapter);
++
++            } else
+=1 47 3
+=1 1720 337
++#ifndef i386
++
++    //
++    // The TURBOchannel option and the LANCE of the system slot of a
++    // DECstation have no interrupt mask of their own (and no NICSR): the
++    // interrupt enable of the LANCE masks its interrupt.  CSR0 is selected,
++    // as the interrupt service routine has it, and zero changes nothing
++    // else in it: its command bits do nothing as zeros, and only ones clear
++    // its interrupt bits.
++    //
++
++    if (Adapter->LanceCard & (LANCE_DECTC | LANCE_DECST)) {
++
 +        LOG(PEND);
 +
 +        LANCE_ISR_WRITE_RDP(Adapter, 0);
@@ -34,13 +160,245 @@
 +#ifndef i386
 +
 +    //
-+    // The TURBOchannel option: the interrupt enable of the LANCE (see
-+    // LanceDisableInterrupt).
++    // The TURBOchannel option and the LANCE of the system slot: the
++    // interrupt enable of the LANCE (see LanceDisableInterrupt).
 +    //
-=1 1498 3
-+        LOG(UNPEND);
 +
++    if (Adapter->LanceCard & (LANCE_DECTC | LANCE_DECST)) {
+=1 1789 3
 +        LANCE_ISR_WRITE_RDP(Adapter, LANCE_CSR0_INTERRUPT_ENABLE);
 =1 1854 5
 +#endif
-=1 2090 3145
+=1 2090 493
++             Adapter,
+=1 2583 82
+=1 2658 2
+=1 2666 4
++             Adapter,
+=1 2670 1214
++        Adapter,
+=1 3884 7
++            Adapter,
+=1 3891 9
++         Adapter,
+=1 3900 5
++         Adapter,
+=1 3905 16
++             Adapter,
+=1 3921 7
++         Adapter,
+=1 3928 5
++         Adapter,
+=1 3933 5
++         Adapter,
+=1 3938 5
++         Adapter,
+=1 3943 25
++             Adapter,
+=1 3968 5
++             Adapter,
+=1 3973 11
++             Adapter,
+=1 3984 5
++             Adapter,
+=1 3989 12
++                 Adapter,
+=1 4001 4
++                 Adapter,
+=1 4005 4
++                 Adapter,
+=1 4009 4
++                 Adapter,
+=1 4013 4
++                 Adapter,
+=1 4017 4
++                 Adapter,
+=1 4021 4
++                 Adapter,
+=1 4025 4
++                 Adapter,
+=1 4029 44
++                     Adapter,
+=1 4073 5
++                 Adapter,
+=1 4078 109
++            Adapter,
+=1 4187 92
++            LANCE_GET_MESSAGE_SIZE(Adapter, CurrentEntry, PacketSize);
+=1 4280 25
++            //
++            // The first buffer of a packet of the LANCE of the system slot
++            // of a DECstation is not contiguous in its memory: it is copied
++            // to the adapter for the indication.
++            //
++
++            if (Adapter->LanceCard == LANCE_DECST) {
++
++                LANCE_MOVE_HARDWARE_TO_MEMORY(
++                    Adapter,
++                    Adapter->ReceiveCopy,
++                    Adapter->ReceiveVAs[Adapter->CurrentReceiveIndex],
++                    LookAheadSize + LANCE_HEADER_SIZE
++                    );
++
++                LookaheadBuffer = (PUCHAR)Adapter->ReceiveCopy;
++
++            } else
+=1 4304 43
++                if (Adapter->LanceCard != LANCE_DECST) {
++
+=1 4347 6 4
+=1 4351 137
++        Adapter,
+=1 4488 10
++            Adapter,
+=1 4498 145
++        Adapter,
+=1 4643 53
++                Adapter,
+=1 4696 5
++                Adapter,
+=1 4701 199
++                Adapter,
+=1 4900 24
++                Adapter,
+=1 4924 311
++
++
++VOID
++LanceZeroHardwareMemory(
+=1 170 1
++    IN PVOID Destination,
++    IN UINT Length,
++    IN BOOLEAN Buffer
+=1 262 6
++    This routine zeros memory of the adapter: descriptors or the
++    initialization block, or the data of a buffer.  The memory of the
++    LANCE of the system slot of a DECstation is zeroed a piece at a time,
++    each piece the part of a word, or of 16 bytes of a buffer, that is in
++    one place of its window (see lancehrd.h).
+=1 272 3
++    Adapter - The adapter of the memory.
++
++    Destination - The address of the memory, as the driver keeps it.
++
++    Length - The number of bytes to zero.
++
++    Buffer - TRUE if the memory is the data of a buffer.
+=1 1773 8
++    PUCHAR Address = (PUCHAR)Destination;
++    UINT Piece;
++
++    if (Adapter->LanceCard != LANCE_DECST) {
++
++        NdisZeroMappedMemory(Destination, Length);
+=1 1854 5
++    while (Length != 0) {
++
++        if (Buffer) {
++
++            Piece = 16 - (LANCE_DECST_OFFSET(Adapter, Address) & 15);
+=1 609 3
++            Piece = 2 - (LANCE_DECST_OFFSET(Adapter, Address) & 1);
+=1 442 3
++        if (Piece > Length) {
++
++            Piece = Length;
+=1 442 3
++        if (Buffer) {
++
++            NdisZeroMappedMemory(LANCE_HARDWARE_BUFFER(Adapter, Address), Piece);
+=1 609 3
++            NdisZeroMappedMemory(LANCE_HARDWARE_WORD(Adapter, Address), Piece);
+=1 442 3
++        Address += Piece;
++        Length -= Piece;
++
+=1 3341 3 -4
++
++VOID
++LanceMoveToHardwareBuffer(
+=1 170 1
++    IN PVOID Destination,
++    IN PVOID Source,
++    IN UINT Length
+=1 262 6
++    This routine moves data to a buffer of the adapter.  The data of a
++    buffer of the LANCE of the system slot of a DECstation is moved a
++    piece at a time, each piece the part of 16 bytes of the buffer that is
++    in one place of its window (see lancehrd.h).
+=1 272 3
++    Adapter - The adapter of the buffer.
++
++    Destination - The address in the buffer, as the driver keeps it.
++
++    Source - The data.
++
++    Length - The number of bytes to move.
+=1 1773 8
++    PUCHAR To = (PUCHAR)Destination;
++    PUCHAR From = (PUCHAR)Source;
++    UINT Piece;
++
++    if (Adapter->LanceCard != LANCE_DECST) {
++
++        NdisMoveToMappedMemory(To, From, Length);
+=1 1854 5
++    while (Length != 0) {
++
++        Piece = 16 - (LANCE_DECST_OFFSET(Adapter, To) & 15);
++
++        if (Piece > Length) {
++
++            Piece = Length;
+=1 442 3
++        NdisMoveToMappedMemory(LANCE_HARDWARE_BUFFER(Adapter, To), From, Piece);
++
++        To += Piece;
++        From += Piece;
++        Length -= Piece;
++
+=1 3341 3 -4
++
++VOID
++LanceMoveFromHardwareBuffer(
+=1 170 1
++    IN PVOID Destination,
++    IN PVOID Source,
++    IN UINT Length
+=1 262 6
++    This routine moves data from a buffer of the adapter, as
++    LanceMoveToHardwareBuffer moves it there.
+=1 272 3
++    Adapter - The adapter of the buffer.
++
++    Destination - Where the data goes.
++
++    Source - The address in the buffer, as the driver keeps it.
++
++    Length - The number of bytes to move.
+=1 1773 8
++    PUCHAR To = (PUCHAR)Destination;
++    PUCHAR From = (PUCHAR)Source;
++    UINT Piece;
++
++    if (Adapter->LanceCard != LANCE_DECST) {
++
++        NdisMoveFromMappedMemory(To, From, Length);
+=1 1854 5
++    while (Length != 0) {
++
++        Piece = 16 - (LANCE_DECST_OFFSET(Adapter, From) & 15);
++
++        if (Piece > Length) {
++
++            Piece = Length;
+=1 442 3
++        NdisMoveFromMappedMemory(To, LANCE_HARDWARE_BUFFER(Adapter, From), Piece);
++
++        To += Piece;
++        From += Piece;
++        Length -= Piece;
++
++    }
++}

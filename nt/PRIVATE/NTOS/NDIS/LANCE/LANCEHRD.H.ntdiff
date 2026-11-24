@@ -1,0 +1,108 @@
+#ntdiff PRIVATE/NTOS/NDIS/LANCE/LANCEHRD.H
+#crlf
+=1 1 214
++// Defines for moving to/from shared memory.  The first argument of each,
++// A, is the adapter whose memory it is.
++//
++// The memory of the LANCE of the system slot of a DECstation 5000/1xx or
++// 5000/240 (LANCE_DECST) is a window of main memory, which the Ethernet
++// DMA of the IO Control ASIC gives the LANCE in two ways:
++//
++//    o  A 16-bit word that the LANCE moves alone, a word of the
++//       initialization block or of a descriptor, is the low half of the
++//       longword of the window at twice its address.
++//
++//    o  The data of a buffer, which the LANCE moves in bursts of 16 bytes,
++//       is in the first 16 bytes of each 32 bytes of the window: the 16
++//       bytes from an address that is a multiple of 16 are at twice that
++//       address.
++//
++// The driver keeps the addresses of the memory of this LANCE as the LANCE
++// has them, from the start of the window (MmMappedBaseAddr), as it keeps
++// the memory of a card.  LANCE_HARDWARE_WORD gives the address in the
++// window of a byte of a word, LANCE_HARDWARE_BUFFER that of a byte of the
++// data of a buffer.  The memory of the other cards is as the LANCE has
++// it, and the address of a byte is its address.
++//
++
++#define LANCE_DECST_OFFSET(A,P) \
++    ((ULONG)(P) - (ULONG)((A)->MmMappedBaseAddr))
++
++#define LANCE_HARDWARE_WORD(A,P) \
++    (((A)->LanceCard != LANCE_DECST) ? (PUCHAR)(P) : \
++        (PUCHAR)((A)->MmMappedBaseAddr) + \
++        ((LANCE_DECST_OFFSET(A,P) & ~1) << 1) + \
++        (LANCE_DECST_OFFSET(A,P) & 1))
++
++#define LANCE_HARDWARE_BUFFER(A,P) \
++    (((A)->LanceCard != LANCE_DECST) ? (PUCHAR)(P) : \
++        (PUCHAR)((A)->MmMappedBaseAddr) + \
++        ((LANCE_DECST_OFFSET(A,P) & ~15) << 1) + \
++        (LANCE_DECST_OFFSET(A,P) & 15))
++
++#define LANCE_ZERO_MEMORY_FOR_HARDWARE(A,Destination,Length) \
++    LanceZeroHardwareMemory(A, (PVOID)(Destination), Length, FALSE)
++
++#define LANCE_ZERO_BUFFER_FOR_HARDWARE(A,Destination,Length) \
++    LanceZeroHardwareMemory(A, (PVOID)(Destination), Length, TRUE)
++
++#define LANCE_MOVE_MEMORY_TO_HARDWARE(A,Destination,Source,Length) \
++    LanceMoveToHardwareBuffer(A, (PVOID)(Destination), (PVOID)(Source), Length)
++
++#define LANCE_MOVE_HARDWARE_TO_MEMORY(A,Destination,Source,Length) \
++    LanceMoveFromHardwareBuffer(A, (PVOID)(Destination), (PVOID)(Source), Length)
++
++#define LANCE_WRITE_HARDWARE_LOW_PART_ADDRESS(A, Destination, Source) \
++    NdisWriteRegisterUshort((PUSHORT)LANCE_HARDWARE_WORD(A, &(Destination)), (USHORT)(Source))
++
++#define LANCE_WRITE_HARDWARE_HIGH_PART_ADDRESS(A, Destination, Source) \
++    NdisWriteRegisterUchar(LANCE_HARDWARE_WORD(A, &(Destination)), (UCHAR)(Source))
++
++#define LANCE_WRITE_HARDWARE_MEMORY_UCHAR(A, Destination, Source) \
++    NdisWriteRegisterUchar(LANCE_HARDWARE_WORD(A, &(Destination)), (UCHAR)(Source))
++
++#define LANCE_WRITE_HARDWARE_MEMORY_USHORT(A, Destination, Source) \
++    NdisWriteRegisterUshort((PUSHORT)LANCE_HARDWARE_WORD(A, &(Destination)), (USHORT)(Source))
++
++#define LANCE_READ_HARDWARE_MEMORY_UCHAR(A, Source, Destination) \
++    NdisReadRegisterUchar(LANCE_HARDWARE_WORD(A, &(Source)), Destination)
++
++#define LANCE_READ_HARDWARE_MEMORY_USHORT(A, Source, Destination) \
++    NdisReadRegisterUshort((PUSHORT)LANCE_HARDWARE_WORD(A, &(Source)), Destination)
++
++#define LANCE_SET_RING_BITS(A, Destination, Data) \
++{ \
++    UCHAR Tmp; \
++    LANCE_READ_HARDWARE_MEMORY_UCHAR(A, Destination, &Tmp); \
++    LANCE_WRITE_HARDWARE_MEMORY_UCHAR(A, Destination, Tmp | Data); \
++}
+=1 263 56
++        _Adptr,\
+=1 319 3
++        _Adptr,\
+=1 322 11
++// A is the adapter of the descriptor.
+=1 332 5
++#define LANCE_SET_RECEIVE_BUFFER_LENGTH(A,Rd,Len) \
+=1 338 1
++        A,\
+=1 339 23
++// A is the adapter of the descriptor.
+=1 362 3
++#define LANCE_GET_MESSAGE_SIZE(A, Rd, Value) \
++{ \
++    USHORT _Length; \
++    LANCE_READ_HARDWARE_MEMORY_USHORT(A, (Rd)->MessageLength, &_Length); \
++    Value = (_Length & ((USHORT)0x0fff)) -4; \
++}
+=1 383 70
++        _Adptr,\
+=1 453 4
++        _Adptr,\
+=1 457 12
++// A is the adapter of the descriptor.
+=1 468 5
++#define LANCE_SET_TRANSMIT_BUFFER_LENGTH(A,Td,Len) \
+=1 338 1
++        A,\
+=1 475 5

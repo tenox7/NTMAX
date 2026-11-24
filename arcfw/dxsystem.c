@@ -11,7 +11,8 @@ Abstract:
     5000/240 (KN03).  It is compiled once for each module, with the define
     of the module (KN02_AA, KN02_BA or KN03_AA), and describes the module
     with the addresses, interrupt levels and vectors that decdef.h defines
-    for it.  The rest of the firmware is compiled without a module define:
+    for it, and the registers and bits of decsctrl.h.  The rest of the
+    firmware is compiled without a module define:
     FwSelftest selects the description of the module it runs on by the
     system identifier of the console.
 
@@ -23,6 +24,7 @@ Environment:
 
 #include "fwp.h"
 #include "decscc.h"
+#include "decsctrl.h"
 
 //
 // Define the name of the description and what decdef.h does not define for
@@ -100,17 +102,24 @@ FW_SYSTEM SYSTEM_DESCRIPTION = {
     SCSI_VECTOR,                        // ScsiVector
     SCSI_CHANNEL,                       // ScsiChannel
     "PMAD-AA",                          // EthernetIdentifier
-    TRUE,                               // EthernetTurboChannel
+    FALSE,                              // EthernetSystemSlot
     TURBOCHANNEL0_PHYSICAL_BASE +
         (ETHERNET_CHANNEL * TURBOCHANNEL_SLOT_SIZE), // EthernetPhysicalBase
-    ETHERNET_CHANNEL                    // EthernetVector
+    ETHERNET_CHANNEL,                   // EthernetVector
+    0,                                  // EthernetRomPhysicalBase
+    0,                                  // EthernetChannel
+    0,                                  // SystemSupportRegister
+    0                                   // EthernetEnable
 
 #else
 
     //
     // The serial lines of the 5000/1xx and the 5000/240 are the channels of
     // their two SCCs, the network controller is the LANCE of the system
-    // slot, which the IO Control ASIC gives DMA to memory.
+    // slot, which the Ethernet channel of the IO Control ASIC gives DMA to
+    // memory, and whose interrupt is that of the channel.  The system
+    // support register of the ASIC holds the enable of the LANCE, which
+    // holds it in reset when clear, and the enable of its DMA.
     //
 
     FwSerialScc,                        // SerialType
@@ -122,9 +131,14 @@ FW_SYSTEM SYSTEM_DESCRIPTION = {
     SCSI_VECTOR,                        // ScsiVector
     SCSI_CHANNEL,                       // ScsiChannel
     "AM7990",                           // EthernetIdentifier
-    FALSE,                              // EthernetTurboChannel
+    TRUE,                               // EthernetSystemSlot
     ETHERNET_PHYSICAL_BASE,             // EthernetPhysicalBase
-    LANCE_VECTOR                        // EthernetVector
+    ETHERNET_CHANNEL,                   // EthernetVector
+    ETHERNET_ROM_PHYSICAL_BASE,         // EthernetRomPhysicalBase
+    ETHERNET_CHANNEL,                   // EthernetChannel
+    IOCTL_PHYSICAL_BASE +
+        FIELD_OFFSET(IOCTL, SystemSupportRegister), // SystemSupportRegister
+    SSR_LANCE_ENABLE | SSR_LANCE_DMA_ENABLE // EthernetEnable
 
 #endif
 

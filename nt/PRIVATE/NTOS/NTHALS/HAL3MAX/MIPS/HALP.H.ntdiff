@@ -106,12 +106,26 @@
 +#define SCSI_CONTROL_HALFWORDS 0x3
 +
 +//
++// Define the Ethernet DMA of the IO Control ASIC. The memory of the LANCE
++// of the system slot is a window of main memory below 512mb, aligned to its
++// size, whose address is in the Ethernet DMA pointer: the ASIC maps the
++// 64kb the LANCE addresses into the 128kb of the window, a word of a
++// descriptor in each longword and the data of a buffer in the first half of
++// each 32 bytes. The window is the common buffer of the Ethernet channel,
++// a bus master, and the processor addresses it through KSEG1.
++//
++
++#define ETHERNET_WINDOW_SIZE 0x20000
++
++//
 +// Define the number of the TURBOchannel option slots. The devices of the
 +// system module are in the system slot, behind the IO Control ASIC, whose
-+// system interrupt register has an interrupt for each of them.
++// system interrupt register has an interrupt for each of them. The system
++// slot follows the option slots.
 +//
 +
 +#define TURBOCHANNEL_SLOTS 3
++#define TURBOCHANNEL_SYSTEM_SLOT 3
 +
 +#if defined(KN02_BA)
 +

@@ -1,0 +1,9 @@
+#ntdiff PRIVATE/NTOS/NDIS/LANCE/TRANSFER.C
+#crlf
+=1 1 211
++            LANCE_GET_MESSAGE_SIZE(Adapter, CurrentEntry, SourceCurrentLength);
+=1 213 83
++                    LANCE_GET_MESSAGE_SIZE(Adapter, CurrentEntry, SourceCurrentLength);
+=1 297 67
++                                Adapter,
+=1 364 26

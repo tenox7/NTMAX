@@ -45,19 +45,20 @@ You need:
 6. The keyboard: F11 is Esc (the LK201 has no Esc key), Compose is Alt, Ctrl+Alt+Del works.
    Set the date once in NT (Control Panel, Date/Time). Without a SCSI CD-ROM drive, a box at each
    start says that a service or driver failed (the CD-ROM drivers): OK.
-7. The network, on the 5000/200: its Ethernet (the system board's, TURBOchannel slot 6) with TCP/IP,
-   NetBIOS and file sharing; NT gets its address from the network's DHCP server. It is the computer
-   DECSTATION of the workgroup WORKGROUP: net share pub=c:\pub shares a folder, net use x:
-   \\decstation\pub connects to it (tried in gxemul only, from NT itself). The 5000/1xx and the
-   5000/240 have no network yet (no driver for their Ethernet): there, the box at each start is also
-   about the network drivers.
+7. The network: the Ethernet of the system board (on the 5000/200 the one of TURBOchannel slot 6)
+   with TCP/IP, NetBIOS and file sharing; NT gets its address from the network's DHCP server. It is
+   the computer DECSTATION of the workgroup WORKGROUP: net share pub=c:\pub shares a folder, net use
+   x: \\decstation\pub connects to it (tried in gxemul only, from NT itself). In a command window,
+   ipconfig shows the address and ping tests the network.
 8. On another model, run Set default configuration again, on that model.
 
 The serial terminal also gets a log of each start: what the firmware found (model, processor, memory,
-caches, the modules in the TURBOchannel slots, the ROM's boot arguments), the program it starts, NT's
-start-up text and its HAL's line, the text of a blue screen (STOP), and each restart. Save the whole
-session to a file from the moment you power on (e.g. picocom -b 9600 --logfile ntmax.log /dev/ttyUSB0,
-or the log or capture option of your terminal program): the firmware's menus clear the screen.
+caches, the modules in the TURBOchannel slots, the Ethernet address, the ROM's boot arguments), the
+program it starts, NT's start-up text and its HAL's lines (on the 5000/1xx and the 5000/240 also the
+state of the Ethernet chip when its driver starts it and stops it), the text of a blue screen (STOP),
+and each restart. Save the whole session to a file from the moment you power on
+(e.g. picocom -b 9600 --logfile ntmax.log /dev/ttyUSB0, or the log or capture option of your terminal
+program): the firmware's menus clear the screen.
 
 Please report the model, the memory, the slot of the frame buffer, the disk or emulator, and how far
 it got, with that log file (and a photo of the screen if NT stops on a blue screen).

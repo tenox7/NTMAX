@@ -124,6 +124,25 @@
 +    // follows the interrupt of the slot before it.
 +    //
 +
++#if !defined(KN02_AA)
++
++    //
++    // The system slot of the KN02-BA and the KN03 holds the IO Control
++    // ASIC and the devices it decodes, each with an interrupt of its own in
++    // the system interrupt register: the bus interrupt vector of a device
++    // of the system slot is its channel, and its interrupt the device
++    // vector of the channel at DEVICE_LEVEL.
++    //
++
++    if ((InterfaceType == TurboChannel) && (BusNumber == 0) &&
++        (BusInterruptLevel == TURBOCHANNEL_SYSTEM_SLOT) &&
++        (BusInterruptVector < MAXIMUM_NUMBER_OF_INTERRUPTS)) {
++
++        *Irql = DEVICE_LEVEL;
++        *Affinity = 1;
++        return(DEVICE_VECTORS + BusInterruptVector);
++    }
+=1 300 3
 +    if ((InterfaceType != TurboChannel) || (BusNumber != 0) ||
 +        (BusInterruptLevel >= TURBOCHANNEL_SLOTS)) {
 =1 222 8

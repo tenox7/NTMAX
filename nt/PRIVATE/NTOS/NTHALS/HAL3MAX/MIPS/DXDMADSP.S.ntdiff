@@ -60,6 +60,9 @@
 +//    the timeout interrupt and the interrupt of the realtime clock are
 +//    dispatched first, to the routines of their vectors, which are not
 +//    interrupt objects.
++//
++//    The interrupts of the LANCE of the system slot are counted for the
++//    serial log (dxhwsup.c).
 =1 37 13
 +        lw      t0,SYS_INTPEND_REG      // get system interrupt register
 +        lw      t1,SYS_INTMASK_REG      // get system interrupt mask register
@@ -86,7 +89,12 @@
 +        srl     t2,t2,1                 // compute next interrupt bit
 +        b       10b                     //
 +
-+20:     lw      a0,KiPcr + PcInterruptRoutine + (DEVICE_VECTORS * 4)(t1) //
++20:     li      t2,ETHERNET_CHANNEL * 4 // test if LANCE interrupt
++        bne     t1,t2,25f               // if ne, not LANCE interrupt
++        lw      t2,HalpEthernetInterrupts // increment LANCE interrupt count
++        addu    t2,t2,1                 //
++        sw      t2,HalpEthernetInterrupts //
++25:     lw      a0,KiPcr + PcInterruptRoutine + (DEVICE_VECTORS * 4)(t1) //
 =1 52 11
 +//
 +// The interrupt is no longer pending.

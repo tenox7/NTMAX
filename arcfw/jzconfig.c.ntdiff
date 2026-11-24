@@ -215,12 +215,26 @@
 =1 1166 11
 +                    "VSXXX"             // Identifier
 =1 1114 7
-+    // Add the network controller of the system slot of the 5000/1xx and
-+    // the 5000/240 as a child of the internal bus: the registers of the
-+    // LANCE, which the IO Control ASIC gives DMA to memory.
++    // Add the TURBOchannel as a child of root. The devices of the
++    // TURBOchannel are its children, the interrupt of each described
++    // relative to the bus: the slot of the device is both its level and its
++    // vector, except in the system slot of the 5000/1xx and the 5000/240,
++    // which follows the option slots, where the vector of a device is its
++    // channel of the IO Control ASIC.
+=1 504 4
++                    TcAdapter,          // Type
+=1 483 8
++                    "TURBOchannel"      // Identifier
+=1 518 6
++    //
++    // Add the network controller as a child of the TURBOchannel: on the
++    // 5000/1xx and the 5000/240, the LANCE of the system slot, with its
++    // registers, its station address ROM, and the Ethernet channel of the
++    // IO Control ASIC, which gives it DMA to memory; on the 5000/200, the
++    // PMAD-AA of slot 6, the memory of its slot.
 +    //
 +
-+    if (!FwSystem->EthernetTurboChannel) {
++    if (FwSystem->EthernetSystemSlot) {
 +        DescriptorSize =
 +            JzMakeDescriptor (Descriptor,               // Descriptor
 +                              TRUE,                     // Port
@@ -228,36 +242,20 @@
 +                              PAGE_SIZE,                // PortSize
 +                              TRUE,                     // Interrupt
 +                              0,                        // InterruptFlags
-+                              FwSystem->DeviceLevel,    // Level
++                              FwSystem->TurboChannelSlots, // Level
 +                              FwSystem->EthernetVector, // Vector
-+                              FALSE,                    // Memory
-+                              0,                        // MemoryStart
-+                              0,                        // MemorySize
-+                              FALSE,                    // Dma
-+                              0,                        // Channel
++                              TRUE,                     // Memory
++                              FwSystem->EthernetRomPhysicalBase, // MemoryStart
++                              PAGE_SIZE,                // MemorySize
++                              TRUE,                     // Dma
++                              FwSystem->EthernetChannel, // Channel
 +                              FALSE,                    // SecondChannel
 +                              FALSE,                    // DeviceSpecificData
 +                              0,                        // Size
 +                              NULL                      // Data
-=1 1594 13 4
-+                        FwSystem->EthernetIdentifier // Identifier
-=1 1243 5 4
-=1 288 3
-+    // Add the TURBOchannel as a child of root. The devices of the
-+    // TURBOchannel are its children, the interrupt of each described
-+    // relative to the bus: the slot of the device is both its level and its
-+    // vector.
-=1 504 4
-+                    TcAdapter,          // Type
-=1 483 8
-+                    "TURBOchannel"      // Identifier
-=1 518 6
-+    //
-+    // Add the network controller of the 5000/200, the PMAD-AA of
-+    // TURBOchannel slot 6, as a child of the TURBOchannel.
-+    //
++                              );
 +
-+    if (FwSystem->EthernetTurboChannel) {
++    } else {
 +        DescriptorSize =
 +            JzMakeDescriptor (Descriptor,               // Descriptor
 +                              FALSE,                    // Port
@@ -276,10 +274,12 @@
 +                              FALSE,                    // DeviceSpecificData
 +                              0,                        // Size
 +                              NULL                      // Data
-=1 1594 13 4
-+                        FwSystem->EthernetIdentifier // Identifier
-=1 1243 5 4
-=1 288 3
++                              );
+=1 680 4
+=1 1598 9
++                    FwSystem->EthernetIdentifier // Identifier
+=1 1243 6
++    //
 +    // Add the color frame buffer of the first option slot whose option ROM
 +    // names one as a child of the TURBOchannel.  The firmware has no video
 +    // driver: its console stays on the serial line.

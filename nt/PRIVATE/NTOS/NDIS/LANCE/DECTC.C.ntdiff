@@ -1,20 +1,31 @@
 #ntdiff PRIVATE/NTOS/NDIS/LANCE/DECTC.C
 #crlf
-=1 1 35
+=1 1 14
++   Ethernet controller, and for the LANCE of the system slot of the
++   TURBOchannel of the DECstation 5000/1xx and 5000/240.
+=1 16 20
 +//
-+// The memory and the interrupt of the network controller of the
-+// TURBOchannel, as the firmware describes it in the hardware description
-+// of the registry (System\TcAdapter\0\NetworkController\0): the address
-+// space of its slot, and the number of the slot as its interrupt level
-+// and vector.
++// The resources of the network controller of the TURBOchannel, as the
++// firmware describes it in the hardware description of the registry
++// (System\TcAdapter\0\NetworkController\0).  The TURBOchannel option
++// has the address space of its slot as its memory, and the number of the
++// slot as its interrupt level and vector.  The LANCE of the system slot of
++// a DECstation 5000/1xx or 5000/240 has its registers as its port, its
++// station address ROM as its memory, the number of the system slot as its
++// interrupt level, and its channel of the IO Control ASIC as its interrupt
++// vector and its DMA channel.
 +//
 +
 +typedef struct _LANCE_DECTC_RESOURCES {
++   BOOLEAN Port;
 +   BOOLEAN Memory;
 +   BOOLEAN Interrupt;
++   BOOLEAN Dma;
++   ULONG PortAddress;
 +   ULONG BaseAddress;
 +   ULONG InterruptVector;
 +   ULONG InterruptRequestLevel;
++   ULONG DmaChannel;
 +} LANCE_DECTC_RESOURCES, *PLANCE_DECTC_RESOURCES;
 +
 +
@@ -38,8 +49,8 @@
 +Routine Description:
 +
 +   IoQueryDeviceDescription calls this routine for each network controller
-+   of the TURBOchannel.  It takes the memory and the interrupt of the first
-+   one from its configuration data.
++   of the TURBOchannel.  It takes the resources of the first one from its
++   configuration data.
 =1 46 3
 +   Context - The LANCE_DECTC_RESOURCES to fill in.
 +
@@ -60,7 +71,8 @@
 +
 +   data = ControllerInformation[IoQueryDeviceConfigurationData];
 +
-+   if (resources->Memory || resources->Interrupt || (data == NULL) ||
++   if (resources->Port || resources->Memory || resources->Interrupt ||
++       resources->Dma || (data == NULL) ||
 +       (data->DataLength < sizeof(CM_FULL_RESOURCE_DESCRIPTOR))) {
 +      return STATUS_SUCCESS;
 +   }
@@ -85,6 +97,11 @@
 +
 +      switch (partial->Type) {
 +
++      case CmResourceTypePort:
++         resources->PortAddress = partial->u.Port.Start.LowPart;
++         resources->Port = TRUE;
++         break;
++
 +      case CmResourceTypeMemory:
 +         resources->BaseAddress = partial->u.Memory.Start.LowPart;
 +         resources->Memory = TRUE;
@@ -96,6 +113,11 @@
 +         resources->Interrupt = TRUE;
 +         break;
 +
++      case CmResourceTypeDma:
++         resources->DmaChannel = partial->u.Dma.Channel;
++         resources->Dma = TRUE;
++         break;
++
 +      default:
 +         break;
 =1 181 3
@@ -104,7 +126,9 @@
 =1 34 11
 +   extracts configuration information from the configuration data base,
 +   and what that does not give from the hardware description: the setup of
-+   the network card writes only its card type.
++   the network card writes only its card type.  A network controller of the
++   TURBOchannel with a DMA channel is the LANCE of the system slot of a
++   DECstation 5000/1xx or 5000/240, whose card type this routine sets.
 =1 46 32
 +   ULONG csFound = 0;
 =1 78 38
@@ -112,8 +136,9 @@
 =1 116 23
 +   // The entries that the configuration database does not have are those
 +   // of the network controller of the TURBOchannel in the hardware
-+   // description.  A system without one there (its LANCE is not on the
-+   // TURBOchannel) has no adapter of this card type.
++   // description.  A system without one there has no adapter of this card
++   // type.  The base address of the LANCE of the system slot, which has no
++   // memory of its own, is that of its registers.
 +   //
 +
 +   if (csCount < CS_NUM_OF_ENTRIES) {
@@ -151,15 +176,126 @@
 +            csCount++;
 +         }
 =1 133 3
-+      if (resources.Memory && !(csFound & (1 << BASE_ADDR))) {
++      if (resources.Port && resources.Memory && resources.Dma &&
++          !(csFound & (1 << BASE_ADDR))) {
++
++         PAdapter->LanceCard = LANCE_DECST;
++         PAdapter->IoBaseAddr = resources.PortAddress;
++         PAdapter->StationAddressRomAddress = resources.BaseAddress;
++         PAdapter->DmaChannel = resources.DmaChannel;
++         csFound |= 1 << BASE_ADDR;
++         csCount++;
++
++      } else if (resources.Memory && !(csFound & (1 << BASE_ADDR))) {
++
 +         PAdapter->HardwareBaseAddr = (PVOID)resources.BaseAddress;
 +         csFound |= 1 << BASE_ADDR;
 +         csCount++;
-+      }
-+
+=1 133 3
 =1 143 1
 +         status = NDIS_STATUS_SUCCESS;
 +      }
 +
 +   }
-=1 137 165
+=1 137 6
++      if ((csCount == CS_NUM_OF_ENTRIES) &&
++          (PAdapter->LanceCard == LANCE_DECST)) {
++
++         //
++         // The memory the LANCE of the system slot addresses, in a window
++         // of main memory (see LanceDecStAllocateMemory), the offsets of
++         // its RAP and RDP, which LanceRegisterAdapter fixes up when it
++         // maps its registers, as it maps its station address ROM.
++         //
++         PAdapter->AmountOfHardwareMemory = LANCE_DECST_HARDWARE_MEMORY;
+=1 159 1
++         PAdapter->HardwareBaseAddr = NULL;
++         PAdapter->RAP = (ULONG) LANCE_DECST_RAP_OFFSET;
++         PAdapter->RDP = (ULONG) LANCE_DECST_RDP_OFFSET;
+=1 168 1
++         PAdapter->NetworkHardwareAddress = 0;
++
++      } else if (csCount == CS_NUM_OF_ENTRIES) {
+=1 144 99
++   This routine extracts the network hardware address: a byte of it in
++   each longword of the station address ROM, the third byte of the
++   longword of the TURBOchannel option, the first of the LANCE of the
++   system slot.
+=1 244 17
++   ULONG shift;
++   UINT index;
+=1 263 2
++   shift = (PAdapter->LanceCard == LANCE_DECST) ? 0 : 16;
++
++   for (index = 0; index < LANCE_LENGTH_OF_ADDRESS; index++) {
++
+=1 265 1 3
++      PAdapter->NetworkAddress[index] = (UCHAR)(registerValue >> shift);
++
+=1 270 1 3
++
++   }
+=1 232 3
++
++NDIS_STATUS
++LanceDecStAllocateMemory(
+=1 39 5
++   This routine allocates the memory of the LANCE of the system slot: the
++   window of main memory that the Ethernet channel of the IO Control ASIC
++   gives the LANCE, shared memory of the adapter, for which it first
++   allocates the adapter of the channel, a bus master without map
++   registers.  The driver keeps the addresses of the memory the LANCE
++   addresses from the start of the window (see lancehrd.h).
+=1 205 7
++   NDIS_STATUS_SUCCESS - The memory was allocated.
+=1 213 6
++   NDIS_STATUS status;
++
++   status = NdisMAllocateMapRegisters(
++               PAdapter->MiniportAdapterHandle,
++               PAdapter->DmaChannel,
++               FALSE,
++               1,
++               LANCE_LARGE_BUFFER_SIZE
++               );
++
++   if (status != NDIS_STATUS_SUCCESS) {
++      return status;
++   }
++
++   NdisMAllocateSharedMemory(
++      PAdapter->MiniportAdapterHandle,
++      LANCE_DECST_WINDOW_SIZE,
++      FALSE,
++      &PAdapter->MmMappedBaseAddr,
++      &PAdapter->WindowPhysicalAddress
++      );
++
++   if (PAdapter->MmMappedBaseAddr == NULL) {
++
++      NdisMFreeMapRegisters(PAdapter->MiniportAdapterHandle);
++
++      return NDIS_STATUS_RESOURCES;
++
++   }
+=1 232 3
++
++VOID
++LanceDecStFreeMemory(
+=1 39 5
++   This routine frees the memory of the LANCE of the system slot, and the
++   adapter of its channel.
+=1 205 7
++   None.
+=1 56 5
++   NdisMFreeSharedMemory(
++      PAdapter->MiniportAdapterHandle,
++      LANCE_DECST_WINDOW_SIZE,
++      FALSE,
++      PAdapter->MmMappedBaseAddr,
++      PAdapter->WindowPhysicalAddress
++      );
++
++   NdisMFreeMapRegisters(PAdapter->MiniportAdapterHandle);
++}
++#endif // i386
